@@ -29,7 +29,7 @@ class GlassHeader extends ConsumerWidget implements PreferredSizeWidget {
   @override
   Size get preferredSize {
     final hasTitle = title != null && title!.isNotEmpty;
-    return Size.fromHeight(hasTitle ? 116.0 : 60.0);
+    return Size.fromHeight(hasTitle ? 112.0 : 60.0);
   }
 
   @override
@@ -60,7 +60,7 @@ class GlassHeader extends ConsumerWidget implements PreferredSizeWidget {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                // Top Status Bar Safe Area + WhatsApp-style primary brand row
+                // 1. TOP FIXED BRAND ROW (Always present across every page: Logo + Theme toggle + Profile Avatar)
                 Padding(
                   padding: EdgeInsets.only(top: topPadding),
                   child: SizedBox(
@@ -134,7 +134,7 @@ class GlassHeader extends ConsumerWidget implements PreferredSizeWidget {
                     ),
                   ),
                 ),
-                // Subheader row for page title and back button (if title is present)
+                // 2. SUBHEADER ROW FOR PAGE TITLE & BACK BUTTON (Directly below brand row)
                 if (hasTitle)
                   Container(
                     height: 52,
