@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
-import '../../core/theme/app_colors.dart';
+import '../../core/widgets/glass_card.dart';
+import '../../core/theme/glass_theme.dart';
 
 class AppCard extends StatelessWidget {
   final Widget child;
@@ -25,36 +26,17 @@ class AppCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final bg = backgroundColor ?? (isDark ? AppColors.darkCardBackground : AppColors.lightCardBackground);
-    final borderColor = isDark ? AppColors.darkBorderSubtle : AppColors.lightBorderSubtle;
-    final shadow = boxShadow ?? (isDark ? const [] : AppShadows.cardSoft);
-    final radius = borderRadius ?? AppRadius.card;
-
-    Widget content = Container(
-      margin: margin,
+    return GlassCard(
+      blur: false,
+      radius: borderRadius,
+      fillColor: backgroundColor,
+      borderColor: border?.top.color,
+      shadow: boxShadow,
       padding: padding ?? const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: bg,
-        borderRadius: BorderRadius.circular(radius),
-        border: border ?? Border.all(color: borderColor, width: 1),
-        boxShadow: shadow,
-      ),
+      margin: margin,
+      onTap: onTap,
       child: child,
     );
-
-    if (onTap != null) {
-      return Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: onTap,
-          borderRadius: BorderRadius.circular(radius),
-          child: content,
-        ),
-      );
-    }
-
-    return content;
   }
 }
 
@@ -78,7 +60,7 @@ class StatCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final glass = context.glass;
 
     return AppCard(
       child: Column(
@@ -92,7 +74,7 @@ class StatCard extends StatelessWidget {
                 child: Text(
                   title,
                   style: TextStyle(
-                    color: isDark ? AppColors.darkSecondaryText : AppColors.lightSecondaryText,
+                    color: glass.textSecondary,
                     fontSize: 12,
                     fontWeight: FontWeight.w600,
                   ),
@@ -114,7 +96,7 @@ class StatCard extends StatelessWidget {
           Text(
             value,
             style: TextStyle(
-              color: isDark ? AppColors.darkPrimaryText : AppColors.lightPrimaryText,
+              color: glass.textPrimary,
               fontSize: 20,
               fontWeight: FontWeight.w800,
               letterSpacing: -0.3,
@@ -125,7 +107,7 @@ class StatCard extends StatelessWidget {
             Text(
               subtitle!,
               style: TextStyle(
-                color: isDark ? AppColors.darkMutedText : AppColors.lightMutedText,
+                color: glass.textSecondary,
                 fontSize: 11,
               ),
               maxLines: 1,

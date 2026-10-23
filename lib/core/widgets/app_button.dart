@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
-import '../theme/app_colors.dart';
+import '../theme/glass_theme.dart';
 
 class AppButton extends StatelessWidget {
   final String label;
   final VoidCallback? onPressed;
   final bool isPrimary;
+  final bool isDestructive;
   final bool isLoading;
   final IconData? icon;
   final Color? backgroundColor;
@@ -17,6 +18,7 @@ class AppButton extends StatelessWidget {
     required this.label,
     required this.onPressed,
     this.isPrimary = true,
+    this.isDestructive = false,
     this.isLoading = false,
     this.icon,
     this.backgroundColor,
@@ -27,11 +29,7 @@ class AppButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-
-    final fg = foregroundColor ?? (isPrimary 
-        ? Colors.white
-        : (isDark ? AppColors.darkTextPrimary : AppColors.primary));
+    final fg = foregroundColor ?? Colors.white;
 
     final child = isLoading
         ? SizedBox(
@@ -61,41 +59,50 @@ class AppButton extends StatelessWidget {
             ],
           );
 
-    if (isPrimary) {
+    final gradientColors = isDestructive
+        ? const [Color(0xFFEF4444), Color(0xFFDC2626)]
+        : const [Color(0xFF14B8A6), Color(0xFF0F766E)];
+
+    if (isPrimary || isDestructive) {
       return Container(
         width: width ?? double.infinity,
         height: height,
         decoration: BoxDecoration(
           gradient: LinearGradient(
-            colors: isDark 
-                ? const [AppColors.accentCyan, AppColors.primaryLight]
-                : const [AppColors.primaryLight, AppColors.primaryDark],
+            colors: gradientColors,
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
           ),
-          borderRadius: BorderRadius.circular(AppRadius.button),
-          boxShadow: AppShadows.cardSoft,
+          borderRadius: BorderRadius.circular(14),
+          boxShadow: [
+            BoxShadow(
+              color: gradientColors.last.withOpacity(0.35),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
+            ),
+          ],
         ),
         child: ElevatedButton(
           onPressed: isLoading ? null : onPressed,
           style: ElevatedButton.styleFrom(
             backgroundColor: Colors.transparent,
             shadowColor: Colors.transparent,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.button)),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
           ),
           child: child,
         ),
       );
     } else {
+      final glass = context.glass;
       return SizedBox(
         width: width ?? double.infinity,
         height: height,
         child: OutlinedButton(
           onPressed: isLoading ? null : onPressed,
           style: OutlinedButton.styleFrom(
-            foregroundColor: fg,
-            side: BorderSide(color: isDark ? AppColors.accentCyan : AppColors.primary, width: 1.2),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.button)),
+            foregroundColor: glass.textPrimary,
+            side: BorderSide(color: glass.cardBorder, width: 1.2),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
           ),
           child: child,
         ),

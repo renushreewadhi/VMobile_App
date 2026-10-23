@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
-import '../../core/theme/app_colors.dart';
+import '../../core/theme/glass_theme.dart';
 
-enum ButtonType { primary, secondary, outlined, text }
+enum ButtonType { primary, secondary, outlined, text, destructive }
 
 class CustomButton extends StatelessWidget {
   final String text;
@@ -25,7 +25,7 @@ class CustomButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final glass = context.glass;
 
     Widget child = isLoading
         ? SizedBox(
@@ -35,7 +35,7 @@ class CustomButton extends StatelessWidget {
               strokeWidth: 2.5,
               valueColor: AlwaysStoppedAnimation<Color>(
                 type == ButtonType.outlined || type == ButtonType.text
-                    ? (isDark ? AppColors.primaryLight : AppColors.primary)
+                    ? glass.textPrimary
                     : Colors.white,
               ),
             ),
@@ -45,12 +45,16 @@ class CustomButton extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             children: [
               if (icon != null) ...[
-                Icon(icon, size: 18),
+                Icon(icon, size: 18, color: type == ButtonType.outlined || type == ButtonType.text ? glass.textPrimary : Colors.white),
                 const SizedBox(width: 8),
               ],
               Text(
                 text,
-                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14.5),
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 14.5,
+                  color: type == ButtonType.outlined || type == ButtonType.text ? glass.textPrimary : Colors.white,
+                ),
               ),
             ],
           );
@@ -58,38 +62,36 @@ class CustomButton extends StatelessWidget {
     Widget button;
     switch (type) {
       case ButtonType.primary:
+      case ButtonType.secondary:
+      case ButtonType.destructive:
+        final gradientColors = type == ButtonType.destructive
+            ? const [Color(0xFFEF4444), Color(0xFFDC2626)]
+            : const [Color(0xFF14B8A6), Color(0xFF0F766E)];
         button = Container(
           decoration: BoxDecoration(
             gradient: LinearGradient(
-              colors: isDark
-                  ? const [AppColors.accentCyan, AppColors.primaryLight]
-                  : const [AppColors.primaryLight, AppColors.primaryDark],
+              colors: gradientColors,
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
             ),
-            borderRadius: BorderRadius.circular(AppRadius.button),
-            boxShadow: AppShadows.cardSoft,
+            borderRadius: BorderRadius.circular(14),
+            boxShadow: [
+              BoxShadow(
+                color: gradientColors.last.withOpacity(0.35),
+                blurRadius: 10,
+                offset: const Offset(0, 4),
+              ),
+            ],
           ),
           child: ElevatedButton(
             onPressed: isLoading ? null : onPressed,
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.transparent,
               shadowColor: Colors.transparent,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.button)),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
             ),
             child: child,
           ),
-        );
-        break;
-      case ButtonType.secondary:
-        button = ElevatedButton(
-          onPressed: isLoading ? null : onPressed,
-          style: ElevatedButton.styleFrom(
-            backgroundColor: Theme.of(context).colorScheme.secondary,
-            foregroundColor: Colors.white,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.button)),
-          ),
-          child: child,
         );
         break;
       case ButtonType.outlined:
@@ -97,10 +99,10 @@ class CustomButton extends StatelessWidget {
           onPressed: isLoading ? null : onPressed,
           style: OutlinedButton.styleFrom(
             side: BorderSide(
-              color: isDark ? AppColors.primaryLight : AppColors.primary,
+              color: glass.cardBorder,
               width: 1.2,
             ),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.button)),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
           ),
           child: child,
         );
