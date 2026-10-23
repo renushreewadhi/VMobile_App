@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/auth/auth_service.dart';
+import '../../core/theme/glass_theme.dart';
 import '../../core/widgets/glass_scaffold.dart';
 import '../../core/widgets/glass_header.dart';
 import '../../core/widgets/glass_search_bar.dart';
@@ -361,9 +362,25 @@ class _MoreScreenState extends ConsumerState<MoreScreen> {
     }).toList();
 
     return GlassScaffold(
-      appBar: const GlassHeader(
+      showBottomBar: widget.showAppBar,
+      appBar: GlassHeader(
         title: "More Modules",
         userInitial: "E",
+        leading: Container(
+          width: 40,
+          height: 40,
+          decoration: BoxDecoration(
+            color: context.glass.headerIconTileFill,
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Center(
+            child: Icon(
+              Icons.apartment_rounded,
+              size: 22,
+              color: context.glass.headerIconColor,
+            ),
+          ),
+        ),
       ),
       body: ListView(
         padding: const EdgeInsets.only(top: 4, bottom: 20),

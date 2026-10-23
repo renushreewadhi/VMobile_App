@@ -175,32 +175,14 @@ class _EmployeeDashboardScreenState extends ConsumerState<EmployeeDashboardScree
                     children: [
                       Text(
                         _greeting(employeeName),
-                        style: TextStyle(
-                          color: isDark ? AppColors.darkPrimaryText : AppColors.lightPrimaryText,
-                          fontSize: 18,
-                          fontWeight: FontWeight.w800,
-                        ),
+                        style: Theme.of(context).textTheme.headlineMedium,
                       ),
                       const SizedBox(height: 2),
                       Text(
                         _dateLabel(DateTime.now()),
-                        style: TextStyle(
-                          color: isDark ? AppColors.darkMutedText : AppColors.lightMutedText,
-                          fontSize: 12,
-                        ),
+                        style: Theme.of(context).textTheme.bodyMedium,
                       ),
                     ],
-                  ),
-                ),
-                GestureDetector(
-                  onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const MyProfileScreen())),
-                  child: CircleAvatar(
-                    radius: 20,
-                    backgroundColor: AppColors.primary,
-                    child: Text(
-                      employeeName.isNotEmpty ? employeeName[0].toUpperCase() : 'E',
-                      style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15),
-                    ),
                   ),
                 ),
               ],

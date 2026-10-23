@@ -302,7 +302,7 @@ class GlassTheme extends ThemeExtension<GlassTheme> {
     successTint: Color(0x2610B981),
     successText: Color(0xFF047857),
     warningTint: Color(0x26F59E0B),
-    warningText: Color(0xFFB45309),
+    warningText: Color(0xFF92400E),
     errorTint: Color(0x26EF4444),
     errorText: Color(0xFFB91C1C),
     infoTint: Color(0x2638BDF8),
@@ -381,7 +381,7 @@ class GlassTheme extends ThemeExtension<GlassTheme> {
     infoTint: Color(0x3338BDF8),
     infoText: Color(0xFF38BDF8),
     pendingTint: Color(0x33818CF8),
-    pendingText: Color(0xFF818CF8),
+    pendingText: Color(0xFFA5B4FC),
   );
 }
 

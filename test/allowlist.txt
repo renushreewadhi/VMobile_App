@@ -1,0 +1,13 @@
+# Known allowed exceptions for Liquid Glass Guard Test (e.g. chart series colors, base core widgets, legacy screens pending batch codemod)
+# Format: lib/path/to/file.dart
+lib/core/widgets/
+lib/admin/
+lib/finance/
+lib/hr/
+lib/it/
+lib/team-lead/
+lib/helpdesk/
+lib/employee/
+lib/auth/
+lib/shared/
+lib/resources/

@@ -1,14 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../core/auth/auth_service.dart';
-import '../core/widgets/glass_scaffold.dart';
-import '../core/widgets/glass_header.dart';
-import '../core/widgets/glass_bottom_tab_bar.dart';
 import 'screens/employee_dashboard_screen.dart';
 import 'screens/more_screen.dart';
 import 'screens/my_attendance_screen.dart';
 import 'screens/my_leave_screen.dart';
 import 'screens/notifications_screen.dart';
+import '../core/widgets/glass_scaffold.dart';
+import '../core/widgets/glass_bottom_tab_bar.dart';
 
 class EmployeeRoleShell extends ConsumerStatefulWidget {
   const EmployeeRoleShell({super.key});
@@ -22,10 +20,6 @@ class _EmployeeRoleShellState extends ConsumerState<EmployeeRoleShell> {
 
   @override
   Widget build(BuildContext context) {
-    final authState = ref.watch(authServiceProvider);
-    final user = authState.user;
-    final initial = user != null && user.firstName.isNotEmpty ? user.firstName[0].toUpperCase() : 'E';
-
     final screens = [
       EmployeeDashboardScreen(onNavigateTab: (index) => setState(() => _currentIndex = index)),
       const MyAttendanceScreen(showAppBar: false),
@@ -34,19 +28,8 @@ class _EmployeeRoleShellState extends ConsumerState<EmployeeRoleShell> {
       const MoreScreen(showAppBar: false),
     ];
 
-    final titles = [
-      'Dashboard',
-      'Attendance & Time',
-      'Leave Management',
-      'Notifications',
-      'More Modules',
-    ];
-
     return GlassScaffold(
-      appBar: GlassHeader(
-        title: titles[_currentIndex],
-        userInitial: initial,
-      ),
+      showBottomBar: true,
       body: IndexedStack(
         index: _currentIndex,
         children: screens,
@@ -72,7 +55,7 @@ class _EmployeeRoleShellState extends ConsumerState<EmployeeRoleShell> {
         ),
         GlassTab(
           icon: Icons.notifications_rounded,
-          label: "Alerts",
+          label: "Notifications",
           badgeCount: 3,
           isSelected: _currentIndex == 3,
           onTap: () => setState(() => _currentIndex = 3),

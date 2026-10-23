@@ -3,7 +3,7 @@ import 'app_colors.dart';
 import 'glass_theme.dart';
 
 class AppTheme {
-  static const String fontFamily = 'PlusJakartaSans';
+  static const String fontFamily = 'Plus Jakarta Sans';
 
   static ThemeData get lightTheme {
     return ThemeData(
@@ -11,7 +11,7 @@ class AppTheme {
       brightness: Brightness.light,
       fontFamily: fontFamily,
       primaryColor: AppColors.primary,
-      scaffoldBackgroundColor: AppColors.lightAppBackground,
+      scaffoldBackgroundColor: Colors.transparent,
       extensions: [
         AppColorsExtension.light,
         GlassTheme.light,
@@ -54,7 +54,7 @@ class AppTheme {
       brightness: Brightness.dark,
       fontFamily: fontFamily,
       primaryColor: AppColors.primaryLight,
-      scaffoldBackgroundColor: AppColors.darkAppBackground,
+      scaffoldBackgroundColor: Colors.transparent,
       extensions: [
         AppColorsExtension.dark,
         GlassTheme.dark,

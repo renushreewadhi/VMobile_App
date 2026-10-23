@@ -13,7 +13,6 @@ class AppBackground extends ConsumerWidget {
 
     return Stack(
       children: [
-        // Base gradient & blobs (IgnorePointer, RepaintBoundary)
         RepaintBoundary(
           child: IgnorePointer(
             child: Container(
@@ -28,69 +27,17 @@ class AppBackground extends ConsumerWidget {
                 children: [
                   if (isDark) ...[
                     Positioned(
-                      top: -50,
-                      left: -50,
+                      top: -60,
+                      left: -60,
                       child: Container(
-                        width: 320,
-                        height: 320,
+                        width: 360,
+                        height: 360,
                         decoration: BoxDecoration(
                           shape: BoxShape.circle,
                           gradient: RadialGradient(
                             colors: [
-                              glass.blobColors[0].withOpacity(glass.blobOpacities[0]),
-                              glass.blobColors[0].withOpacity(0),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ),
-                    Positioned(
-                      top: 250,
-                      right: -80,
-                      child: Container(
-                        width: 300,
-                        height: 300,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          gradient: RadialGradient(
-                            colors: [
-                              glass.blobColors[1].withOpacity(glass.blobOpacities[1]),
-                              glass.blobColors[1].withOpacity(0),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ),
-                    Positioned(
-                      bottom: -50,
-                      left: 60,
-                      child: Container(
-                        width: 340,
-                        height: 340,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          gradient: RadialGradient(
-                            colors: [
-                              glass.blobColors[2].withOpacity(glass.blobOpacities[2]),
-                              glass.blobColors[2].withOpacity(0),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ),
-                  ] else ...[
-                    Positioned(
-                      top: -40,
-                      left: -40,
-                      child: Container(
-                        width: 300,
-                        height: 280,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          gradient: RadialGradient(
-                            colors: [
-                              glass.blobColors[0].withOpacity(glass.blobOpacities[0]),
-                              glass.blobColors[0].withOpacity(0),
+                              const Color(0xFF0F9D8A).withOpacity(0.85),
+                              const Color(0xFF0F9D8A).withOpacity(0),
                             ],
                           ),
                         ),
@@ -98,33 +45,85 @@ class AppBackground extends ConsumerWidget {
                     ),
                     Positioned(
                       top: 220,
-                      right: -60,
+                      right: -90,
                       child: Container(
-                        width: 280,
-                        height: 300,
+                        width: 340,
+                        height: 340,
                         decoration: BoxDecoration(
                           shape: BoxShape.circle,
                           gradient: RadialGradient(
                             colors: [
-                              glass.blobColors[1].withOpacity(glass.blobOpacities[1]),
-                              glass.blobColors[1].withOpacity(0),
+                              const Color(0xFF4F46E5).withOpacity(0.85),
+                              const Color(0xFF4F46E5).withOpacity(0),
                             ],
                           ),
                         ),
                       ),
                     ),
                     Positioned(
-                      bottom: -60,
+                      bottom: -70,
                       left: 40,
                       child: Container(
-                        width: 340,
-                        height: 260,
+                        width: 380,
+                        height: 380,
                         decoration: BoxDecoration(
                           shape: BoxShape.circle,
                           gradient: RadialGradient(
                             colors: [
-                              glass.blobColors[2].withOpacity(glass.blobOpacities[2]),
-                              glass.blobColors[2].withOpacity(0),
+                              const Color(0xFFC2570C).withOpacity(0.80),
+                              const Color(0xFFC2570C).withOpacity(0),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ] else ...[
+                    Positioned(
+                      top: -50,
+                      left: -50,
+                      child: Container(
+                        width: 340,
+                        height: 340,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          gradient: RadialGradient(
+                            colors: [
+                              const Color(0xFF5FD6C3).withOpacity(0.85),
+                              const Color(0xFF5FD6C3).withOpacity(0),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                    Positioned(
+                      top: 200,
+                      right: -70,
+                      child: Container(
+                        width: 320,
+                        height: 340,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          gradient: RadialGradient(
+                            colors: [
+                              const Color(0xFFA99CF0).withOpacity(0.80),
+                              const Color(0xFFA99CF0).withOpacity(0),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                    Positioned(
+                      bottom: -80,
+                      left: 30,
+                      child: Container(
+                        width: 380,
+                        height: 320,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          gradient: RadialGradient(
+                            colors: [
+                              const Color(0xFFFFC9A0).withOpacity(0.85),
+                              const Color(0xFFFFC9A0).withOpacity(0),
                             ],
                           ),
                         ),
@@ -136,7 +135,6 @@ class AppBackground extends ConsumerWidget {
             ),
           ),
         ),
-        // Actual interactive content
         child,
       ],
     );
