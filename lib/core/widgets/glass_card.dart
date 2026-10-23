@@ -1,8 +1,10 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../theme/glass_theme.dart';
+import '../theme/theme_provider.dart';
 
-class GlassSurface extends StatelessWidget {
+class GlassSurface extends ConsumerWidget {
   final Widget child;
   final double? radius;
   final bool blur;
@@ -31,9 +33,10 @@ class GlassSurface extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final mediaQuery = MediaQuery.of(context);
-    final reduceTransparency = mediaQuery.highContrast || mediaQuery.disableAnimations;
+    final reduceTransparencySetting = ref.watch(reduceTransparencyProvider);
+    final reduceTransparency = mediaQuery.highContrast || mediaQuery.disableAnimations || reduceTransparencySetting;
     final glass = context.glass;
 
     final r = radius ?? glass.cardRadius;

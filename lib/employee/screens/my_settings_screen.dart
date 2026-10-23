@@ -7,6 +7,7 @@ import '../../auth/login_screen.dart';
 import '../../core/auth/auth_service.dart';
 import '../../core/api/api_client.dart';
 import '../../core/theme/app_colors.dart';
+import '../../core/theme/theme_provider.dart';
 import '../../shared/widgets/app_card.dart';
 import '../../shared/widgets/status_chip.dart';
 
@@ -577,6 +578,8 @@ class _MySettingsScreenState extends ConsumerState<MySettingsScreen> {
                     const SizedBox(height: 20),
 
                     // 2-Column Grid / Stack on Mobile
+                    _buildAppearanceCard(isDark),
+                    const SizedBox(height: 20),
                     _buildAccountCard(isDark),
                     const SizedBox(height: 20),
                     _buildSecurityCard(isDark),
@@ -585,6 +588,58 @@ class _MySettingsScreenState extends ConsumerState<MySettingsScreen> {
               ),
             ),
       bottomSheet: _buildModals(isDark),
+    );
+  }
+
+  Widget _buildAppearanceCard(bool isDark) {
+    final themeMode = ref.watch(themeProvider);
+    final reduceTransparency = ref.watch(reduceTransparencyProvider);
+
+    return AppCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(color: AppColors.lightPrimary, borderRadius: BorderRadius.circular(20)),
+                child: const Icon(Icons.palette_outlined, color: AppColors.primary, size: 20),
+              ),
+              const SizedBox(width: 12),
+              const Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Appearance & Accessibility', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                  Text('Customize theme and glassmorphism transparency', style: TextStyle(fontSize: 12, color: AppColors.lightSecondaryText)),
+                ],
+              ),
+            ],
+          ),
+          const Divider(height: 24),
+          _settingItem(
+            icon: Icons.nightlight_round,
+            color: Colors.indigo,
+            title: 'Dark Mode',
+            subtitle: 'Switch between light and dark liquid glass themes',
+            trailing: Switch(
+              value: themeMode == ThemeMode.dark,
+              onChanged: (_) => ref.read(themeProvider.notifier).toggleTheme(),
+            ),
+          ),
+          const Divider(height: 1),
+          _settingItem(
+            icon: Icons.blur_off_rounded,
+            color: Colors.teal,
+            title: 'Reduce Transparency',
+            subtitle: 'Disable blur effects and use solid glass fills',
+            trailing: Switch(
+              value: reduceTransparency,
+              onChanged: (_) => ref.read(reduceTransparencyProvider.notifier).toggle(),
+            ),
+          ),
+        ],
+      ),
     );
   }
 
