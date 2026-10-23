@@ -1,0 +1,6 @@
+- `[x]` 1. Update ItRoleShell & core IT screens (Dashboard, Assets, Tickets)
+- `[x]` 2. Implement ItAssetRequestsScreen & ItSoftwareScreen
+- `[x]` 3. Implement ItAccessScreen & ItOnboardingScreen
+- `[x]` 4. Implement ItOffboardingScreen & ItSecurityScreen
+- `[x]` 5. Implement ItReportsScreen & ItEmployeeAccounts / Create screens
+- `[x]` 6. Verify build, analyze code, and run tests
