@@ -363,25 +363,27 @@ class _MoreScreenState extends ConsumerState<MoreScreen> {
 
     return GlassScaffold(
       showBottomBar: widget.showAppBar,
-      appBar: GlassHeader(
-        title: "More Modules",
-        userInitial: "E",
-        leading: Container(
-          width: 40,
-          height: 40,
-          decoration: BoxDecoration(
-            color: context.glass.headerIconTileFill,
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: Center(
-            child: Icon(
-              Icons.apartment_rounded,
-              size: 22,
-              color: context.glass.headerIconColor,
-            ),
-          ),
-        ),
-      ),
+      appBar: widget.showAppBar
+          ? GlassHeader(
+              title: "More Modules",
+              userInitial: "E",
+              leading: Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: context.glass.headerIconTileFill,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Center(
+                  child: Icon(
+                    Icons.apartment_rounded,
+                    size: 22,
+                    color: context.glass.headerIconColor,
+                  ),
+                ),
+              ),
+            )
+          : null,
       body: ListView(
         padding: const EdgeInsets.only(top: 4, bottom: 20),
         children: [
