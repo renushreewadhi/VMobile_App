@@ -25,7 +25,6 @@ class GlassScaffold extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final topPadding = MediaQuery.paddingOf(context).top;
     final bottomPadding = MediaQuery.paddingOf(context).bottom;
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
@@ -49,24 +48,18 @@ class GlassScaffold extends StatelessWidget {
           const Positioned.fill(
             child: AppBackground(child: SizedBox.expand()),
           ),
-          Positioned.fill(
-            child: Column(
-              children: [
-                if (appBar != null)
-                  Padding(
-                    padding: EdgeInsets.only(top: topPadding + 4),
-                    child: appBar,
+          Column(
+            children: [
+              if (appBar != null) appBar!,
+              Expanded(
+                child: Padding(
+                  padding: EdgeInsets.only(
+                    bottom: (showBottomBar && tabs != null) ? (85.0 + bottomPadding) : 0.0,
                   ),
-                Expanded(
-                  child: Padding(
-                    padding: EdgeInsets.only(
-                      bottom: (showBottomBar && tabs != null) ? (85.0 + bottomPadding) : 0.0,
-                    ),
-                    child: body,
-                  ),
+                  child: body,
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
           if (showBottomBar && tabs != null) GlassBottomTabBar(tabs: tabs!),
         ],
