@@ -5,6 +5,7 @@ import '../core/auth/auth_service.dart';
 import '../core/theme/app_colors.dart';
 import '../core/widgets/app_button.dart';
 import '../core/widgets/app_card.dart';
+import '../core/widgets/app_background.dart';
 import 'forgot_password_screen.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {
@@ -54,50 +55,52 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
-      backgroundColor: isDark ? AppColors.darkAppBackground : AppColors.lightAppBackground,
+      backgroundColor: Colors.transparent,
       resizeToAvoidBottomInset: true,
-      body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.fromLTRB(22, 17, 22, 16),
-          child: Center(
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 440),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _buildHeader(isDark),
-                  const SizedBox(height: 25),
-                  Text(
-                    'Welcome back.',
-                    style: TextStyle(
-                      color: isDark ? AppColors.darkPrimaryText : AppColors.lightPrimaryText,
-                      fontSize: 31,
-                      fontWeight: FontWeight.w700,
-                      letterSpacing: -0.7,
-                    ),
-                  ),
-                  const SizedBox(height: 7),
-                  Text(
-                    'Sign in to access your workplace.',
-                    style: TextStyle(
-                      color: isDark ? AppColors.darkSecondaryText : AppColors.lightSecondaryText,
-                      fontSize: 13,
-                    ),
-                  ),
-                  const SizedBox(height: 23),
-                  _buildLoginCard(isDark, authState.isLoading),
-                  const SizedBox(height: 16),
-                  Center(
-                    child: Text(
-                      'PEOPLE  •  PROCESS  •  PROGRESS',
+      body: AppBackground(
+        child: SafeArea(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.fromLTRB(22, 17, 22, 16),
+            child: Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 440),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _buildHeader(isDark),
+                    const SizedBox(height: 25),
+                    Text(
+                      'Welcome back.',
                       style: TextStyle(
-                        color: isDark ? AppColors.darkMutedText : AppColors.lightMutedText,
-                        fontSize: 9,
-                        letterSpacing: 1.5,
+                        color: isDark ? AppColors.darkPrimaryText : AppColors.lightPrimaryText,
+                        fontSize: 31,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: -0.7,
                       ),
                     ),
-                  ),
-                ],
+                    const SizedBox(height: 7),
+                    Text(
+                      'Sign in to access your workplace.',
+                      style: TextStyle(
+                        color: isDark ? AppColors.darkSecondaryText : AppColors.lightSecondaryText,
+                        fontSize: 13,
+                      ),
+                    ),
+                    const SizedBox(height: 23),
+                    _buildLoginCard(isDark, authState.isLoading),
+                    const SizedBox(height: 16),
+                    Center(
+                      child: Text(
+                        'PEOPLE  •  PROCESS  •  PROGRESS',
+                        style: TextStyle(
+                          color: isDark ? AppColors.darkMutedText : AppColors.lightMutedText,
+                          fontSize: 9,
+                          letterSpacing: 1.5,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
           ),
