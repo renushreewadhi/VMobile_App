@@ -5,6 +5,9 @@ import '../../core/api/api_client.dart';
 import '../../core/api/api_endpoints.dart';
 import '../../core/auth/auth_service.dart';
 import '../../core/theme/app_colors.dart';
+import '../../core/theme/glass_theme.dart';
+import '../../core/widgets/glass_card.dart';
+import '../../core/widgets/app_background.dart';
 import '../../shared/widgets/status_chip.dart';
 
 enum _AttendanceSection { history, shift, corrections, rules }
@@ -240,12 +243,12 @@ class _MyAttendanceScreenState extends ConsumerState<MyAttendanceScreen> {
       ),
     );
 
-    if (!widget.showAppBar) return Scaffold(backgroundColor: isDark ? AppColors.darkAppBackground : AppColors.lightAppBackground, body: SafeArea(child: content));
+    if (!widget.showAppBar) return Scaffold(backgroundColor: Colors.transparent, body: AppBackground(child: SafeArea(child: content)));
 
     return Scaffold(
-      backgroundColor: isDark ? AppColors.darkAppBackground : AppColors.lightAppBackground,
+      backgroundColor: Colors.transparent,
       appBar: AppBar(title: const Text('My Attendance')),
-      body: content,
+      body: AppBackground(child: content),
     );
   }
 

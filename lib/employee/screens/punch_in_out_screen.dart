@@ -13,6 +13,9 @@ import '../../core/api/api_client.dart';
 import '../../core/api/api_endpoints.dart';
 import '../../core/auth/auth_service.dart';
 import '../../core/theme/app_colors.dart';
+import '../../core/theme/glass_theme.dart';
+import '../../core/widgets/glass_card.dart';
+import '../../core/widgets/app_background.dart';
 import 'apply_leave_screen.dart';
 import 'my_attendance_screen.dart';
 
@@ -760,21 +763,22 @@ class _PunchInOutScreenState extends ConsumerState<PunchInOutScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final glass = context.glass;
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final textColor = isDark ? AppColors.darkPrimaryText : AppColors.lightPrimaryText;
-    final mutedColor = isDark ? AppColors.darkSecondaryText : AppColors.lightSecondaryText;
-    final surfaceColor = isDark ? AppColors.darkMainSurface : AppColors.lightMainSurface;
-    final borderColor = isDark ? AppColors.darkBordersAndDividers : AppColors.lightBordersAndDividers;
+    final textColor = glass.textPrimary;
+    final mutedColor = glass.textSecondary;
+    final surfaceColor = glass.cardFill;
+    final borderColor = glass.cardBorder;
 
     return Scaffold(
-      backgroundColor: isDark ? AppColors.darkAppBackground : AppColors.lightAppBackground,
-      appBar: AppBar(title: const Text('Punch In / Out')),
-      body: SafeArea(
-        bottom: false,
-        child: RefreshIndicator(
-          onRefresh: _loadAllData,
-          child: CustomScrollView(
-            physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
+      backgroundColor: Colors.transparent,
+      body: AppBackground(
+        child: SafeArea(
+          bottom: false,
+          child: RefreshIndicator(
+            onRefresh: _loadAllData,
+            child: CustomScrollView(
+              physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
             slivers: [
               SliverPadding(
                 padding: const EdgeInsets.fromLTRB(16, 12, 16, 36),
@@ -864,7 +868,8 @@ class _PunchInOutScreenState extends ConsumerState<PunchInOutScreen> {
           ),
         ),
       ),
-    );
+    ),
+  );
   }
 
   Widget _buildRefreshButton(bool dark, Color surface, Color border, Color text) {
