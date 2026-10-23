@@ -1,8 +1,10 @@
-import '../../core/auth/auth_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+
 import '../../core/api/api_client.dart';
+import '../../core/auth/auth_service.dart';
 import '../../core/theme/app_colors.dart';
+import '../../core/widgets/glass_scaffold.dart';
 import '../../shared/widgets/app_card.dart';
 import '../../shared/widgets/custom_button.dart';
 import '../../shared/widgets/custom_text_field.dart';
@@ -53,8 +55,8 @@ class _WfhApplyScreenState extends ConsumerState<WfhApplyScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('Work From Home (WFH) Application')),
+    return GlassScaffold(
+      title: 'Work From Home (WFH) Application',
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
         child: AppCard(

@@ -6,6 +6,7 @@ import '../../core/api/api_client.dart';
 import '../../core/api/api_endpoints.dart';
 import '../../core/auth/auth_service.dart';
 import '../../core/theme/app_colors.dart';
+import '../../core/widgets/glass_scaffold.dart';
 import '../../shared/widgets/app_card.dart';
 import '../../shared/widgets/loading_shimmer.dart';
 import '../../shared/widgets/status_chip.dart';
@@ -328,10 +329,6 @@ class _BreakTrackerScreenState extends ConsumerState<BreakTrackerScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            if (!widget.showAppBar) ...[
-              _buildHeader(isDark),
-              const SizedBox(height: 16),
-            ],
             _buildActiveBreakCard(isDark),
             const SizedBox(height: 20),
             _buildBreakAllowances(isDark),
@@ -344,11 +341,10 @@ class _BreakTrackerScreenState extends ConsumerState<BreakTrackerScreen> {
       ),
     );
 
-    if (!widget.showAppBar) return Scaffold(backgroundColor: isDark ? AppColors.darkAppBackground : AppColors.lightAppBackground, body: SafeArea(child: content));
+    if (!widget.showAppBar) return content;
 
-    return Scaffold(
-      backgroundColor: isDark ? AppColors.darkAppBackground : AppColors.lightAppBackground,
-      appBar: AppBar(title: const Text('Break Tracker')),
+    return GlassScaffold(
+      title: 'Break Tracker',
       body: content,
     );
   }
