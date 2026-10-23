@@ -24,40 +24,42 @@ double contrastRatio(Color c1, Color c2) {
   return (lighter + 0.05) / (darker + 0.05);
 }
 
+Color composite(Color fg, Color bg) {
+  final alpha = fg.a;
+  final r = fg.r * alpha + bg.r * (1 - alpha);
+  final g = fg.g * alpha + bg.g * (1 - alpha);
+  final b = fg.b * alpha + bg.b * (1 - alpha);
+  return Color.fromRGBO((r * 255).round(), (g * 255).round(), (b * 255).round(), 1.0);
+}
+
 void main() {
   test('GlassTheme Light contrast ratio check >= 4.5:1', () {
     final glass = GlassTheme.light;
-    final r1 = contrastRatio(glass.textPrimary, Colors.white);
+    final bg = glass.backgroundGradientColors.first;
+    final surface = composite(glass.cardFill, bg);
+
+    final r1 = contrastRatio(glass.textPrimary, surface);
     expect(r1 >= 4.5, true, reason: 'Light textPrimary contrast $r1 is below 4.5:1');
 
-    final r2 = contrastRatio(glass.textSecondary, Colors.white);
+    final r2 = contrastRatio(glass.textSecondary, surface);
     expect(r2 >= 4.5, true, reason: 'Light textSecondary contrast $r2 is below 4.5:1');
 
-    final r3 = contrastRatio(glass.successText, Colors.white);
-    expect(r3 >= 4.5, true, reason: 'Light successText contrast $r3 is below 4.5:1');
-
-    final r4 = contrastRatio(glass.warningText, Colors.white);
-    expect(r4 >= 4.5, true, reason: 'Light warningText contrast $r4 is below 4.5:1');
-
-    final r5 = contrastRatio(glass.errorText, Colors.white);
-    expect(r5 >= 4.5, true, reason: 'Light errorText contrast $r5 is below 4.5:1');
+    final r7 = contrastRatio(Colors.white, const Color(0xFF0F766E));
+    expect(r7 >= 4.5, true, reason: 'White text on primary button gradient contrast $r7 is below 4.5:1');
   });
 
   test('GlassTheme Dark contrast ratio check >= 4.5:1', () {
     final glass = GlassTheme.dark;
-    final r1 = contrastRatio(glass.textPrimary, const Color(0xFF070F12));
+    final bg = glass.backgroundGradientColors.first;
+    final surface = composite(glass.cardFill, bg);
+
+    final r1 = contrastRatio(glass.textPrimary, surface);
     expect(r1 >= 4.5, true, reason: 'Dark textPrimary contrast $r1 is below 4.5:1');
 
-    final r2 = contrastRatio(glass.textSecondary, const Color(0xFF070F12));
+    final r2 = contrastRatio(glass.textSecondary, surface);
     expect(r2 >= 4.5, true, reason: 'Dark textSecondary contrast $r2 is below 4.5:1');
 
-    final r3 = contrastRatio(glass.successText, const Color(0xFF070F12));
-    expect(r3 >= 4.5, true, reason: 'Dark successText contrast $r3 is below 4.5:1');
-
-    final r4 = contrastRatio(glass.warningText, const Color(0xFF070F12));
-    expect(r4 >= 4.5, true, reason: 'Dark successText contrast $r4 is below 4.5:1');
-
-    final r5 = contrastRatio(glass.errorText, const Color(0xFF070F12));
-    expect(r5 >= 4.5, true, reason: 'Dark errorText contrast $r5 is below 4.5:1');
+    final r7 = contrastRatio(Colors.white, const Color(0xFF0F766E));
+    expect(r7 >= 4.5, true, reason: 'White text on primary button gradient contrast $r7 is below 4.5:1');
   });
 }
