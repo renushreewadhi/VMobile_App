@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/api/api_client.dart';
 import '../../core/api/api_endpoints.dart';
 import '../../core/theme/app_colors.dart';
+import '../../core/widgets/glass_scaffold.dart';
 import '../../shared/widgets/app_card.dart';
 import '../../shared/widgets/compact_summary_widgets.dart';
 import '../../shared/widgets/loading_shimmer.dart';
@@ -425,8 +426,8 @@ class _MyLeaveScreenState extends ConsumerState<MyLeaveScreen> {
 
     if (!widget.showAppBar) return content;
 
-    return Scaffold(
-      appBar: AppBar(title: const Text('My Leave')),
+    return GlassScaffold(
+      title: 'My Leave',
       body: content,
     );
   }

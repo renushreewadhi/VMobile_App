@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'app_background.dart';
 import 'glass_bottom_tab_bar.dart';
+import 'glass_header.dart';
 
 class GlassScaffold extends StatelessWidget {
+  final String? title;
   final PreferredSizeWidget? appBar;
   final Widget body;
   final List<GlassTab>? tabs;
@@ -14,6 +16,7 @@ class GlassScaffold extends StatelessWidget {
 
   const GlassScaffold({
     super.key,
+    this.title,
     this.appBar,
     required this.body,
     this.tabs,
@@ -40,6 +43,8 @@ class GlassScaffold extends StatelessWidget {
       ),
     );
 
+    final effectiveAppBar = appBar ?? GlassHeader(title: title);
+
     return Scaffold(
       backgroundColor: backgroundColor ?? Colors.transparent,
       body: Stack(
@@ -50,7 +55,7 @@ class GlassScaffold extends StatelessWidget {
           ),
           Column(
             children: [
-              if (appBar != null) appBar!,
+              effectiveAppBar,
               Expanded(
                 child: Padding(
                   padding: EdgeInsets.only(

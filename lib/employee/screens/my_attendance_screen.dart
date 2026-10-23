@@ -212,14 +212,11 @@ class _MyAttendanceScreenState extends ConsumerState<MyAttendanceScreen> {
     );
 
     if (!widget.showAppBar) {
-      return Scaffold(
-        backgroundColor: Colors.transparent,
-        body: AppBackground(child: SafeArea(child: content)),
-      );
+      return content;
     }
 
     return GlassScaffold(
-      appBar: const GlassAppBar(title: Text('My Attendance')),
+      title: 'My Attendance',
       body: content,
     );
   }
