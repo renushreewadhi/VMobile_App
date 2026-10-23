@@ -1,23 +1,31 @@
 import 'package:flutter/material.dart';
-import '../../shared/layouts/app_shell.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../core/auth/auth_service.dart';
+import '../core/widgets/glass_scaffold.dart';
+import '../core/widgets/glass_header.dart';
+import '../core/widgets/glass_bottom_tab_bar.dart';
 import 'screens/employee_dashboard_screen.dart';
 import 'screens/more_screen.dart';
 import 'screens/my_attendance_screen.dart';
 import 'screens/my_leave_screen.dart';
 import 'screens/notifications_screen.dart';
 
-class EmployeeRoleShell extends StatefulWidget {
+class EmployeeRoleShell extends ConsumerStatefulWidget {
   const EmployeeRoleShell({super.key});
 
   @override
-  State<EmployeeRoleShell> createState() => _EmployeeRoleShellState();
+  ConsumerState<EmployeeRoleShell> createState() => _EmployeeRoleShellState();
 }
 
-class _EmployeeRoleShellState extends State<EmployeeRoleShell> {
+class _EmployeeRoleShellState extends ConsumerState<EmployeeRoleShell> {
   int _currentIndex = 0;
 
   @override
   Widget build(BuildContext context) {
+    final authState = ref.watch(authServiceProvider);
+    final user = authState.user;
+    final initial = user != null && user.firstName.isNotEmpty ? user.firstName[0].toUpperCase() : 'E';
+
     final screens = [
       EmployeeDashboardScreen(onNavigateTab: (index) => setState(() => _currentIndex = index)),
       const MyAttendanceScreen(showAppBar: false),
@@ -27,28 +35,55 @@ class _EmployeeRoleShellState extends State<EmployeeRoleShell> {
     ];
 
     final titles = [
-      'Etaprise HRMS',
+      'Dashboard',
       'Attendance & Time',
       'Leave Management',
       'Notifications',
       'More Modules',
     ];
 
-    return AppShell(
-      title: titles[_currentIndex],
-      selectedIndex: _currentIndex,
-      onDestinationSelected: (idx) => setState(() => _currentIndex = idx),
-      destinations: const [
-        NavigationDestination(icon: Icon(Icons.home_outlined), selectedIcon: Icon(Icons.home), label: 'Home'),
-        NavigationDestination(icon: Icon(Icons.access_time_outlined), selectedIcon: Icon(Icons.access_time), label: 'Attendance'),
-        NavigationDestination(icon: Icon(Icons.calendar_today_outlined), selectedIcon: Icon(Icons.calendar_today), label: 'My Leave'),
-        NavigationDestination(icon: Icon(Icons.notifications_outlined), selectedIcon: Icon(Icons.notifications), label: 'Notifications'),
-        NavigationDestination(icon: Icon(Icons.grid_view_outlined), selectedIcon: Icon(Icons.grid_view), label: 'More'),
-      ],
+    return GlassScaffold(
+      appBar: GlassHeader(
+        title: titles[_currentIndex],
+        userInitial: initial,
+      ),
       body: IndexedStack(
         index: _currentIndex,
         children: screens,
       ),
+      tabs: [
+        GlassTab(
+          icon: Icons.home_rounded,
+          label: "Home",
+          isSelected: _currentIndex == 0,
+          onTap: () => setState(() => _currentIndex = 0),
+        ),
+        GlassTab(
+          icon: Icons.access_time_rounded,
+          label: "Attendance",
+          isSelected: _currentIndex == 1,
+          onTap: () => setState(() => _currentIndex = 1),
+        ),
+        GlassTab(
+          icon: Icons.calendar_month_rounded,
+          label: "My Leave",
+          isSelected: _currentIndex == 2,
+          onTap: () => setState(() => _currentIndex = 2),
+        ),
+        GlassTab(
+          icon: Icons.notifications_rounded,
+          label: "Alerts",
+          badgeCount: 3,
+          isSelected: _currentIndex == 3,
+          onTap: () => setState(() => _currentIndex = 3),
+        ),
+        GlassTab(
+          icon: Icons.grid_view_rounded,
+          label: "More",
+          isSelected: _currentIndex == 4,
+          onTap: () => setState(() => _currentIndex = 4),
+        ),
+      ],
     );
   }
 }
