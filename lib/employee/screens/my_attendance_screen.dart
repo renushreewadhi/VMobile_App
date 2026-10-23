@@ -8,6 +8,8 @@ import '../../core/theme/app_colors.dart';
 import '../../core/theme/glass_theme.dart';
 import '../../core/widgets/glass_card.dart';
 import '../../core/widgets/app_background.dart';
+import '../../core/widgets/glass_scaffold.dart';
+import '../../core/widgets/glass_app_bar.dart';
 import '../../shared/widgets/status_chip.dart';
 
 enum _AttendanceSection { history, shift, corrections, rules }
@@ -157,40 +159,6 @@ class _MyAttendanceScreenState extends ConsumerState<MyAttendanceScreen> {
             padding: const EdgeInsets.fromLTRB(16, 12, 16, 30),
             sliver: SliverList(
               delegate: SliverChildListDelegate([
-                if (widget.showAppBar) ...[
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'My Attendance',
-                              style: TextStyle(
-                                color: isDark ? AppColors.darkPrimaryText : AppColors.lightPrimaryText,
-                                fontSize: 24,
-                                fontWeight: FontWeight.w900,
-                                letterSpacing: -0.6,
-                              ),
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                              'Personal attendance, shifts and corrections',
-                              style: TextStyle(
-                                color: isDark ? AppColors.darkSecondaryText : AppColors.lightSecondaryText,
-                                fontSize: 12,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      _employeePill(isDark, user?.fullName ?? 'Employee'),
-                    ],
-                  ),
-                  const SizedBox(height: 20),
-                ],
                 _sectionTabs(isDark),
                 const SizedBox(height: 18),
                 if (_isLoading)
@@ -243,12 +211,16 @@ class _MyAttendanceScreenState extends ConsumerState<MyAttendanceScreen> {
       ),
     );
 
-    if (!widget.showAppBar) return Scaffold(backgroundColor: Colors.transparent, body: AppBackground(child: SafeArea(child: content)));
+    if (!widget.showAppBar) {
+      return Scaffold(
+        backgroundColor: Colors.transparent,
+        body: AppBackground(child: SafeArea(child: content)),
+      );
+    }
 
-    return Scaffold(
-      backgroundColor: Colors.transparent,
-      appBar: AppBar(title: const Text('My Attendance')),
-      body: AppBackground(child: content),
+    return GlassScaffold(
+      appBar: const GlassAppBar(title: Text('My Attendance')),
+      body: content,
     );
   }
 
