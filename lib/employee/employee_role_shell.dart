@@ -6,6 +6,7 @@ import 'screens/my_attendance_screen.dart';
 import 'screens/my_leave_screen.dart';
 import 'screens/notifications_screen.dart';
 import '../core/widgets/glass_scaffold.dart';
+import '../core/widgets/glass_header.dart';
 import '../core/widgets/glass_bottom_tab_bar.dart';
 
 class EmployeeRoleShell extends ConsumerStatefulWidget {
@@ -29,6 +30,7 @@ class _EmployeeRoleShellState extends ConsumerState<EmployeeRoleShell> {
     ];
 
     return GlassScaffold(
+      appBar: const GlassHeader(), // Fixed brand header matching reference screenshot
       showBottomBar: true,
       body: IndexedStack(
         index: _currentIndex,

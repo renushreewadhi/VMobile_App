@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/widgets/glass_scaffold.dart';
+import '../../core/widgets/glass_header.dart';
 import '../../core/widgets/glass_bottom_tab_bar.dart';
 
 class AppShell extends ConsumerStatefulWidget {
@@ -45,6 +46,7 @@ class _AppShellState extends ConsumerState<AppShell> {
     }).toList();
 
     return GlassScaffold(
+      appBar: const GlassHeader(), // Fixed brand header
       showBottomBar: true,
       body: widget.body,
       tabs: glassTabs.isNotEmpty ? glassTabs : null,
