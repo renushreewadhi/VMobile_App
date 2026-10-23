@@ -16,6 +16,7 @@ import '../../core/theme/app_colors.dart';
 import '../../core/theme/glass_theme.dart';
 import '../../core/widgets/glass_card.dart';
 import '../../core/widgets/app_background.dart';
+import '../../core/widgets/glass_scaffold.dart';
 import 'apply_leave_screen.dart';
 import 'my_attendance_screen.dart';
 
@@ -770,106 +771,75 @@ class _PunchInOutScreenState extends ConsumerState<PunchInOutScreen> {
     final surfaceColor = glass.cardFill;
     final borderColor = glass.cardBorder;
 
-    return Scaffold(
-      backgroundColor: Colors.transparent,
-      body: AppBackground(
-        child: SafeArea(
-          bottom: false,
-          child: RefreshIndicator(
-            onRefresh: _loadAllData,
-            child: CustomScrollView(
-              physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
-            slivers: [
-              SliverPadding(
-                padding: const EdgeInsets.fromLTRB(16, 12, 16, 36),
-                sliver: SliverList(
-                  delegate: SliverChildListDelegate([
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                'Punch In / Out',
-                                style: TextStyle(
-                                  color: textColor,
-                                  fontSize: 26,
-                                  fontWeight: FontWeight.w900,
-                                  letterSpacing: -0.6,
-                                ),
-                              ),
-                              const SizedBox(height: 3),
-                              Text(
-                                'Track your daily work hours, shift attendance & camera selfie logs',
-                                style: TextStyle(color: mutedColor, fontSize: 12, height: 1.35),
-                              ),
-                            ],
-                          ),
-                        ),
-                        _buildRefreshButton(isDark, surfaceColor, borderColor, textColor),
-                      ],
+    return GlassScaffold(
+      title: 'Punch In / Out',
+      body: RefreshIndicator(
+        onRefresh: _loadAllData,
+        child: CustomScrollView(
+          physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
+          slivers: [
+            SliverPadding(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 36),
+              sliver: SliverList(
+                delegate: SliverChildListDelegate([
+                  if (_isLoading)
+                    const Padding(
+                      padding: EdgeInsets.only(top: 14),
+                      child: LinearProgressIndicator(minHeight: 2),
                     ),
-                    if (_isLoading)
-                      const Padding(
-                        padding: EdgeInsets.only(top: 14),
-                        child: LinearProgressIndicator(minHeight: 2),
-                      ),
-                    if (_error != null)
-                      Padding(
-                        padding: const EdgeInsets.only(top: 10),
-                        child: Container(
-                          padding: const EdgeInsets.all(12),
-                          decoration: BoxDecoration(
-                            color: Colors.red.withOpacity(0.1),
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(color: Colors.red.withOpacity(0.3)),
-                          ),
-                          child: Text(_error!, style: TextStyle(color: textColor, fontSize: 12)),
+                  if (_error != null)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 10),
+                      child: Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: Colors.red.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: Colors.red.withOpacity(0.3)),
                         ),
-                      ),
-                    const SizedBox(height: 16),
-                    _buildCurrentTimeCard(isDark, textColor, mutedColor, surfaceColor, borderColor),
-                    const SizedBox(height: 14),
-                    if (_isPostShiftWarning30m) ...[
-                      _buildPostShiftWarningBanner(isDark, textColor),
-                      const SizedBox(height: 14),
-                    ],
-                    _buildGeofenceMapCard(isDark, textColor, mutedColor, surfaceColor, borderColor),
-                    const SizedBox(height: 14),
-                    _buildEmployeeInfoBar(isDark, textColor, mutedColor, surfaceColor, borderColor),
-                    const SizedBox(height: 14),
-                    _buildMainActionCard(isDark, textColor, mutedColor, surfaceColor, borderColor),
-                    const SizedBox(height: 14),
-                    _buildStatMetricsRow(isDark, textColor, mutedColor, surfaceColor, borderColor),
-                    const SizedBox(height: 14),
-                    _buildQuickActionButtons(isDark, textColor, borderColor),
-                    const SizedBox(height: 18),
-                    _build30DayOverviewCard(isDark, textColor, mutedColor, surfaceColor, borderColor),
-                    const SizedBox(height: 18),
-                    _buildTodayActivityCard(isDark, textColor, mutedColor, surfaceColor, borderColor),
-                    const SizedBox(height: 24),
-                    Center(
-                      child: Text(
-                        'SERVER SYNCED  •  LIVE ATTENDANCE PROTOCOL',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          color: mutedColor,
-                          fontSize: 9,
-                          letterSpacing: 1.1,
-                          fontWeight: FontWeight.w700,
-                        ),
+                        child: Text(_error!, style: TextStyle(color: textColor, fontSize: 12)),
                       ),
                     ),
-                  ]),
-                ),
+                  const SizedBox(height: 16),
+                  _buildCurrentTimeCard(isDark, textColor, mutedColor, surfaceColor, borderColor),
+                  const SizedBox(height: 14),
+                  if (_isPostShiftWarning30m) ...[
+                    _buildPostShiftWarningBanner(isDark, textColor),
+                    const SizedBox(height: 14),
+                  ],
+                  _buildGeofenceMapCard(isDark, textColor, mutedColor, surfaceColor, borderColor),
+                  const SizedBox(height: 14),
+                  _buildEmployeeInfoBar(isDark, textColor, mutedColor, surfaceColor, borderColor),
+                  const SizedBox(height: 14),
+                  _buildMainActionCard(isDark, textColor, mutedColor, surfaceColor, borderColor),
+                  const SizedBox(height: 14),
+                  _buildStatMetricsRow(isDark, textColor, mutedColor, surfaceColor, borderColor),
+                  const SizedBox(height: 14),
+                  _buildQuickActionButtons(isDark, textColor, borderColor),
+                  const SizedBox(height: 18),
+                  _build30DayOverviewCard(isDark, textColor, mutedColor, surfaceColor, borderColor),
+                  const SizedBox(height: 18),
+                  _buildTodayActivityCard(isDark, textColor, mutedColor, surfaceColor, borderColor),
+                  const SizedBox(height: 24),
+                  Center(
+                    child: Text(
+                      'SERVER SYNCED  •  LIVE ATTENDANCE PROTOCOL',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color: mutedColor,
+                        fontSize: 9,
+                        letterSpacing: 1.1,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                ]),
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
-    ),
-  );
+    );
   }
 
   Widget _buildRefreshButton(bool dark, Color surface, Color border, Color text) {
