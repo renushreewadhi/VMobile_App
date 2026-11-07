@@ -490,23 +490,26 @@ class _FinanceApprovalsScreenState extends ConsumerState<FinanceApprovalsScreen>
                         final isActive = _selectedStatus == st;
                         return Padding(
                           padding: const EdgeInsets.only(right: 8),
-                          child: ChoiceChip(
-                            label: Text(
-                              st == 'Pending Review' ? 'Pending' : st,
-                              style: TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.bold,
-                                color: isActive ? Colors.white : AppColors.lightSecondaryText,
+                          child: Material(
+                            color: Colors.transparent,
+                            child: ChoiceChip(
+                              label: Text(
+                                st == 'Pending Review' ? 'Pending' : st,
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.bold,
+                                  color: isActive ? Colors.white : AppColors.lightSecondaryText,
+                                ),
                               ),
-                            ),
-                            selected: isActive,
-                            selectedColor: AppColors.primary,
-                            backgroundColor: AppColors.lightInputBackground,
-                            onSelected: (_) => setState(() => _selectedStatus = st),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(20),
-                              side: BorderSide(
-                                color: isActive ? AppColors.primary : Colors.grey.shade300,
+                              selected: isActive,
+                              selectedColor: AppColors.primary,
+                              backgroundColor: AppColors.lightInputBackground,
+                              onSelected: (_) => setState(() => _selectedStatus = st),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(20),
+                                side: BorderSide(
+                                  color: isActive ? AppColors.primary : Colors.grey.shade300,
+                                ),
                               ),
                             ),
                           ),

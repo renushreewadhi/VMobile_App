@@ -7,13 +7,17 @@ class GlassSearchBar extends StatelessWidget {
   final ValueChanged<String>? onChanged;
   final VoidCallback? onClear;
   final String placeholder;
+  final Widget? trailing;
+  final VoidCallback? onFilterTap;
 
   const GlassSearchBar({
     super.key,
     this.controller,
     this.onChanged,
     this.onClear,
-    this.placeholder = 'Search modules...',
+    this.placeholder = 'Search...',
+    this.trailing,
+    this.onFilterTap,
   });
 
   @override
@@ -49,29 +53,53 @@ class GlassSearchBar extends StatelessWidget {
                 decoration: InputDecoration(
                   hintText: placeholder,
                   hintStyle: TextStyle(
-                    fontSize: 15,
+                    fontSize: 14,
                     fontWeight: FontWeight.w500,
                     color: glass.searchPlaceholder,
                   ),
                   border: InputBorder.none,
                   enabledBorder: InputBorder.none,
                   focusedBorder: InputBorder.none,
+                  fillColor: Colors.transparent,
+                  filled: false,
                   isDense: true,
                   contentPadding: EdgeInsets.zero,
                 ),
               ),
             ),
-            if (controller != null && controller!.text.isNotEmpty)
+            if (controller != null && controller!.text.isNotEmpty) ...[
               GestureDetector(
                 onTap: () {
                   controller?.clear();
                   onChanged?.call('');
                   onClear?.call();
                 },
-                child: Icon(
-                  Icons.close_rounded,
-                  size: 18,
-                  color: glass.textSecondary,
+                child: Padding(
+                  padding: const EdgeInsets.all(4.0),
+                  child: Icon(
+                    Icons.close_rounded,
+                    size: 18,
+                    color: glass.textSecondary,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 6),
+            ],
+            if (trailing != null) trailing!,
+            if (onFilterTap != null)
+              GestureDetector(
+                onTap: onFilterTap,
+                child: Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: glass.activeTabFill,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Icon(
+                    Icons.tune_rounded,
+                    size: 18,
+                    color: glass.headerIconColor,
+                  ),
                 ),
               ),
           ],

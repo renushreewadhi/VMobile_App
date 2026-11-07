@@ -1,8 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/api/api_client.dart';
-import '../../../core/theme/app_colors.dart';
-import '../../../shared/widgets/app_card.dart';
+import '../../../core/widgets/glass_scaffold.dart';
 
 class HrAttendanceRuleFormScreen extends ConsumerStatefulWidget {
   final String? ruleId;
@@ -79,8 +78,8 @@ class _HrAttendanceRuleFormScreenState extends ConsumerState<HrAttendanceRuleFor
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: Text(widget.ruleId != null ? 'Edit Policy Rule' : 'New Policy Rule')),
+    return GlassScaffold(
+      title: widget.ruleId != null ? 'Edit Policy Rule' : 'New Policy Rule',
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
         child: Form(
@@ -114,12 +113,12 @@ class _HrAttendanceRuleFormScreenState extends ConsumerState<HrAttendanceRuleFor
               SwitchListTile(
                 title: const Text('Active Policy'),
                 value: _isActive,
-                onChanged: (val) => setState(() => _isActive = val),
+                onChanged: (val) => setState(() => _isActive = val ?? true),
               ),
               SwitchListTile(
                 title: const Text('Auto Mark Absent on No Check-In'),
                 value: _autoAbsent,
-                onChanged: (val) => setState(() => _autoAbsent = val),
+                onChanged: (val) => setState(() => _autoAbsent = val ?? true),
               ),
               const SizedBox(height: 24),
               SizedBox(

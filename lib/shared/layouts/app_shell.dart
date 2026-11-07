@@ -46,7 +46,7 @@ class _AppShellState extends ConsumerState<AppShell> {
     }).toList();
 
     return GlassScaffold(
-      appBar: const GlassHeader(), // Fixed brand header
+      appBar: GlassHeader(title: widget.title), // Fixed brand header
       showBottomBar: true,
       body: widget.body,
       tabs: glassTabs.isNotEmpty ? glassTabs : null,

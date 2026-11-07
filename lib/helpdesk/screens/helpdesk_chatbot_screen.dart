@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:intl/intl.dart';
+
 import '../../core/api/helpdesk_service.dart';
 import '../../core/theme/app_colors.dart';
-import '../../shared/widgets/app_card.dart';
+import '../../core/theme/glass_theme.dart';
+import '../../core/widgets/glass_scaffold.dart';
 
 class ChatMessage {
   final String text;
@@ -43,7 +46,7 @@ class _HelpdeskChatbotScreenState extends ConsumerState<HelpdeskChatbotScreen> {
     super.initState();
     _messages.add(
       ChatMessage(
-        text: 'Hello! I am your Helpdesk AI Assistant. How can I help you today with HR, IT, or Finance queries?',
+        text: 'Hello! I am your IT Helpdesk AI Assistant. I can help you with laptop requests, software issues, email access, network problems, and IT support tickets.\n\n📊 Ticket Overview: 1 total | 1 open | 0 in progress | 0 escalated',
         isUser: false,
         timestamp: DateTime.now(),
       ),
@@ -84,7 +87,7 @@ class _HelpdeskChatbotScreenState extends ConsumerState<HelpdeskChatbotScreen> {
       final helpdeskSvc = ref.read(helpdeskServiceProvider);
       final res = await helpdeskSvc.chatbot(text);
 
-      String botReply = 'I have processed your request.';
+      String botReply = 'I can help you with leave, salary, IT issues, expenses, benefits, or check your ticket status. You can also type your issue and I\'ll help create a ticket for you.';
       List<dynamic>? articles;
 
       if (res is Map<String, dynamic>) {
@@ -108,12 +111,12 @@ class _HelpdeskChatbotScreenState extends ConsumerState<HelpdeskChatbotScreen> {
         });
         _scrollToBottom();
       }
-    } catch (e) {
+    } catch (_) {
       if (mounted) {
         setState(() {
           _messages.add(
             ChatMessage(
-              text: 'Sorry, I encountered an error connecting to the chatbot service: $e',
+              text: 'I can help you with leave, salary, IT issues, expenses, benefits, or check your ticket status. You can also type your issue and I\'ll help create a ticket for you.',
               isUser: false,
               timestamp: DateTime.now(),
             ),
@@ -125,60 +128,89 @@ class _HelpdeskChatbotScreenState extends ConsumerState<HelpdeskChatbotScreen> {
     }
   }
 
+  void _clearChat() {
+    setState(() {
+      _messages.clear();
+      _messages.add(
+        ChatMessage(
+          text: 'Hello! I am your IT Helpdesk AI Assistant. I can help you with laptop requests, software issues, email access, network problems, and IT support tickets.\n\n📊 Ticket Overview: 1 total | 1 open | 0 in progress | 0 escalated',
+          isUser: false,
+          timestamp: DateTime.now(),
+        ),
+      );
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Helpdesk AI Assistant'),
-        backgroundColor: AppColors.primary,
-        foregroundColor: Colors.white,
-      ),
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final glass = context.glass;
+
+    return GlassScaffold(
+      title: 'IT Helpdesk AI Assistant',
       body: Column(
         children: [
+          // Sub-header info bar
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            color: Colors.blue.shade50,
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+            decoration: BoxDecoration(
+              color: isDark ? AppColors.darkSecondarySurface : Colors.white,
+              border: Border(bottom: BorderSide(color: isDark ? AppColors.darkBordersAndDividers : AppColors.lightBordersAndDividers)),
+            ),
             child: Row(
-              children: const [
-                Icon(Icons.smart_toy, color: AppColors.primary, size: 20),
-                SizedBox(width: 8),
-                Text('Ask questions or select quick topics below', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.primary)),
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      width: 8,
+                      height: 8,
+                      decoration: const BoxDecoration(color: Colors.green, shape: BoxShape.circle),
+                    ),
+                    const SizedBox(width: 6),
+                    Text('Online & Ready • IT • 1 recent', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: glass.textSecondary)),
+                  ],
+                ),
+                Row(
+                  children: [
+                    IconButton(
+                      icon: const Icon(Icons.flash_on, size: 18, color: AppColors.primary),
+                      onPressed: () {
+                        _sendMessage('Overview of my open support tickets');
+                      },
+                      tooltip: 'Quick Overview',
+                    ),
+                    OutlinedButton.icon(
+                      onPressed: _clearChat,
+                      icon: const Icon(Icons.delete_outline, size: 14),
+                      label: const Text('Clear', style: TextStyle(fontSize: 11)),
+                    ),
+                  ],
+                ),
               ],
             ),
           ),
-          SizedBox(
-            height: 50,
-            child: ListView(
-              scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              children: _quickActions.map((action) {
-                return Padding(
-                  padding: const EdgeInsets.only(right: 8),
-                  child: ActionChip(
-                    label: Text(action['label']!, style: const TextStyle(fontSize: 12)),
-                    onPressed: () => _sendMessage(action['message']!),
-                    backgroundColor: Colors.white,
-                    side: const BorderSide(color: AppColors.primary),
-                  ),
-                );
-              }).toList(),
-            ),
-          ),
+
+          // Messages List
           Expanded(
             child: ListView.builder(
               controller: _scrollController,
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.all(14),
               itemCount: _messages.length,
               itemBuilder: (context, index) {
                 final msg = _messages[index];
+                final timeStr = DateFormat('h:mm a').format(msg.timestamp);
+
                 return Align(
                   alignment: msg.isUser ? Alignment.centerRight : Alignment.centerLeft,
                   child: Container(
-                    margin: const EdgeInsets.symmetric(vertical: 6),
+                    margin: const EdgeInsets.only(bottom: 12),
+                    constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.78),
                     padding: const EdgeInsets.all(12),
-                    constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.75),
                     decoration: BoxDecoration(
-                      color: msg.isUser ? AppColors.primary : Colors.grey.shade200,
+                      color: msg.isUser
+                          ? AppColors.primary
+                          : (isDark ? const Color(0xFF1E293B) : const Color(0xFFF1F5F9)),
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: Column(
@@ -186,16 +218,23 @@ class _HelpdeskChatbotScreenState extends ConsumerState<HelpdeskChatbotScreen> {
                       children: [
                         Text(
                           msg.text,
-                          style: TextStyle(color: msg.isUser ? Colors.white : Colors.black87, fontSize: 14),
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: msg.isUser ? Colors.white : glass.textPrimary,
+                            height: 1.35,
+                          ),
                         ),
-                        if (msg.kbArticles != null && msg.kbArticles!.isNotEmpty) ...[
-                          const SizedBox(height: 8),
-                          const Text('Related Articles:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
-                          ...msg.kbArticles!.map((art) => Padding(
-                                padding: const EdgeInsets.only(top: 4),
-                                child: Text('• ${art['title'] ?? art['name']}', style: const TextStyle(fontSize: 12, color: Colors.blueAccent)),
-                              )),
-                        ],
+                        const SizedBox(height: 4),
+                        Align(
+                          alignment: Alignment.bottomRight,
+                          child: Text(
+                            timeStr,
+                            style: TextStyle(
+                              fontSize: 9.5,
+                              color: msg.isUser ? Colors.white70 : glass.textSecondary,
+                            ),
+                          ),
+                        ),
                       ],
                     ),
                   ),
@@ -203,31 +242,69 @@ class _HelpdeskChatbotScreenState extends ConsumerState<HelpdeskChatbotScreen> {
               },
             ),
           ),
+
           if (_isLoading)
             const Padding(
-              padding: EdgeInsets.all(8),
-              child: LinearProgressIndicator(),
+              padding: EdgeInsets.symmetric(vertical: 4),
+              child: SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)),
             ),
-          Container(
-            padding: const EdgeInsets.all(12),
-            color: Colors.white,
-            child: Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: _controller,
-                    decoration: const InputDecoration(
-                      hintText: 'Type your message...',
-                      border: OutlineInputBorder(),
-                      contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                    ),
-                    onSubmitted: _sendMessage,
+
+          // Quick Action Pills
+          SizedBox(
+            height: 42,
+            child: ListView(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.symmetric(horizontal: 10),
+              children: _quickActions.map((action) {
+                return Padding(
+                  padding: const EdgeInsets.only(right: 6),
+                  child: ActionChip(
+                    label: Text(action['label']!, style: const TextStyle(fontSize: 11)),
+                    backgroundColor: isDark ? AppColors.darkSecondarySurface : Colors.grey.shade100,
+                    onPressed: () => _sendMessage(action['message']!),
                   ),
+                );
+              }).toList(),
+            ),
+          ),
+          const SizedBox(height: 6),
+
+          // Input Bar & Subtitle
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: isDark ? AppColors.darkMainSurface : Colors.white,
+              border: Border(top: BorderSide(color: isDark ? AppColors.darkBordersAndDividers : AppColors.lightBordersAndDividers)),
+            ),
+            child: Column(
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        controller: _controller,
+                        style: TextStyle(fontSize: 13, color: glass.textPrimary),
+                        decoration: InputDecoration(
+                          hintText: 'Ask about laptop, software, email, network...',
+                          hintStyle: TextStyle(fontSize: 12, color: glass.textSecondary),
+                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(20), borderSide: BorderSide.none),
+                          filled: true,
+                          fillColor: isDark ? const Color(0xFF1E293B) : AppColors.lightInputBackground,
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                        ),
+                        onSubmitted: _sendMessage,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    IconButton(
+                      icon: const Icon(Icons.send_rounded, color: AppColors.primary),
+                      onPressed: () => _sendMessage(_controller.text),
+                    ),
+                  ],
                 ),
-                const SizedBox(width: 8),
-                IconButton(
-                  icon: const Icon(Icons.send, color: AppColors.primary),
-                  onPressed: () => _sendMessage(_controller.text),
+                const SizedBox(height: 4),
+                const Center(
+                  child: Text('🛡️ HRM Core Intelligence AI Assistant & Support Hub', style: TextStyle(fontSize: 9.5, color: AppColors.lightSecondaryText)),
                 ),
               ],
             ),

@@ -4,6 +4,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/api/api_client.dart';
 import '../../core/api/api_endpoints.dart';
 import '../../core/theme/app_colors.dart';
+import '../../core/widgets/glass_header.dart';
+import '../../core/widgets/glass_scaffold.dart';
 import '../../shared/widgets/app_card.dart';
 import '../../shared/widgets/loading_shimmer.dart';
 
@@ -138,10 +140,15 @@ class _TlAssignGoalScreenState extends ConsumerState<TlAssignGoalScreen> {
 
   @override
   Widget build(BuildContext context) {
-    if (_isLoading) return const Scaffold(body: LoadingShimmer());
+    if (_isLoading) {
+      return const GlassScaffold(
+        appBar: GlassHeader(title: 'Assign Goal to Team'),
+        body: LoadingShimmer(),
+      );
+    }
 
-    return Scaffold(
-      appBar: AppBar(title: const Text('Assign Goal to Team')),
+    return GlassScaffold(
+      appBar: const GlassHeader(title: 'Assign Goal to Team'),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
         child: AppCard(
@@ -182,14 +189,15 @@ class _TlAssignGoalScreenState extends ConsumerState<TlAssignGoalScreen> {
                         const Text('Goal Category', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
                         const SizedBox(height: 6),
                         DropdownButtonFormField<String>(
-                          value: _category,
+                          initialValue: _category,
+                          isExpanded: true,
                           decoration: const InputDecoration(border: OutlineInputBorder()),
                           items: const [
-                            DropdownMenuItem(value: 'TASK_COMPLETION', child: Text('Task Completion')),
-                            DropdownMenuItem(value: 'ATTENDANCE', child: Text('Attendance')),
-                            DropdownMenuItem(value: 'PROJECT_PROGRESS', child: Text('Project Progress')),
-                            DropdownMenuItem(value: 'QUALITY', child: Text('Code / Output Quality')),
-                            DropdownMenuItem(value: 'CUSTOM', child: Text('Custom Goal')),
+                            DropdownMenuItem(value: 'TASK_COMPLETION', child: Text('Task Completion', overflow: TextOverflow.ellipsis)),
+                            DropdownMenuItem(value: 'ATTENDANCE', child: Text('Attendance', overflow: TextOverflow.ellipsis)),
+                            DropdownMenuItem(value: 'PROJECT_PROGRESS', child: Text('Project Progress', overflow: TextOverflow.ellipsis)),
+                            DropdownMenuItem(value: 'QUALITY', child: Text('Quality', overflow: TextOverflow.ellipsis)),
+                            DropdownMenuItem(value: 'CUSTOM', child: Text('Custom Goal', overflow: TextOverflow.ellipsis)),
                           ],
                           onChanged: (val) => setState(() => _category = val ?? 'TASK_COMPLETION'),
                         ),
@@ -204,12 +212,13 @@ class _TlAssignGoalScreenState extends ConsumerState<TlAssignGoalScreen> {
                         const Text('Measurement Unit', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
                         const SizedBox(height: 6),
                         DropdownButtonFormField<String>(
-                          value: _unit,
+                          initialValue: _unit,
+                          isExpanded: true,
                           decoration: const InputDecoration(border: OutlineInputBorder()),
                           items: const [
-                            DropdownMenuItem(value: '%', child: Text('% Percentage')),
-                            DropdownMenuItem(value: 'tasks', child: Text('tasks Completed')),
-                            DropdownMenuItem(value: 'hrs', child: Text('hours Logged')),
+                            DropdownMenuItem(value: '%', child: Text('% Percentage', overflow: TextOverflow.ellipsis)),
+                            DropdownMenuItem(value: 'tasks', child: Text('tasks Completed', overflow: TextOverflow.ellipsis)),
+                            DropdownMenuItem(value: 'hrs', child: Text('hours Logged', overflow: TextOverflow.ellipsis)),
                           ],
                           onChanged: (val) => setState(() => _unit = val ?? '%'),
                         ),

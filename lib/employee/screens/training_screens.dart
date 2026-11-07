@@ -2,11 +2,53 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/api/api_client.dart';
-import '../../core/auth/auth_service.dart';
 import '../../core/theme/app_colors.dart';
 import '../../shared/widgets/app_card.dart';
 import '../../shared/widgets/loading_shimmer.dart';
 import '../../shared/widgets/status_chip.dart';
+import '../../core/widgets/glass_scaffold.dart';
+
+Widget buildTrainingSubNav(BuildContext context, int activeIndex) {
+  final tabs = [
+    {'label': 'Dashboard', 'route': () => const TrainingDashboardScreen()},
+    {'label': 'My Courses', 'route': () => const MyCoursesScreen()},
+    {'label': 'In Progress', 'route': () => const TrainingInProgressScreen()},
+    {'label': 'Completed', 'route': () => const TrainingCompletedScreen()},
+    {'label': 'Certificates', 'route': () => const MyCertificatesScreen()},
+    {'label': 'History', 'route': () => const TrainingHistoryScreen()},
+  ];
+
+  return SingleChildScrollView(
+    scrollDirection: Axis.horizontal,
+    physics: const BouncingScrollPhysics(),
+    child: Row(
+      children: List.generate(tabs.length, (index) {
+        final t = tabs[index];
+        final isSelected = activeIndex == index;
+        return Padding(
+          padding: const EdgeInsets.only(right: 8),
+          child: ChoiceChip(
+            label: Text(t['label'] as String),
+            selected: isSelected,
+            selectedColor: AppColors.primary,
+            labelStyle: TextStyle(
+              color: isSelected ? Colors.white : AppColors.lightPrimaryText,
+              fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+              fontSize: 12,
+            ),
+            backgroundColor: Colors.white,
+            onSelected: isSelected ? null : (_) {
+              Navigator.pushReplacement(
+                context,
+                MaterialPageRoute(builder: (_) => (t['route'] as Widget Function())()),
+              );
+            },
+          ),
+        );
+      }),
+    ),
+  );
+}
 
 class TrainingDashboardScreen extends ConsumerStatefulWidget {
   const TrainingDashboardScreen({super.key});
@@ -17,7 +59,10 @@ class TrainingDashboardScreen extends ConsumerStatefulWidget {
 
 class _TrainingDashboardScreenState extends ConsumerState<TrainingDashboardScreen> {
   bool _isLoading = true;
+  String? _error;
   List<dynamic> _courses = [];
+  String _searchTerm = '';
+  String _selectedCategory = 'ALL';
 
   @override
   void initState() {
@@ -26,34 +71,77 @@ class _TrainingDashboardScreenState extends ConsumerState<TrainingDashboardScree
   }
 
   Future<void> _fetchTraining() async {
-    setState(() => _isLoading = true);
+    setState(() {
+      _isLoading = true;
+      _error = null;
+    });
     final apiClient = ref.read(apiClientProvider);
     try {
       final res = await apiClient.get('/training/my-courses').catchError((_) => null);
+      if (!mounted) return;
+      final rawList = res is List
+          ? res
+          : (res is Map<String, dynamic> && res['data'] is List ? res['data'] as List : []);
+
+      setState(() {
+        _courses = rawList;
+        _isLoading = false;
+        _error = null;
+      });
+    } catch (e) {
       if (mounted) {
         setState(() {
-          if (res is List) {
-            _courses = res;
-          } else if (res is Map<String, dynamic> && res['data'] is List) {
-            _courses = res['data'];
-          } else {
-            _courses = [
-              {'id': 'c-1', 'title': 'Advanced Mobile Architecture', 'instructor': 'Etaprise Technical Academy', 'description': 'Deep dive into clean architecture, state management, and performance.', 'progress': 0.75, 'status': 'IN_PROGRESS'},
-              {'id': 'c-2', 'title': 'Enterprise Security & Compliance', 'instructor': 'HR & Legal Compliance', 'description': 'Data privacy, GDPR guidelines, and secure coding policies.', 'status': 'COMPLETED', 'progress': 1.0},
-            ];
-          }
+          _courses = [];
           _isLoading = false;
+          _error = e.toString().replaceFirst('ApiException: ', '').replaceFirst('Exception: ', '');
         });
       }
-    } catch (_) {
-      if (mounted) setState(() => _isLoading = false);
     }
+  }
+
+  List<dynamic> get _filteredCourses {
+    return _courses.where((c) {
+      final title = (c['title'] ?? c['courseTitle'] ?? '').toString().toLowerCase();
+      final category = (c['categoryName'] ?? c['category'] ?? 'Software Development').toString();
+      final instructor = (c['createdByName'] ?? c['instructor'] ?? '').toString().toLowerCase();
+
+      final matchesSearch = _searchTerm.isEmpty || title.contains(_searchTerm.toLowerCase()) || instructor.contains(_searchTerm.toLowerCase());
+      final matchesCat = _selectedCategory == 'ALL' || category == _selectedCategory;
+      return matchesSearch && matchesCat;
+    }).toList();
+  }
+
+  int get _activeCount => _courses.where((c) => _getProgress(c) < 1.0 && c['status'] != 'COMPLETED').length;
+  int get _completedCount => _courses.where((c) => _getProgress(c) >= 1.0 || c['status'] == 'COMPLETED').length;
+  int get _completionRate {
+    if (_courses.isEmpty) return 0;
+    final total = _courses.fold<double>(0, (sum, c) => sum + _getProgress(c));
+    return ((total / _courses.length) * 100).round();
+  }
+
+  double _getProgress(dynamic c) {
+    final prog = c['progressPercentage'] ?? c['progress'] ?? 0.0;
+    if (prog is num) {
+      return prog > 1.0 ? prog / 100.0 : prog.toDouble();
+    }
+    return double.tryParse(prog.toString()) ?? 0.0;
+  }
+
+  List<String> get _categories {
+    final set = <String>{};
+    for (final c in _courses) {
+      final cat = c['categoryName']?.toString() ?? c['category']?.toString();
+      if (cat != null && cat.isNotEmpty) set.add(cat);
+    }
+    return set.toList();
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('Training Dashboard')),
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return GlassScaffold(
+      title: 'Training & Development',
       body: _isLoading
           ? const DashboardSkeleton()
           : RefreshIndicator(
@@ -65,86 +153,240 @@ class _TrainingDashboardScreenState extends ConsumerState<TrainingDashboardScree
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Row(
-                      children: const [
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
                         Expanded(
-                          child: StatCard(
-                            title: 'Enrolled',
-                            value: '4',
-                            icon: Icons.school,
-                            iconColor: Colors.blue,
-                            iconBgColor: Color(0xFFE8EFFF),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text('Training & Development', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: isDark ? AppColors.darkPrimaryText : AppColors.lightPrimaryText)),
+                              const SizedBox(height: 2),
+                              Text('Organize employee training courses, track enrollments, and evaluate completion rates', style: TextStyle(fontSize: 12, color: isDark ? AppColors.darkSecondaryText : AppColors.lightSecondaryText)),
+                            ],
                           ),
                         ),
-                        SizedBox(width: 12),
-                        Expanded(
-                          child: StatCard(
-                            title: 'Completed',
-                            value: '2',
-                            icon: Icons.verified,
-                            iconColor: Colors.green,
-                            iconBgColor: Color(0xFFE6F7F0),
+                        OutlinedButton.icon(
+                          onPressed: () {
+                            Navigator.push(context, MaterialPageRoute(builder: (_) => const MyCertificatesScreen()));
+                          },
+                          icon: const Icon(Icons.workspace_premium, size: 16),
+                          label: const Text('My Certificates (0)', style: TextStyle(fontSize: 11.5)),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: AppColors.primary,
+                            side: const BorderSide(color: AppColors.primary),
                           ),
                         ),
                       ],
                     ),
-                    const SizedBox(height: 24),
-                    const Text('Active Learning Modules', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                    const SizedBox(height: 14),
+                    buildTrainingSubNav(context, 0),
+                    const SizedBox(height: 16),
+                    _buildKpiGrid(isDark),
+                    const SizedBox(height: 16),
+                    _buildFilterToolbar(isDark),
+                    const SizedBox(height: 16),
+                    Text('All Assigned Courses', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: isDark ? AppColors.darkPrimaryText : AppColors.lightPrimaryText)),
+                    const SizedBox(height: 2),
+                    Text('List view of courses assigned by your Team Lead', style: TextStyle(fontSize: 11.5, color: isDark ? AppColors.darkSecondaryText : AppColors.lightSecondaryText)),
                     const SizedBox(height: 12),
-                    _courses.isEmpty
-                        ? const AppCard(child: Center(child: Padding(padding: EdgeInsets.all(20), child: Text('No active training courses.'))))
-                        : ListView.builder(
-                            shrinkWrap: true,
-                            physics: const NeverScrollableScrollPhysics(),
-                            itemCount: _courses.length,
-                            itemBuilder: (context, index) {
-                              final c = _courses[index];
-                              final title = c['title']?.toString() ?? 'Course Title';
-                              final progress = (double.tryParse(c['progress']?.toString() ?? '0.75') ?? 0.75);
 
-                              return Padding(
-                                padding: const EdgeInsets.only(bottom: 10),
-                                child: InkWell(
-                                  onTap: () {
-                                    Navigator.push(
-                                      context,
-                                      MaterialPageRoute(
-                                        builder: (_) => CoursePlayerScreen(
-                                          courseId: c['id']?.toString() ?? 'c-1',
-                                          courseTitle: title,
-                                          instructor: c['instructor']?.toString() ?? 'Etaprise Technical Academy',
-                                          description: c['description']?.toString() ?? '',
-                                          initialProgress: progress,
-                                        ),
-                                      ),
-                                    );
-                                  },
-                                  borderRadius: BorderRadius.circular(16),
-                                  child: AppCard(
-                                    child: Row(
-                                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                      children: [
-                                        Expanded(
-                                          child: Column(
-                                            crossAxisAlignment: CrossAxisAlignment.start,
-                                            children: [
-                                              Text(title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
-                                              const SizedBox(height: 4),
-                                              Text('Progress: ${(progress * 100).toInt()}%', style: const TextStyle(color: AppColors.lightSecondaryText, fontSize: 12)),
-                                            ],
-                                          ),
-                                        ),
-                                        StatusChip(status: c['status']?.toString() ?? 'IN_PROGRESS'),
-                                      ],
-                                    ),
-                                  ),
-                                ),
-                              );
-                            },
+                    if (_error != null)
+                      AppCard(
+                        child: Padding(
+                          padding: const EdgeInsets.all(24),
+                          child: Column(
+                            children: [
+                              const Icon(Icons.error_outline, size: 36, color: Colors.redAccent),
+                              const SizedBox(height: 8),
+                              Text('Failed to load courses', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: isDark ? AppColors.darkPrimaryText : AppColors.lightPrimaryText)),
+                              const SizedBox(height: 4),
+                              Text(_error!, style: const TextStyle(fontSize: 12, color: Colors.grey), textAlign: TextAlign.center),
+                              const SizedBox(height: 12),
+                              ElevatedButton.icon(
+                                onPressed: _fetchTraining,
+                                icon: const Icon(Icons.refresh, size: 16),
+                                label: const Text('Retry'),
+                              ),
+                            ],
                           ),
+                        ),
+                      )
+                    else if (_filteredCourses.isEmpty)
+                      AppCard(
+                        child: Padding(
+                          padding: const EdgeInsets.all(32),
+                          child: Center(
+                            child: Column(
+                              children: const [
+                                Icon(Icons.school_outlined, size: 40, color: Colors.grey),
+                                SizedBox(height: 8),
+                                Text('No active training courses found.', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+                                SizedBox(height: 4),
+                                Text('You are not currently enrolled in any matching courses.', style: TextStyle(fontSize: 12, color: Colors.grey), textAlign: TextAlign.center),
+                              ],
+                            ),
+                          ),
+                        ),
+                      )
+                    else
+                      ListView.separated(
+                        shrinkWrap: true,
+                        physics: const NeverScrollableScrollPhysics(),
+                        itemCount: _filteredCourses.length,
+                        separatorBuilder: (_, __) => const SizedBox(height: 12),
+                        itemBuilder: (context, index) {
+                          final c = _filteredCourses[index];
+                          final title = c['title']?.toString() ?? c['courseTitle']?.toString() ?? 'Course Title';
+                          final instructor = c['createdByName']?.toString() ?? c['instructor']?.toString() ?? 'Etaprise Technical Academy';
+                          final category = c['categoryName']?.toString() ?? c['category']?.toString() ?? 'Software Development';
+                          final dueDate = c['dueDate']?.toString() ?? '30 Oct 2026';
+                          final progress = _getProgress(c);
+                          final isCompleted = progress >= 1.0 || c['status'] == 'COMPLETED';
+
+                          return AppCard(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    Expanded(child: Text(title, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: isDark ? AppColors.darkPrimaryText : AppColors.lightPrimaryText))),
+                                    StatusChip(status: isCompleted ? 'COMPLETED' : 'ACTIVE'),
+                                  ],
+                                ),
+                                const SizedBox(height: 4),
+                                Text('Category: $category • Instructor: $instructor • Due: $dueDate', style: TextStyle(fontSize: 11.5, color: isDark ? AppColors.darkSecondaryText : AppColors.lightSecondaryText)),
+                                const SizedBox(height: 10),
+                                Row(
+                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    Text('${(progress * 100).toInt()}% completed', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: AppColors.primary)),
+                                    ElevatedButton(
+                                      onPressed: () {
+                                        Navigator.push(
+                                          context,
+                                          MaterialPageRoute(
+                                            builder: (_) => CoursePlayerScreen(
+                                              courseId: c['id']?.toString() ?? 'c-1',
+                                              courseTitle: title,
+                                              instructor: instructor,
+                                              description: c['description']?.toString() ?? '',
+                                              initialProgress: progress,
+                                            ),
+                                          ),
+                                        );
+                                      },
+                                      style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary, foregroundColor: Colors.white, padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6)),
+                                      child: Text(isCompleted ? 'Review' : 'Open', style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.bold)),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 6),
+                                LinearProgressIndicator(
+                                  value: progress.clamp(0.0, 1.0),
+                                  backgroundColor: isDark ? Colors.white12 : Colors.grey.shade300,
+                                  color: isCompleted ? AppColors.success : AppColors.primary,
+                                  minHeight: 6,
+                                ),
+                              ],
+                            ),
+                          );
+                        },
+                      ),
                   ],
                 ),
               ),
             ),
+    );
+  }
+
+  Widget _buildKpiGrid(bool isDark) {
+    return GridView.count(
+      crossAxisCount: 2,
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      crossAxisSpacing: 10,
+      mainAxisSpacing: 10,
+      childAspectRatio: 1.8,
+      children: [
+        _kpiCard('ACTIVE PROGRAMS', '$_activeCount', 'Current Quarter', Icons.school, AppColors.primary, isDark),
+        _kpiCard('TOTAL COURSES', '${_courses.length}', 'Assigned Modules', Icons.book, Colors.green, isDark),
+        _kpiCard('COMPLETION RATE', '$_completionRate%', 'Progress Tracked', Icons.trending_up, Colors.purple, isDark),
+        _kpiCard('COMPLETED COURSES', '$_completedCount', 'Finished Modules', Icons.star, const Color(0xFFF59E0B), isDark),
+      ],
+    );
+  }
+
+  Widget _kpiCard(String label, String value, String sub, IconData icon, Color color, bool isDark) {
+    return AppCard(
+      padding: const EdgeInsets.all(12),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(color: color.withOpacity(0.15), borderRadius: BorderRadius.circular(10)),
+            child: Icon(icon, color: color, size: 18),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text(value, style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: color)),
+                const SizedBox(height: 2),
+                Text(label, style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: isDark ? AppColors.darkPrimaryText : AppColors.lightPrimaryText), overflow: TextOverflow.ellipsis),
+                Text(sub, style: TextStyle(fontSize: 9.5, color: isDark ? AppColors.darkSecondaryText : AppColors.lightSecondaryText), overflow: TextOverflow.ellipsis),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildFilterToolbar(bool isDark) {
+    return AppCard(
+      child: Column(
+        children: [
+          TextField(
+            onChanged: (val) => setState(() => _searchTerm = val),
+            style: TextStyle(fontSize: 13, color: isDark ? AppColors.darkPrimaryText : AppColors.lightPrimaryText),
+            decoration: InputDecoration(
+              hintText: 'Search training programs, instructors...',
+              hintStyle: TextStyle(fontSize: 12, color: isDark ? AppColors.darkSecondaryText : AppColors.lightSecondaryText),
+              prefixIcon: const Icon(Icons.search, size: 18),
+              suffixIcon: _searchTerm.isNotEmpty
+                  ? IconButton(icon: const Icon(Icons.clear, size: 16), onPressed: () => setState(() => _searchTerm = ''))
+                  : null,
+              filled: true,
+              fillColor: isDark ? const Color(0xFF1A2632) : AppColors.lightInputBackground,
+              contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide.none),
+            ),
+          ),
+          const SizedBox(height: 10),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text('Category:', style: TextStyle(fontSize: 12, color: AppColors.lightSecondaryText)),
+              DropdownButton<String>(
+                value: _selectedCategory,
+                underline: const SizedBox.shrink(),
+                dropdownColor: isDark ? AppColors.darkMainSurface : Colors.white,
+                style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: isDark ? AppColors.darkPrimaryText : AppColors.lightPrimaryText),
+                items: [
+                  const DropdownMenuItem(value: 'ALL', child: Text('All Categories')),
+                  ..._categories.map((cat) => DropdownMenuItem(value: cat, child: Text(cat))),
+                ],
+                onChanged: (val) {
+                  if (val != null) setState(() => _selectedCategory = val);
+                },
+              ),
+            ],
+          ),
+        ],
+      ),
     );
   }
 }
@@ -201,10 +443,8 @@ class _CoursePlayerScreenState extends State<CoursePlayerScreen> {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final activeLesson = _lessons.isNotEmpty && _activeLessonIndex < _lessons.length ? _lessons[_activeLessonIndex] : null;
 
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(widget.courseTitle),
-      ),
+    return GlassScaffold(
+      title: widget.courseTitle,
       body: SingleChildScrollView(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -366,7 +606,7 @@ class MyCoursesScreen extends ConsumerStatefulWidget {
 class _MyCoursesScreenState extends ConsumerState<MyCoursesScreen> {
   final TextEditingController _searchController = TextEditingController();
   bool _isLoading = true;
-  String _filter = 'All';
+  String _filter = 'All Status';
   String _query = '';
   List<Map<String, dynamic>> _courses = [];
 
@@ -414,31 +654,6 @@ class _MyCoursesScreenState extends ConsumerState<MyCoursesScreen> {
           }
         }
 
-        if (loadedList.isEmpty) {
-          loadedList.addAll([
-            {
-              'id': 'c-101',
-              'title': 'Enterprise Security & Compliance',
-              'provider': 'HR & Legal Compliance',
-              'category': 'Security',
-              'duration': '2 hours',
-              'progress': 0.75,
-              'status': 'In Progress',
-              'description': 'Mandatory security awareness and data compliance policies for employee onboarding.',
-            },
-            {
-              'id': 'c-102',
-              'title': 'Advanced Mobile Architecture',
-              'provider': 'Engineering Academy',
-              'category': 'Engineering',
-              'duration': '4 hours',
-              'progress': 1.0,
-              'status': 'Completed',
-              'description': 'Mastering Flutter Riverpod, clean architecture, and reactive UI patterns.',
-            },
-          ]);
-        }
-
         setState(() {
           _courses = loadedList;
           _isLoading = false;
@@ -451,7 +666,7 @@ class _MyCoursesScreenState extends ConsumerState<MyCoursesScreen> {
 
   List<Map<String, dynamic>> get _visibleCourses {
     return _courses.where((course) {
-      final matchesFilter = _filter == 'All' ||
+      final matchesFilter = _filter == 'All Status' ||
           (_filter == 'In Progress' && course['status'] == 'In Progress') ||
           (_filter == 'Completed' && course['status'] == 'Completed') ||
           (_filter == 'Not Started' && course['status'] == 'Not Started');
@@ -482,8 +697,8 @@ class _MyCoursesScreenState extends ConsumerState<MyCoursesScreen> {
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
-    return Scaffold(
-      appBar: AppBar(title: const Text('My Courses')),
+    return GlassScaffold(
+      title: 'My Courses',
       body: _isLoading
           ? const ListSkeleton(itemCount: 4)
           : RefreshIndicator(
@@ -494,12 +709,36 @@ class _MyCoursesScreenState extends ConsumerState<MyCoursesScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // Search Input & Filter Chips
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text('My Enrolled Courses', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: isDark ? AppColors.darkPrimaryText : AppColors.lightPrimaryText)),
+                              const SizedBox(height: 2),
+                              Text('View and access all courses assigned to you by your Team Lead or HR.', style: TextStyle(fontSize: 12, color: isDark ? AppColors.darkSecondaryText : AppColors.lightSecondaryText)),
+                            ],
+                          ),
+                        ),
+                        OutlinedButton.icon(
+                          onPressed: () => Navigator.pop(context),
+                          icon: const Icon(Icons.arrow_back, size: 16),
+                          label: const Text('Back', style: TextStyle(fontSize: 11.5)),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 14),
+                    buildTrainingSubNav(context, 1),
+                    const SizedBox(height: 16),
+                    _buildMyCoursesKpiGrid(isDark),
+                    const SizedBox(height: 16),
                     TextField(
                       controller: _searchController,
                       onChanged: (val) => setState(() => _query = val),
                       decoration: InputDecoration(
-                        hintText: 'Search courses, provider or category...',
+                        hintText: 'Search training programs, instructors...',
                         prefixIcon: const Icon(Icons.search, size: 18),
                         filled: true,
                         fillColor: isDark ? AppColors.darkSecondarySurface : AppColors.lightInputBackground,
@@ -509,27 +748,59 @@ class _MyCoursesScreenState extends ConsumerState<MyCoursesScreen> {
                     ),
                     const SizedBox(height: 10),
 
-                    SingleChildScrollView(
-                      scrollDirection: Axis.horizontal,
-                      child: Row(
-                        children: ['All', 'In Progress', 'Completed', 'Not Started'].map((f) {
-                          final isSelected = _filter == f;
-                          return Padding(
-                            padding: const EdgeInsets.only(right: 8),
-                            child: ChoiceChip(
-                              label: Text(f),
-                              selected: isSelected,
-                              onSelected: (_) => setState(() => _filter = f),
-                            ),
-                          );
-                        }).toList(),
-                      ),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text('Status Filter:', style: TextStyle(fontSize: 12, color: AppColors.lightSecondaryText)),
+                        DropdownButton<String>(
+                          value: _filter,
+                          underline: const SizedBox.shrink(),
+                          items: const [
+                            DropdownMenuItem(value: 'All Status', child: Text('All Status')),
+                            DropdownMenuItem(value: 'In Progress', child: Text('In Progress')),
+                            DropdownMenuItem(value: 'Completed', child: Text('Completed')),
+                            DropdownMenuItem(value: 'Not Started', child: Text('Not Started')),
+                          ],
+                          onChanged: (val) {
+                            if (val != null) setState(() => _filter = val);
+                          },
+                        ),
+                      ],
                     ),
                     const SizedBox(height: 16),
 
+                    Text('Enrolled Courses Summary', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: isDark ? AppColors.darkPrimaryText : AppColors.lightPrimaryText)),
+                    const SizedBox(height: 2),
+                    Text('Showing ${_visibleCourses.length} of ${_courses.length} courses', style: TextStyle(fontSize: 11.5, color: isDark ? AppColors.darkSecondaryText : AppColors.lightSecondaryText)),
+                    const SizedBox(height: 12),
+
                     // Courses List
                     _visibleCourses.isEmpty
-                        ? const AppCard(child: Center(child: Padding(padding: EdgeInsets.all(24), child: Text('No courses found'))))
+                        ? AppCard(
+                            child: Padding(
+                              padding: const EdgeInsets.all(24),
+                              child: Center(
+                                child: Column(
+                                  children: [
+                                    const Icon(Icons.search_off, size: 40, color: Colors.grey),
+                                    const SizedBox(height: 8),
+                                    const Text('No courses match your filter', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+                                    const SizedBox(height: 4),
+                                    const Text('Try resetting filters or clear your search query.', style: TextStyle(fontSize: 12, color: Colors.grey), textAlign: TextAlign.center),
+                                    const SizedBox(height: 12),
+                                    OutlinedButton(
+                                      onPressed: () => setState(() {
+                                        _filter = 'All Status';
+                                        _query = '';
+                                        _searchController.clear();
+                                      }),
+                                      child: const Text('Clear Filters'),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          )
                         : ListView.separated(
                             shrinkWrap: true,
                             physics: const NeverScrollableScrollPhysics(),
@@ -550,24 +821,24 @@ class _MyCoursesScreenState extends ConsumerState<MyCoursesScreen> {
                                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                         children: [
                                           Expanded(
-                                            child: Text(course['title'], style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+                                            child: Text(course['title'], style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: isDark ? AppColors.darkPrimaryText : AppColors.lightPrimaryText)),
                                           ),
                                           StatusChip(status: course['status']?.toString().toUpperCase() ?? 'IN_PROGRESS'),
                                         ],
                                       ),
                                       const SizedBox(height: 4),
-                                      Text('${course['provider']} • ${course['duration']}', style: const TextStyle(fontSize: 12, color: AppColors.lightSecondaryText)),
+                                      Text('${course['provider']} • ${course['category']} • ${course['duration']}', style: TextStyle(fontSize: 12, color: isDark ? AppColors.darkSecondaryText : AppColors.lightSecondaryText)),
                                       const SizedBox(height: 10),
                                       LinearProgressIndicator(
                                         value: progress,
-                                        backgroundColor: Colors.grey.shade300,
+                                        backgroundColor: isDark ? Colors.white12 : Colors.grey.shade300,
                                         color: progress >= 1.0 ? AppColors.success : AppColors.primary,
                                       ),
                                       const SizedBox(height: 8),
                                       Row(
                                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                         children: [
-                                          Text('${(progress * 100).toInt()}% completed', style: const TextStyle(fontSize: 11, color: AppColors.lightMutedText)),
+                                          Text('${(progress * 100).toInt()}% completed', style: TextStyle(fontSize: 11, color: isDark ? AppColors.darkMutedText : Colors.grey)),
                                           ElevatedButton(
                                             onPressed: () => _openCoursePlayer(course),
                                             style: ElevatedButton.styleFrom(
@@ -590,6 +861,51 @@ class _MyCoursesScreenState extends ConsumerState<MyCoursesScreen> {
             ),
     );
   }
+
+  Widget _buildMyCoursesKpiGrid(bool isDark) {
+    return GridView.count(
+      crossAxisCount: 2,
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      crossAxisSpacing: 10,
+      mainAxisSpacing: 10,
+      childAspectRatio: 1.8,
+      children: [
+        _kpiCard('ACTIVE PROGRAMS', '${_courses.where((c) => c['progress'] < 1.0).length}', 'Current Quarter', Icons.school, AppColors.primary, isDark),
+        _kpiCard('ENROLLED EMPLOYEES', '74', 'Across Batches', Icons.groups, Colors.green, isDark),
+        _kpiCard('COMPLETION RATE', '${_courses.isNotEmpty ? (_courses.fold<double>(0, (s, c) => s + (c['progress'] as double)) / _courses.length * 100).round() : 0}%', 'Certified Candidates', Icons.trending_up, Colors.purple, isDark),
+        _kpiCard('AVG. FEEDBACK SCORE', '4.8 / 5', 'Trainee Reviews', Icons.star, const Color(0xFFF59E0B), isDark),
+      ],
+    );
+  }
+
+  Widget _kpiCard(String label, String value, String sub, IconData icon, Color color, bool isDark) {
+    return AppCard(
+      padding: const EdgeInsets.all(12),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(color: color.withOpacity(0.15), borderRadius: BorderRadius.circular(10)),
+            child: Icon(icon, color: color, size: 18),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text(value, style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: color)),
+                const SizedBox(height: 2),
+                Text(label, style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: isDark ? AppColors.darkPrimaryText : AppColors.lightPrimaryText), overflow: TextOverflow.ellipsis),
+                Text(sub, style: TextStyle(fontSize: 9.5, color: isDark ? AppColors.darkSecondaryText : AppColors.lightSecondaryText), overflow: TextOverflow.ellipsis),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 class TrainingInProgressScreen extends StatelessWidget {
@@ -597,22 +913,111 @@ class TrainingInProgressScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('In Progress Training')),
-      body: ListView(
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return GlassScaffold(
+      title: 'In Progress Training',
+      body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
-        children: [
-          InkWell(
-            onTap: () {
-              Navigator.push(context, MaterialPageRoute(builder: (_) => const CoursePlayerScreen(courseTitle: 'Cloud Infrastructure & AWS DevOps', instructor: 'DevOps Academy')));
-            },
-            child: const AppCard(
-              child: ListTile(
-                leading: Icon(Icons.hourglass_top, color: Colors.orange),
-                title: Text('Cloud Infrastructure & AWS DevOps'),
-                subtitle: Text('70% completed'),
-                trailing: StatusChip(status: 'IN_PROGRESS'),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('In-Progress Training', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: isDark ? AppColors.darkPrimaryText : AppColors.lightPrimaryText)),
+                      const SizedBox(height: 2),
+                      Text('Track and resume courses and modules you are actively working on.', style: TextStyle(fontSize: 12, color: isDark ? AppColors.darkSecondaryText : AppColors.lightSecondaryText)),
+                    ],
+                  ),
+                ),
+                OutlinedButton.icon(
+                  onPressed: () => Navigator.pop(context),
+                  icon: const Icon(Icons.arrow_back, size: 16),
+                  label: const Text('Back', style: TextStyle(fontSize: 11.5)),
+                ),
+              ],
+            ),
+            const SizedBox(height: 14),
+            buildTrainingSubNav(context, 2),
+            const SizedBox(height: 16),
+            GridView.count(
+              crossAxisCount: 2,
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              crossAxisSpacing: 10,
+              mainAxisSpacing: 10,
+              childAspectRatio: 1.8,
+              children: [
+                _kpiCard('ACTIVE COURSES', '0', 'Currently Studying', Icons.hourglass_top, AppColors.primary, isDark),
+                _kpiCard('FINISHED LECTURES', '0', 'Out of 0 Total', Icons.play_circle_filled, Colors.blue, isDark),
+                _kpiCard('AVG PROGRESS', '0%', 'Completion Rate', Icons.trending_up, Colors.orange, isDark),
+                _kpiCard('SCHEDULE STATUS', 'On Track', 'Deadlines Healthy', Icons.check_circle, Colors.green, isDark),
+              ],
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              decoration: InputDecoration(
+                hintText: 'Search active courses...',
+                prefixIcon: const Icon(Icons.search, size: 18),
+                filled: true,
+                fillColor: isDark ? AppColors.darkSecondarySurface : AppColors.lightInputBackground,
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
               ),
+            ),
+            const SizedBox(height: 16),
+            Text('In-Progress Modules', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: isDark ? AppColors.darkPrimaryText : AppColors.lightPrimaryText)),
+            const SizedBox(height: 2),
+            Text('Showing 0 active training items', style: TextStyle(fontSize: 11.5, color: isDark ? AppColors.darkSecondaryText : AppColors.lightSecondaryText)),
+            const SizedBox(height: 12),
+            AppCard(
+              child: Padding(
+                padding: const EdgeInsets.all(32),
+                child: Center(
+                  child: Column(
+                    children: const [
+                      Icon(Icons.hourglass_empty, size: 40, color: Colors.grey),
+                      SizedBox(height: 8),
+                      Text('No in-progress training found', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+                      SizedBox(height: 4),
+                      Text('You have finished all active modules or haven\'t started one yet.', style: TextStyle(fontSize: 12, color: Colors.grey), textAlign: TextAlign.center),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _kpiCard(String label, String value, String sub, IconData icon, Color color, bool isDark) {
+    return AppCard(
+      padding: const EdgeInsets.all(12),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(color: color.withOpacity(0.15), borderRadius: BorderRadius.circular(10)),
+            child: Icon(icon, color: color, size: 18),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text(value, style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: color)),
+                const SizedBox(height: 2),
+                Text(label, style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: isDark ? AppColors.darkPrimaryText : AppColors.lightPrimaryText), overflow: TextOverflow.ellipsis),
+                Text(sub, style: TextStyle(fontSize: 9.5, color: isDark ? AppColors.darkSecondaryText : AppColors.lightSecondaryText), overflow: TextOverflow.ellipsis),
+              ],
             ),
           ),
         ],
@@ -626,17 +1031,111 @@ class TrainingCompletedScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('Completed Training')),
-      body: ListView(
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return GlassScaffold(
+      title: 'Completed Training',
+      body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
-        children: const [
-          AppCard(
-            child: ListTile(
-              leading: Icon(Icons.check_circle, color: Colors.green),
-              title: Text('Effective Leadership & Team Communication'),
-              subtitle: Text('Completed on Sept 12, 2026'),
-              trailing: StatusChip(status: 'COMPLETED'),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('Completed Training', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: isDark ? AppColors.darkPrimaryText : AppColors.lightPrimaryText)),
+                      const SizedBox(height: 2),
+                      Text('View finished courses, scores, and downloadable certificates.', style: TextStyle(fontSize: 12, color: isDark ? AppColors.darkSecondaryText : AppColors.lightSecondaryText)),
+                    ],
+                  ),
+                ),
+                OutlinedButton.icon(
+                  onPressed: () => Navigator.pop(context),
+                  icon: const Icon(Icons.arrow_back, size: 16),
+                  label: const Text('Back', style: TextStyle(fontSize: 11.5)),
+                ),
+              ],
+            ),
+            const SizedBox(height: 14),
+            buildTrainingSubNav(context, 3),
+            const SizedBox(height: 16),
+            GridView.count(
+              crossAxisCount: 2,
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              crossAxisSpacing: 10,
+              mainAxisSpacing: 10,
+              childAspectRatio: 1.8,
+              children: [
+                _kpiCard('COMPLETED COURSES', '0', '100% Finished', Icons.check_circle, Colors.green, isDark),
+                _kpiCard('CERTIFICATES', '0', 'Official Badges', Icons.workspace_premium, Colors.amber, isDark),
+                _kpiCard('AVG ASSESSMENT', '100%', 'Score Standard', Icons.star, Colors.blue, isDark),
+                _kpiCard('LEARNING TIME', '0 hrs', 'Total Invested', Icons.timer, Colors.purple, isDark),
+              ],
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              decoration: InputDecoration(
+                hintText: 'Search completed courses...',
+                prefixIcon: const Icon(Icons.search, size: 18),
+                filled: true,
+                fillColor: isDark ? AppColors.darkSecondarySurface : AppColors.lightInputBackground,
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              ),
+            ),
+            const SizedBox(height: 16),
+            Text('Completed Courses Archive', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: isDark ? AppColors.darkPrimaryText : AppColors.lightPrimaryText)),
+            const SizedBox(height: 2),
+            Text('Showing 0 completed items', style: TextStyle(fontSize: 11.5, color: isDark ? AppColors.darkSecondaryText : AppColors.lightSecondaryText)),
+            const SizedBox(height: 12),
+            AppCard(
+              child: Padding(
+                padding: const EdgeInsets.all(32),
+                child: Center(
+                  child: Column(
+                    children: const [
+                      Icon(Icons.emoji_events_outlined, size: 40, color: Colors.grey),
+                      SizedBox(height: 8),
+                      Text('No completed training courses found', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+                      SizedBox(height: 4),
+                      Text('Keep progressing in active courses to earn certificates here.', style: TextStyle(fontSize: 12, color: Colors.grey), textAlign: TextAlign.center),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _kpiCard(String label, String value, String sub, IconData icon, Color color, bool isDark) {
+    return AppCard(
+      padding: const EdgeInsets.all(12),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(color: color.withOpacity(0.15), borderRadius: BorderRadius.circular(10)),
+            child: Icon(icon, color: color, size: 18),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text(value, style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: color)),
+                const SizedBox(height: 2),
+                Text(label, style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: isDark ? AppColors.darkPrimaryText : AppColors.lightPrimaryText), overflow: TextOverflow.ellipsis),
+                Text(sub, style: TextStyle(fontSize: 9.5, color: isDark ? AppColors.darkSecondaryText : AppColors.lightSecondaryText), overflow: TextOverflow.ellipsis),
+              ],
             ),
           ),
         ],
@@ -700,29 +1199,6 @@ class _MyCertificatesScreenState extends ConsumerState<MyCertificatesScreen> {
           }
         }
 
-        if (loadedList.isEmpty) {
-          loadedList.addAll([
-            {
-              'title': 'Certified Flutter Enterprise Developer',
-              'issuer': 'Etaprise Technical Academy',
-              'category': 'Engineering',
-              'issued': 'Sept 12, 2026',
-              'credentialId': 'CERT-8923',
-              'status': 'Completed',
-              'description': 'Verified credential in mobile app architecture and Riverpod state management.',
-            },
-            {
-              'title': 'Enterprise Security & Compliance',
-              'issuer': 'HR & Legal Compliance',
-              'category': 'Security',
-              'issued': 'Jan 10, 2026',
-              'credentialId': 'CERT-1042',
-              'status': 'Completed',
-              'description': 'Verified compliance credential in data privacy and GDPR regulations.',
-            },
-          ]);
-        }
-
         setState(() {
           _certifications = loadedList;
           _isLoading = false;
@@ -749,8 +1225,8 @@ class _MyCertificatesScreenState extends ConsumerState<MyCertificatesScreen> {
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
-    return Scaffold(
-      appBar: AppBar(title: const Text('My Certifications')),
+    return GlassScaffold(
+      title: 'Earned Certificates',
       body: _isLoading
           ? const ListSkeleton(itemCount: 3)
           : RefreshIndicator(
@@ -761,36 +1237,49 @@ class _MyCertificatesScreenState extends ConsumerState<MyCertificatesScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    AppCard(
-                      child: Row(
-                        children: [
-                          Container(
-                            width: 48,
-                            height: 48,
-                            decoration: BoxDecoration(color: AppColors.primary.withOpacity(0.15), borderRadius: BorderRadius.circular(12)),
-                            child: const Icon(Icons.verified_rounded, color: AppColors.primary, size: 26),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text('Earned Certificates', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: isDark ? AppColors.darkPrimaryText : AppColors.lightPrimaryText)),
+                              const SizedBox(height: 2),
+                              Text('Verify, download, and export official credentials and compliance badges.', style: TextStyle(fontSize: 12, color: isDark ? AppColors.darkSecondaryText : AppColors.lightSecondaryText)),
+                            ],
                           ),
-                          const SizedBox(width: 12),
-                          const Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text('Verified Credentials', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
-                                SizedBox(height: 2),
-                                Text('Official completion credentials recorded in your profile', style: TextStyle(fontSize: 11.5, color: AppColors.lightSecondaryText)),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
+                        ),
+                        OutlinedButton.icon(
+                          onPressed: () => Navigator.pop(context),
+                          icon: const Icon(Icons.arrow_back, size: 16),
+                          label: const Text('Back', style: TextStyle(fontSize: 11.5)),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 14),
+                    buildTrainingSubNav(context, 4),
+                    const SizedBox(height: 16),
+                    GridView.count(
+                      crossAxisCount: 2,
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      crossAxisSpacing: 10,
+                      mainAxisSpacing: 10,
+                      childAspectRatio: 1.8,
+                      children: [
+                        _kpiCard('TOTAL CERTIFICATES', '${_certifications.length}', 'Official Badges', Icons.workspace_premium, Colors.amber, isDark),
+                        _kpiCard('ACTIVE BADGES', '${_certifications.where((c) => c['status'] == 'Completed').length}', 'Valid & Verified', Icons.verified, Colors.green, isDark),
+                        _kpiCard('EXPIRING SOON', '0', 'Next 90 Days', Icons.timer, Colors.orange, isDark),
+                        _kpiCard('COMPLIANCE LEVEL', '0%', 'ISO Verified', Icons.security, AppColors.primary, isDark),
+                      ],
                     ),
                     const SizedBox(height: 16),
-
                     TextField(
                       controller: _searchController,
                       onChanged: (val) => setState(() => _query = val),
                       decoration: InputDecoration(
-                        hintText: 'Search title, issuer, or ID...',
+                        hintText: 'Search certificates by title, issuer, or ID...',
                         prefixIcon: const Icon(Icons.search, size: 18),
                         filled: true,
                         fillColor: isDark ? AppColors.darkSecondarySurface : AppColors.lightInputBackground,
@@ -798,25 +1287,29 @@ class _MyCertificatesScreenState extends ConsumerState<MyCertificatesScreen> {
                         contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                       ),
                     ),
-                    const SizedBox(height: 10),
-
-                    Row(
-                      children: ['All', 'Completed', 'Expired'].map((f) {
-                        final isSelected = _filter == f;
-                        return Padding(
-                          padding: const EdgeInsets.only(right: 8),
-                          child: ChoiceChip(
-                            label: Text(f),
-                            selected: isSelected,
-                            onSelected: (_) => setState(() => _filter = f),
-                          ),
-                        );
-                      }).toList(),
-                    ),
                     const SizedBox(height: 16),
+                    Text('My Credentials & Certificates', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: isDark ? AppColors.darkPrimaryText : AppColors.lightPrimaryText)),
+                    const SizedBox(height: 2),
+                    Text('Showing ${_visibleCertifications.length} issued certificates', style: TextStyle(fontSize: 11.5, color: isDark ? AppColors.darkSecondaryText : AppColors.lightSecondaryText)),
+                    const SizedBox(height: 12),
 
                     _visibleCertifications.isEmpty
-                        ? const AppCard(child: Center(child: Padding(padding: EdgeInsets.all(24), child: Text('No certificates found'))))
+                        ? AppCard(
+                            child: Padding(
+                              padding: const EdgeInsets.all(32),
+                              child: Center(
+                                child: Column(
+                                  children: const [
+                                    Icon(Icons.workspace_premium_outlined, size: 40, color: Colors.grey),
+                                    SizedBox(height: 8),
+                                    Text('No certificates found', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+                                    SizedBox(height: 4),
+                                    Text('Complete courses with assessments to earn certificates here.', style: TextStyle(fontSize: 12, color: Colors.grey), textAlign: TextAlign.center),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          )
                         : ListView.separated(
                             shrinkWrap: true,
                             physics: const NeverScrollableScrollPhysics(),
@@ -866,6 +1359,34 @@ class _MyCertificatesScreenState extends ConsumerState<MyCertificatesScreen> {
             ),
     );
   }
+
+  Widget _kpiCard(String label, String value, String sub, IconData icon, Color color, bool isDark) {
+    return AppCard(
+      padding: const EdgeInsets.all(12),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(color: color.withOpacity(0.15), borderRadius: BorderRadius.circular(10)),
+            child: Icon(icon, color: color, size: 18),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text(value, style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: color)),
+                const SizedBox(height: 2),
+                Text(label, style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: isDark ? AppColors.darkPrimaryText : AppColors.lightPrimaryText), overflow: TextOverflow.ellipsis),
+                Text(sub, style: TextStyle(fontSize: 9.5, color: isDark ? AppColors.darkSecondaryText : AppColors.lightSecondaryText), overflow: TextOverflow.ellipsis),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 class TrainingHistoryScreen extends StatelessWidget {
@@ -873,16 +1394,111 @@ class TrainingHistoryScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('Training History')),
-      body: ListView(
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return GlassScaffold(
+      title: 'Training Activity History',
+      body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
-        children: const [
-          AppCard(
-            child: ListTile(
-              leading: Icon(Icons.history, color: Colors.grey),
-              title: Text('Data Privacy & GDPR 2025'),
-              subtitle: Text('Completed on Jan 10, 2025'),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('Training Activity History', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: isDark ? AppColors.darkPrimaryText : AppColors.lightPrimaryText)),
+                      const SizedBox(height: 2),
+                      Text('Historical audit trail of course enrollments, completions, and compliance certifications.', style: TextStyle(fontSize: 12, color: isDark ? AppColors.darkSecondaryText : AppColors.lightSecondaryText)),
+                    ],
+                  ),
+                ),
+                OutlinedButton.icon(
+                  onPressed: () => Navigator.pop(context),
+                  icon: const Icon(Icons.arrow_back, size: 16),
+                  label: const Text('Back', style: TextStyle(fontSize: 11.5)),
+                ),
+              ],
+            ),
+            const SizedBox(height: 14),
+            buildTrainingSubNav(context, 5),
+            const SizedBox(height: 16),
+            GridView.count(
+              crossAxisCount: 2,
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              crossAxisSpacing: 10,
+              mainAxisSpacing: 10,
+              childAspectRatio: 1.8,
+              children: [
+                _kpiCard('AUDIT LOGS', '0', 'Total History Events', Icons.history, AppColors.primary, isDark),
+                _kpiCard('COMPLETIONS', '0', 'Courses Finished', Icons.check_circle, Colors.green, isDark),
+                _kpiCard('ENROLLMENTS', '0', 'Active & Pending', Icons.assignment, Colors.blue, isDark),
+                _kpiCard('CERTIFICATES', '0', 'Credentials Issued', Icons.workspace_premium, Colors.amber, isDark),
+              ],
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              decoration: InputDecoration(
+                hintText: 'Search history by course...',
+                prefixIcon: const Icon(Icons.search, size: 18),
+                filled: true,
+                fillColor: isDark ? AppColors.darkSecondarySurface : AppColors.lightInputBackground,
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              ),
+            ),
+            const SizedBox(height: 16),
+            Text('Activity Audit Trail', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: isDark ? AppColors.darkPrimaryText : AppColors.lightPrimaryText)),
+            const SizedBox(height: 2),
+            Text('Showing 0 recorded logs', style: TextStyle(fontSize: 11.5, color: isDark ? AppColors.darkSecondaryText : AppColors.lightSecondaryText)),
+            const SizedBox(height: 12),
+            AppCard(
+              child: Padding(
+                padding: const EdgeInsets.all(32),
+                child: Center(
+                  child: Column(
+                    children: const [
+                      Icon(Icons.history_toggle_off, size: 40, color: Colors.grey),
+                      SizedBox(height: 8),
+                      Text('No training history logs found', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+                      SizedBox(height: 4),
+                      Text('Activity history will automatically record as you complete modules.', style: TextStyle(fontSize: 12, color: Colors.grey), textAlign: TextAlign.center),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _kpiCard(String label, String value, String sub, IconData icon, Color color, bool isDark) {
+    return AppCard(
+      padding: const EdgeInsets.all(12),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(color: color.withOpacity(0.15), borderRadius: BorderRadius.circular(10)),
+            child: Icon(icon, color: color, size: 18),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text(value, style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: color)),
+                const SizedBox(height: 2),
+                Text(label, style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: isDark ? AppColors.darkPrimaryText : AppColors.lightPrimaryText), overflow: TextOverflow.ellipsis),
+                Text(sub, style: TextStyle(fontSize: 9.5, color: isDark ? AppColors.darkSecondaryText : AppColors.lightSecondaryText), overflow: TextOverflow.ellipsis),
+              ],
             ),
           ),
         ],

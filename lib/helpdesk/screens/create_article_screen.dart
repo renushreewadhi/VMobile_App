@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/api/helpdesk_service.dart';
 import '../../core/theme/app_colors.dart';
 import '../../shared/widgets/app_card.dart';
+import '../../core/widgets/glass_scaffold.dart';
 
 class CreateArticleScreen extends ConsumerStatefulWidget {
   const CreateArticleScreen({super.key});
@@ -119,12 +120,8 @@ class _CreateArticleScreenState extends ConsumerState<CreateArticleScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Create Knowledge Base Article'),
-        backgroundColor: AppColors.primary,
-        foregroundColor: Colors.white,
-      ),
+    return GlassScaffold(
+      title: 'Create Knowledge Base Article',
       body: _isLoadingCategories
           ? const Center(child: CircularProgressIndicator())
           : SingleChildScrollView(

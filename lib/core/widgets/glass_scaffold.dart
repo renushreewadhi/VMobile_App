@@ -61,7 +61,10 @@ class GlassScaffold extends StatelessWidget {
                   padding: EdgeInsets.only(
                     bottom: (showBottomBar && tabs != null) ? (85.0 + bottomPadding) : 0.0,
                   ),
-                  child: body,
+                  child: Material(
+                    color: Colors.transparent,
+                    child: body,
+                  ),
                 ),
               ),
             ],

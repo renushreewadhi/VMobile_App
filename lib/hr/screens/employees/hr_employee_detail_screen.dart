@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/api/api_client.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../core/widgets/glass_header.dart';
+import '../../../core/widgets/glass_scaffold.dart';
 import '../../../shared/widgets/app_card.dart';
 import '../../../shared/widgets/loading_shimmer.dart';
 import 'hr_employee_form_screen.dart';
@@ -52,18 +54,18 @@ class _HrEmployeeDetailScreenState extends ConsumerState<HrEmployeeDetailScreen>
   Widget build(BuildContext context) {
     if (_isLoading) return const LoadingShimmer();
     if (_employee == null) {
-      return Scaffold(
-        appBar: AppBar(title: const Text('Employee Details')),
-        body: const Center(child: Text('Employee not found')),
+      return const GlassScaffold(
+        title: 'Employee Details',
+        body: Center(child: Text('Employee not found')),
       );
     }
 
     final fullName = '${_employee!['firstName'] ?? ''} ${_employee!['lastName'] ?? ''}'.trim();
     final name = fullName.isNotEmpty ? fullName : (_employee!['name'] ?? 'Employee');
 
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(name),
+    return GlassScaffold(
+      appBar: GlassHeader(
+        title: name,
         actions: [
           IconButton(
             icon: const Icon(Icons.edit),
@@ -113,10 +115,13 @@ class _HrEmployeeDetailScreenState extends ConsumerState<HrEmployeeDetailScreen>
                   final isActive = _activeTab == t['id'];
                   return Padding(
                     padding: const EdgeInsets.only(right: 8),
-                    child: ChoiceChip(
-                      label: Text(t['label']),
-                      selected: isActive,
-                      onSelected: (val) => setState(() => _activeTab = t['id']),
+                    child: Material(
+                      color: Colors.transparent,
+                      child: ChoiceChip(
+                        label: Text(t['label']),
+                        selected: isActive,
+                        onSelected: (val) => setState(() => _activeTab = t['id']),
+                      ),
                     ),
                   );
                 }).toList(),

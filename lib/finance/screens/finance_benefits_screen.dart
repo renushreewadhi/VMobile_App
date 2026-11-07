@@ -793,37 +793,40 @@ class _FinanceBenefitsScreenState extends ConsumerState<FinanceBenefitsScreen> {
 
   Widget _buildTabChip(String label, String value, int count) {
     final isActive = _selectedStatus == value;
-    return ChoiceChip(
-      label: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(
-            label,
-            style: TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.bold,
-              color: isActive ? Colors.white : AppColors.lightSecondaryText,
+    return Material(
+      color: Colors.transparent,
+      child: ChoiceChip(
+        label: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.bold,
+                color: isActive ? Colors.white : AppColors.lightSecondaryText,
+              ),
             ),
-          ),
-          const SizedBox(width: 4),
-          Text(
-            '($count)',
-            style: TextStyle(
-              fontSize: 11,
-              fontWeight: FontWeight.w600,
-              color: isActive ? Colors.white70 : AppColors.lightMutedText,
+            const SizedBox(width: 4),
+            Text(
+              '($count)',
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+                color: isActive ? Colors.white70 : AppColors.lightMutedText,
+              ),
             ),
+          ],
+        ),
+        selected: isActive,
+        selectedColor: AppColors.primary,
+        backgroundColor: AppColors.lightInputBackground,
+        onSelected: (_) => setState(() => _selectedStatus = value),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+          side: BorderSide(
+            color: isActive ? AppColors.primary : Colors.grey.shade300,
           ),
-        ],
-      ),
-      selected: isActive,
-      selectedColor: AppColors.primary,
-      backgroundColor: AppColors.lightInputBackground,
-      onSelected: (_) => setState(() => _selectedStatus = value),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(20),
-        side: BorderSide(
-          color: isActive ? AppColors.primary : Colors.grey.shade300,
         ),
       ),
     );

@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/api/api_client.dart';
 import '../../core/theme/app_colors.dart';
+import '../../core/widgets/glass_header.dart';
+import '../../core/widgets/glass_scaffold.dart';
 import '../../shared/widgets/app_card.dart';
 import '../../shared/widgets/loading_shimmer.dart';
 import '../../shared/widgets/status_chip.dart';
@@ -265,18 +267,20 @@ class _TlProjectMembersScreenState extends ConsumerState<TlProjectMembersScreen>
 
   @override
   Widget build(BuildContext context) {
-    if (_isLoading) return const Scaffold(body: LoadingShimmer());
+    if (_isLoading) {
+      return const GlassScaffold(
+        appBar: GlassHeader(title: 'Assign Team Members'),
+        body: LoadingShimmer(),
+      );
+    }
 
     final projectName = _project?['name'] ?? 'Project';
     final projectCode = _project?['projectCode'] ?? '';
     final deptName = _project?['departmentName'] ?? 'General';
-    final priority = _project?['priority'] ?? 'MEDIUM';
     final status = _project?['status'] ?? 'IN_PROGRESS';
 
-    return Scaffold(
-      appBar: AppBar(
-        title: Text('Assign Team: $projectName'),
-      ),
+    return GlassScaffold(
+      appBar: GlassHeader(title: 'Assign Team: $projectName'),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
         child: Column(
@@ -382,7 +386,7 @@ class _TlProjectMembersScreenState extends ConsumerState<TlProjectMembersScreen>
                             onChanged: (_) => _toggleCandidate(id),
                           ),
                           CircleAvatar(
-                            backgroundColor: AppColors.primary.withOpacity(0.1),
+                            backgroundColor: AppColors.primary.withValues(alpha: 0.1),
                             child: Text(_getMemberInitial(name), style: const TextStyle(color: AppColors.primary, fontWeight: FontWeight.bold)),
                           ),
                           const SizedBox(width: 12),
@@ -455,7 +459,7 @@ class _TlProjectMembersScreenState extends ConsumerState<TlProjectMembersScreen>
                       child: Row(
                         children: [
                           CircleAvatar(
-                            backgroundColor: AppColors.success.withOpacity(0.1),
+                            backgroundColor: AppColors.success.withValues(alpha: 0.1),
                             child: Text(_getMemberInitial(name), style: const TextStyle(color: AppColors.success, fontWeight: FontWeight.bold)),
                           ),
                           const SizedBox(width: 12),

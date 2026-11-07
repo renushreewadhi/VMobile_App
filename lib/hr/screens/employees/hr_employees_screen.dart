@@ -1,18 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-
 import '../../../core/api/api_client.dart';
 import '../../../core/api/api_endpoints.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../core/theme/glass_theme.dart';
+import '../../../core/widgets/glass_header.dart';
+import '../../../core/widgets/glass_scaffold.dart';
 import '../../../shared/widgets/app_card.dart';
-import '../../../shared/widgets/loading_shimmer.dart';
-import '../../../shared/widgets/status_chip.dart';
 import 'hr_employee_detail_screen.dart';
 import 'hr_employee_form_screen.dart';
 
 class HrEmployeesScreen extends ConsumerStatefulWidget {
   final bool showAppBar;
-  const HrEmployeesScreen({super.key, this.showAppBar = false});
+  const HrEmployeesScreen({super.key, this.showAppBar = true});
 
   @override
   ConsumerState<HrEmployeesScreen> createState() => _HrEmployeesScreenState();
@@ -21,9 +21,8 @@ class HrEmployeesScreen extends ConsumerStatefulWidget {
 class _HrEmployeesScreenState extends ConsumerState<HrEmployeesScreen> {
   bool _isLoading = true;
   List<dynamic> _employees = [];
-  String _searchTerm = '';
-  String _selectedDepartment = '';
-  String _selectedStatus = '';
+  String _searchQuery = '';
+  String _selectedStatus = 'All';
 
   @override
   void initState() {
@@ -35,141 +34,344 @@ class _HrEmployeesScreenState extends ConsumerState<HrEmployeesScreen> {
     setState(() => _isLoading = true);
     final apiClient = ref.read(apiClientProvider);
     try {
-      final res = await apiClient.get(ApiEndpoints.employees).catchError((_) => null);
-      if (mounted) {
-        setState(() {
-          if (res is List) {
-            _employees = res;
-          } else if (res is Map<String, dynamic> && res['data'] is List) {
-            _employees = res['data'];
-          } else {
-            _employees = [
-              {'id': '1', 'fullName': 'Rahul Sharma', 'employeeId': 'EMP-001', 'email': 'rahul@company.com', 'department': 'Engineering', 'designation': 'Senior Developer', 'employmentStatus': 'Active'},
-              {'id': '2', 'fullName': 'Priya Verma', 'employeeId': 'EMP-002', 'email': 'priya@company.com', 'department': 'Product', 'designation': 'UI Designer', 'employmentStatus': 'Active'},
-            ];
-          }
-          _isLoading = false;
-        });
-      }
+      final res = await apiClient.get(ApiEndpoints.employeesAll).catchError((_) => apiClient.get(ApiEndpoints.employees).catchError((_) => []));
+      final list = res is Map ? (res['data'] ?? res['items'] ?? []) : (res is List ? res : []);
+      setState(() {
+        _employees = list;
+        _isLoading = false;
+      });
     } catch (_) {
-      if (mounted) setState(() => _isLoading = false);
+      setState(() {
+        _employees = [
+          {
+            'id': '1',
+            'employeeId': 'EMP-26-0009',
+            'firstName': 'Mansi',
+            'lastName': 'Borase',
+            'email': 'mansi.borase@in.nvisionbeyond.com',
+            'department': 'Engineering',
+            'designation': 'Developer',
+            'joiningDate': 'Oct 17, 2026',
+            'employmentStatus': 'Active'
+          },
+          {
+            'id': '2',
+            'employeeId': 'EMP-26-0011',
+            'firstName': 'Tanisha',
+            'lastName': 'Manani',
+            'email': 'tanisha.manani@in.nvisionbeyond.com',
+            'department': 'Engineering',
+            'designation': 'Developer',
+            'joiningDate': 'Oct 17, 2026',
+            'employmentStatus': 'Active'
+          },
+        ];
+        _isLoading = false;
+      });
+    }
+  }
+
+  Future<void> _deleteEmployee(Map<String, dynamic> emp) async {
+    final name = '${emp['firstName'] ?? ''} ${emp['lastName'] ?? ''}'.trim();
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Delete Employee'),
+        content: Text('Are you sure you want to delete $name? This action cannot be undone.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Yes, Delete'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+
+    final apiClient = ref.read(apiClientProvider);
+    try {
+      final id = emp['id'] ?? emp['_id'];
+      await apiClient.delete('/management/employees/$id');
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Employee deleted successfully')));
+      _loadEmployees();
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed to delete employee: $e')));
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    if (_isLoading) return const ListSkeleton(itemCount: 4);
+    final dark = Theme.of(context).brightness == Brightness.dark;
+    final glass = context.glass;
 
-    final filtered = _employees.where((e) {
-      final map = e is Map<String, dynamic> ? e : {};
-      final name = (map['fullName'] ?? map['name'] ?? '').toString().toLowerCase();
-      final email = (map['email'] ?? '').toString().toLowerCase();
-      final empId = (map['employeeId'] ?? map['code'] ?? '').toString().toLowerCase();
-      final dept = (map['department'] ?? '').toString();
-      final status = (map['employmentStatus'] ?? map['status'] ?? 'Active').toString();
+    final filtered = _employees.where((emp) {
+      if (emp is! Map) return false;
+      final name = '${emp['firstName'] ?? ''} ${emp['lastName'] ?? ''} ${emp['name'] ?? ''}'.toLowerCase();
+      final empId = (emp['employeeId'] ?? emp['code'] ?? '').toLowerCase();
+      final dept = (emp['department'] ?? emp['departmentName'] ?? '').toLowerCase();
+      final matchesSearch = name.contains(_searchQuery.toLowerCase()) || empId.contains(_searchQuery.toLowerCase()) || dept.contains(_searchQuery.toLowerCase());
 
-      final matchesSearch = _searchTerm.isEmpty || name.contains(_searchTerm.toLowerCase()) || email.contains(_searchTerm.toLowerCase()) || empId.contains(_searchTerm.toLowerCase());
-      final matchesDept = _selectedDepartment.isEmpty || dept == _selectedDepartment;
-      final matchesStatus = _selectedStatus.isEmpty || status.toLowerCase() == _selectedStatus.toLowerCase();
+      final status = (emp['employmentStatus'] ?? emp['status'] ?? 'Active').toString();
+      final matchesStatus = _selectedStatus == 'All' || status.toLowerCase() == _selectedStatus.toLowerCase();
 
-      return matchesSearch && matchesDept && matchesStatus;
+      return matchesSearch && matchesStatus;
     }).toList();
 
-    final activeCount = _employees.where((e) => (e['employmentStatus'] ?? e['status'] ?? 'Active').toString().toLowerCase() == 'active').length;
-    final inactiveCount = _employees.length - activeCount;
+    final totalCount = _employees.length;
+    final activeCount = _employees.where((e) => (e is Map ? (e['employmentStatus'] ?? e['status'] ?? 'Active') : 'Active').toString().toLowerCase() == 'active').length;
+    final inactiveCount = totalCount - activeCount;
+    final deptsSet = _employees.map((e) => e is Map ? (e['department'] ?? e['departmentName'] ?? 'General') : 'General').toSet().length;
 
-    final content = SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        children: [
-          // KPI Metrics Row
-          Row(
-            children: [
-              Expanded(child: _buildMetricCard('Total', '${_employees.length}', Colors.blue, Icons.people)),
-              const SizedBox(width: 8),
-              Expanded(child: _buildMetricCard('Active', '$activeCount', Colors.green, Icons.how_to_reg)),
-              const SizedBox(width: 8),
-              Expanded(child: _buildMetricCard('Inactive', '$inactiveCount', Colors.red, Icons.person_off)),
-            ],
-          ),
-          const SizedBox(height: 16),
-          // Search & Filter
-          TextField(
-            decoration: const InputDecoration(
-              labelText: 'Search name, email, ID...',
-              prefixIcon: Icon(Icons.search),
-              border: OutlineInputBorder(),
-            ),
-            onChanged: (val) => setState(() => _searchTerm = val),
-          ),
-          const SizedBox(height: 16),
-          // Employee List
-          if (filtered.isEmpty)
-            const AppCard(
-              child: Padding(
-                padding: EdgeInsets.all(24),
-                child: Center(child: Text('No employees found.')),
-              ),
-            )
-          else
-            ListView.builder(
+    final content = RefreshIndicator(
+      onRefresh: _loadEmployees,
+      child: SingleChildScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // 4 Stat Cards in a single horizontal row (4-column grid)
+            GridView.count(
+              crossAxisCount: 4,
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),
-              itemCount: filtered.length,
-              itemBuilder: (context, index) {
-                final emp = filtered[index];
-                final name = emp['fullName'] ?? emp['name'] ?? 'Employee';
-                final code = emp['employeeId'] ?? emp['code'] ?? 'EMP';
-                final dept = emp['department'] ?? 'General';
-                final desig = emp['designation'] ?? 'Staff';
-                final status = emp['employmentStatus'] ?? emp['status'] ?? 'Active';
+              crossAxisSpacing: 6,
+              mainAxisSpacing: 0,
+              childAspectRatio: 1.0,
+              children: [
+                _statCard('Total', '$totalCount', Icons.groups_rounded, const Color(0xFF2563EB), const Color(0xFFE0EDFF)),
+                _statCard('Active', '$activeCount', Icons.check_circle_rounded, const Color(0xFF16A34A), const Color(0xFFDCFCE7)),
+                _statCard('Inactive', '$inactiveCount', Icons.pause_circle_rounded, const Color(0xFFDC2626), const Color(0xFFFEE2E2)),
+                _statCard('Departments', '$deptsSet', Icons.business_rounded, const Color(0xFF8B5CF6), const Color(0xFFEFF6FF)),
+              ],
+            ),
+            const SizedBox(height: 16),
 
-                return Padding(
-                  padding: const EdgeInsets.only(bottom: 12),
-                  child: AppCard(
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(builder: (_) => HrEmployeeDetailScreen(employeeId: emp['id']?.toString() ?? '1')),
-                      ).then((_) => _loadEmployees());
-                    },
-                    child: Row(
-                      children: [
-                        CircleAvatar(
-                          backgroundColor: AppColors.lightPrimary,
-                          child: Text(name.isNotEmpty ? name[0].toUpperCase() : 'E', style: const TextStyle(color: AppColors.primary, fontWeight: FontWeight.bold)),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
-                              Text('$code • $desig ($dept)', style: const TextStyle(fontSize: 12, color: AppColors.lightSecondaryText)),
-                            ],
-                          ),
-                        ),
-                        StatusChip(status: status.toString().toUpperCase()),
-                      ],
+            // Search Bar & Status Dropdown
+            Row(
+              children: [
+                Expanded(
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 14),
+                    decoration: BoxDecoration(
+                      color: dark ? AppColors.darkSecondarySurface : Colors.white,
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(color: dark ? AppColors.darkBordersAndDividers : const Color(0xFFE2E8F0)),
+                    ),
+                    child: TextField(
+                      onChanged: (val) => setState(() => _searchQuery = val),
+                      style: TextStyle(color: dark ? AppColors.darkPrimaryText : AppColors.lightPrimaryText, fontSize: 13),
+                      decoration: const InputDecoration(
+                        icon: Icon(Icons.search_rounded, size: 20, color: Color(0xFF64748B)),
+                        hintText: 'Search by name, ID, department...',
+                        border: InputBorder.none,
+                      ),
                     ),
                   ),
-                );
-              },
+                ),
+                const SizedBox(width: 10),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  decoration: BoxDecoration(
+                    color: dark ? AppColors.darkSecondarySurface : Colors.white,
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: dark ? AppColors.darkBordersAndDividers : const Color(0xFFE2E8F0)),
+                  ),
+                  child: DropdownButton<String>(
+                    value: _selectedStatus,
+                    underline: const SizedBox.shrink(),
+                    items: const [
+                      DropdownMenuItem(value: 'All', child: Text('All Status', style: TextStyle(fontSize: 12))),
+                      DropdownMenuItem(value: 'Active', child: Text('Active', style: TextStyle(fontSize: 12))),
+                      DropdownMenuItem(value: 'Inactive', child: Text('Inactive', style: TextStyle(fontSize: 12))),
+                    ],
+                    onChanged: (val) {
+                      if (val != null) setState(() => _selectedStatus = val);
+                    },
+                  ),
+                ),
+              ],
             ),
-        ],
+            const SizedBox(height: 16),
+
+            // Employee Cards List
+            if (_isLoading)
+              const Center(child: Padding(padding: EdgeInsets.all(32), child: CircularProgressIndicator()))
+            else if (filtered.isEmpty)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 48),
+                child: Center(
+                  child: Text('No employees found', style: TextStyle(color: glass.textSecondary, fontSize: 14, fontWeight: FontWeight.w600)),
+                ),
+              )
+            else
+              ...filtered.map((emp) {
+                final map = emp is Map ? Map<String, dynamic>.from(emp) : <String, dynamic>{};
+                final firstName = map['firstName']?.toString() ?? '';
+                final lastName = map['lastName']?.toString() ?? '';
+                final name = ('$firstName $lastName').trim().isNotEmpty ? ('$firstName $lastName').trim() : (map['name']?.toString() ?? 'Employee');
+                final empId = map['employeeId']?.toString() ?? map['code']?.toString() ?? 'EMP-000';
+                final dept = map['department']?.toString() ?? map['departmentName']?.toString() ?? 'General';
+                final designation = map['designation']?.toString() ?? 'Staff';
+                final email = map['email']?.toString() ?? '';
+                final status = map['employmentStatus']?.toString() ?? map['status']?.toString() ?? 'Active';
+                final isActive = status.toLowerCase() == 'active' || status.toLowerCase() == 'true';
+                final joiningDate = map['joiningDate']?.toString() ?? map['startDate']?.toString() ?? 'Recently';
+
+                final initials = name.isNotEmpty
+                    ? name.split(' ').map((n) => n.isNotEmpty ? n[0] : '').join('').toUpperCase()
+                    : 'EM';
+                final safeInitials = initials.length >= 2 ? initials.substring(0, 2) : initials;
+
+                return AppCard(
+                  backgroundColor: dark ? AppColors.darkMainSurface : Colors.white,
+                  margin: const EdgeInsets.only(bottom: 14),
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Container(
+                            width: 46,
+                            height: 46,
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFE0EDFF),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            alignment: Alignment.center,
+                            child: Text(
+                              safeInitials,
+                              style: const TextStyle(color: Color(0xFF2563EB), fontWeight: FontWeight.w800, fontSize: 16),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    Expanded(
+                                      child: Text(name, style: TextStyle(fontWeight: FontWeight.w800, fontSize: 15, color: glass.textPrimary)),
+                                    ),
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                      decoration: BoxDecoration(
+                                        color: isActive ? const Color(0xFFDCFCE7) : const Color(0xFFF1F5F9),
+                                        borderRadius: BorderRadius.circular(20),
+                                      ),
+                                      child: Text(
+                                        status.toUpperCase(),
+                                        style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: isActive ? const Color(0xFF16A34A) : const Color(0xFF64748B)),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 3),
+                                Text('$empId • $dept', style: TextStyle(fontSize: 12, color: glass.textSecondary, fontWeight: FontWeight.w600)),
+                                const SizedBox(height: 2),
+                                Text(designation, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: glass.textPrimary)),
+                                if (email.isNotEmpty) ...[
+                                  const SizedBox(height: 2),
+                                  Text(email, style: TextStyle(fontSize: 11, color: glass.textSecondary)),
+                                ],
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                      const Padding(
+                        padding: EdgeInsets.symmetric(vertical: 12),
+                        child: Divider(height: 1, color: Color(0xFFF1F5F9)),
+                      ),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Row(
+                            children: [
+                              const Icon(Icons.calendar_today_rounded, size: 13, color: Color(0xFF94A3B8)),
+                              const SizedBox(width: 5),
+                              Text('Joined $joiningDate', style: const TextStyle(fontSize: 11, color: Color(0xFF64748B), fontWeight: FontWeight.w500)),
+                            ],
+                          ),
+                          Row(
+                            children: [
+                              InkWell(
+                                onTap: () {
+                                  final id = map['id']?.toString() ?? map['_id']?.toString() ?? '';
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(builder: (_) => HrEmployeeDetailScreen(employeeId: id)),
+                                  );
+                                },
+                                borderRadius: BorderRadius.circular(8),
+                                child: Container(
+                                  padding: const EdgeInsets.all(8),
+                                  decoration: BoxDecoration(color: const Color(0xFFEFF6FF), borderRadius: BorderRadius.circular(8)),
+                                  child: const Icon(Icons.remove_red_eye_rounded, size: 16, color: Color(0xFF2563EB)),
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              InkWell(
+                                onTap: () async {
+                                  final id = map['id']?.toString() ?? map['_id']?.toString() ?? '';
+                                  await Navigator.push(
+                                    context,
+                                    MaterialPageRoute(builder: (_) => HrEmployeeFormScreen(employeeId: id, initialData: map)),
+                                  );
+                                  _loadEmployees();
+                                },
+                                borderRadius: BorderRadius.circular(8),
+                                child: Container(
+                                  padding: const EdgeInsets.all(8),
+                                  decoration: BoxDecoration(color: const Color(0xFFFEF3C7), borderRadius: BorderRadius.circular(8)),
+                                  child: const Icon(Icons.edit_rounded, size: 16, color: Color(0xFFD97706)),
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              InkWell(
+                                onTap: () => _deleteEmployee(map),
+                                borderRadius: BorderRadius.circular(8),
+                                child: Container(
+                                  padding: const EdgeInsets.all(8),
+                                  decoration: BoxDecoration(color: const Color(0xFFFEE2E2), borderRadius: BorderRadius.circular(8)),
+                                  child: const Icon(Icons.delete_rounded, size: 16, color: Color(0xFFDC2626)),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                );
+              }),
+          ],
+        ),
       ),
     );
 
-    if (!widget.showAppBar) return Material(color: Colors.transparent, child: content);
+    if (!widget.showAppBar) return content;
 
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Employee Management'),
+    return GlassScaffold(
+      appBar: GlassHeader(
+        title: 'Employee Management',
         actions: [
           IconButton(
-            icon: const Icon(Icons.person_add),
+            icon: const Icon(Icons.add_rounded),
             onPressed: () async {
-              await Navigator.push(context, MaterialPageRoute(builder: (_) => const HrEmployeeFormScreen()));
+              await Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const HrEmployeeFormScreen()),
+              );
               _loadEmployees();
             },
           ),
@@ -179,32 +381,34 @@ class _HrEmployeesScreenState extends ConsumerState<HrEmployeesScreen> {
     );
   }
 
-  Widget _buildMetric(String label, String value, Color color, IconData icon) {
+  Widget _statCard(String title, String value, IconData icon, Color iconColor, Color iconBg) {
     return AppCard(
+      padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 4),
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          Icon(icon, color: color, size: 20),
-          const SizedBox(height: 4),
-          Text(value, style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: color)),
-          Text(label, style: const TextStyle(fontSize: 10, color: Colors.grey)),
+          Container(
+            width: 24,
+            height: 24,
+            decoration: BoxDecoration(color: iconBg, borderRadius: BorderRadius.circular(6)),
+            child: Icon(icon, color: iconColor, size: 13),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            value,
+            style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: Color(0xFF0F172A), height: 1.0),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 1),
+          Text(
+            title,
+            style: const TextStyle(fontSize: 9, color: Color(0xFF64748B), fontWeight: FontWeight.w600, height: 1.0),
+            textAlign: TextAlign.center,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+          ),
         ],
-      ),
-    );
-  }
-
-  Widget _buildMetricCard(String label, String value, Color color, IconData icon) {
-    return AppCard(
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
-        child: Column(
-          children: [
-            Icon(icon, color: color, size: 20),
-            const SizedBox(height: 4),
-            Text(value, style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: color)),
-            Text(label, style: const TextStyle(fontSize: 10, color: Colors.grey)),
-          ],
-        ),
       ),
     );
   }

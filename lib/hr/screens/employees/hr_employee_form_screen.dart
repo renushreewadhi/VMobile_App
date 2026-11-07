@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/api/api_client.dart';
+import '../../../core/widgets/glass_scaffold.dart';
 
 class HrEmployeeFormScreen extends ConsumerStatefulWidget {
   final String? employeeId;
@@ -92,8 +93,8 @@ class _HrEmployeeFormScreenState extends ConsumerState<HrEmployeeFormScreen> {
   @override
   Widget build(BuildContext context) {
     final isEdit = widget.employeeId != null;
-    return Scaffold(
-      appBar: AppBar(title: Text(isEdit ? 'Edit Employee' : 'Add Employee')),
+    return GlassScaffold(
+      title: isEdit ? 'Edit Employee' : 'Add Employee',
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
         child: Form(

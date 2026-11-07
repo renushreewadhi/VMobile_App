@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/api/helpdesk_service.dart';
 import '../../core/theme/app_colors.dart';
+import '../../core/widgets/glass_scaffold.dart';
 
 class CreateTicketScreen extends ConsumerStatefulWidget {
   const CreateTicketScreen({super.key});
@@ -110,12 +111,8 @@ class _CreateTicketScreenState extends ConsumerState<CreateTicketScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Create Support Ticket'),
-        backgroundColor: AppColors.primary,
-        foregroundColor: Colors.white,
-      ),
+    return GlassScaffold(
+      title: 'Create Support Ticket',
       body: _isLoadingCategories
           ? const Center(child: CircularProgressIndicator())
           : SingleChildScrollView(

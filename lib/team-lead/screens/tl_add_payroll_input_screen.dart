@@ -4,6 +4,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/api/api_client.dart';
 import '../../core/api/api_endpoints.dart';
 import '../../core/theme/app_colors.dart';
+import '../../core/widgets/glass_header.dart';
+import '../../core/widgets/glass_scaffold.dart';
 import '../../shared/widgets/app_card.dart';
 
 class TlAddPayrollInputScreen extends ConsumerStatefulWidget {
@@ -23,8 +25,8 @@ class _TlAddPayrollInputScreenState extends ConsumerState<TlAddPayrollInputScree
 
   String _selectedEmployeeId = '';
   String _inputType = 'OVERTIME';
-  String _month = 'Oct';
-  int _year = 2026;
+  final String _month = 'Oct';
+  final int _year = 2026;
 
   @override
   void initState() {
@@ -125,8 +127,8 @@ class _TlAddPayrollInputScreenState extends ConsumerState<TlAddPayrollInputScree
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('Add Payroll Input')),
+    return GlassScaffold(
+      appBar: const GlassHeader(title: 'Add Payroll Input'),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
         child: AppCard(
@@ -142,7 +144,7 @@ class _TlAddPayrollInputScreenState extends ConsumerState<TlAddPayrollInputScree
               const Text('Select Team Member *', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
               const SizedBox(height: 6),
               DropdownButtonFormField<String>(
-                value: _selectedEmployeeId.isEmpty ? null : _selectedEmployeeId,
+                initialValue: _selectedEmployeeId.isEmpty ? null : _selectedEmployeeId,
                 decoration: const InputDecoration(hintText: '-- Select Employee --', border: OutlineInputBorder()),
                 items: _teamMembers.map((e) {
                   final id = (e['employeeId'] ?? e['id'])?.toString() ?? '';
@@ -164,7 +166,7 @@ class _TlAddPayrollInputScreenState extends ConsumerState<TlAddPayrollInputScree
                         const Text('Input Category *', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
                         const SizedBox(height: 6),
                         DropdownButtonFormField<String>(
-                          value: _inputType,
+                          initialValue: _inputType,
                           decoration: const InputDecoration(border: OutlineInputBorder()),
                           items: const [
                             DropdownMenuItem(value: 'OVERTIME', child: Text('Overtime')),

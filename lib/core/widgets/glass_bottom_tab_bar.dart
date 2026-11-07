@@ -8,6 +8,7 @@ class GlassTab {
   final VoidCallback onTap;
   final bool isSelected;
   final int? badgeCount;
+  final bool isAction;
 
   const GlassTab({
     required this.icon,
@@ -15,6 +16,7 @@ class GlassTab {
     required this.onTap,
     required this.isSelected,
     this.badgeCount,
+    this.isAction = false,
   });
 }
 
@@ -46,6 +48,28 @@ class GlassBottomTabBar extends StatelessWidget {
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceAround,
             children: tabs.map((tab) {
+              if (tab.isAction) {
+                return GestureDetector(
+                  onTap: tab.onTap,
+                  child: Container(
+                    width: 48,
+                    height: 48,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF0F6B66),
+                      shape: BoxShape.circle,
+                      boxShadow: [
+                        BoxShadow(
+                          color: const Color(0xFF0F6B66).withOpacity(0.4),
+                          blurRadius: 10,
+                          offset: const Offset(0, 4),
+                        ),
+                      ],
+                    ),
+                    child: const Icon(Icons.add_rounded, color: Colors.white, size: 28),
+                  ),
+                );
+              }
+
               return Semantics(
                 selected: tab.isSelected,
                 button: true,
@@ -56,7 +80,7 @@ class GlassBottomTabBar extends StatelessWidget {
                     duration: const Duration(milliseconds: 200),
                     curve: Curves.easeInOut,
                     padding: EdgeInsets.symmetric(
-                      horizontal: tab.isSelected ? 14 : 10,
+                      horizontal: tab.isSelected ? 12 : 8,
                       vertical: 8,
                     ),
                     decoration: BoxDecoration(
@@ -103,7 +127,7 @@ class GlassBottomTabBar extends StatelessWidget {
                           ],
                         ),
                         if (tab.isSelected) ...[
-                          const SizedBox(width: 6),
+                          const SizedBox(width: 5),
                           Text(
                             tab.label,
                             style: TextStyle(

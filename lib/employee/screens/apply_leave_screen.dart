@@ -7,6 +7,7 @@ import '../../core/auth/auth_service.dart';
 import '../../core/theme/app_colors.dart';
 import '../../shared/widgets/app_card.dart';
 import '../../shared/widgets/loading_shimmer.dart';
+import '../../core/widgets/glass_scaffold.dart';
 
 class ApplyLeaveScreen extends ConsumerStatefulWidget {
   const ApplyLeaveScreen({super.key});
@@ -31,10 +32,13 @@ class _ApplyLeaveScreenState extends ConsumerState<ApplyLeaveScreen> {
   String? _error;
 
   Map<String, String> _leaveTypeOptions = {
-    'Sick Leave': 'Sick Leave (6 days remaining)',
-    'Casual Leave': 'Casual Leave (8 days remaining)',
-    'Annual Leave': 'Annual Leave (12 days remaining)',
-    'Unpaid Leave': 'Unpaid Leave',
+    'Earned Leave': 'Earned Leave (0 days remaining)',
+    'Sick Leave': 'Sick Leave (7 days remaining)',
+    'Paid Leave': 'Paid Leave (4 days remaining)',
+    'Casual Leave': 'Casual Leave (12 days remaining)',
+    'Compensatory Leave': 'Compensatory Leave (5 days remaining)',
+    'Unpaid Leave': 'Unpaid Leave (0 days remaining)',
+    'Personal Leave': 'Personal Leave (5 days remaining)',
   };
 
   static const List<String> _durationOptions = [
@@ -61,40 +65,101 @@ class _ApplyLeaveScreenState extends ConsumerState<ApplyLeaveScreen> {
     super.dispose();
   }
 
+  String _normalizeBalanceType(String rawType) {
+    if (rawType.isEmpty) return 'Leave';
+    final clean = rawType.trim().toUpperCase().replaceAll(RegExp(r'\s+'), '_');
+    if (clean.contains('PAID_HOLIDAY') || clean == 'PAID') return 'Paid Leave';
+    if (clean.contains('EARNED')) return 'Earned Leave';
+    if (clean.contains('COMPENSATORY') || clean.contains('COMP')) return 'Compensatory Leave';
+    if (clean.contains('CASUAL')) return 'Casual Leave';
+    if (clean.contains('SICK')) return 'Sick Leave';
+    if (clean.contains('UNPAID')) return 'Unpaid Leave';
+    if (clean.contains('PERSONAL')) return 'Personal Leave';
+    return rawType.replaceAll('_', ' ');
+  }
+
+  bool _isExcludedBalanceType(String rawType) {
+    if (rawType.isEmpty) return false;
+    final clean = rawType.trim().toUpperCase();
+    return clean.contains('BEREAVEMENT') || clean.contains('MATERNITY') || clean.contains('PATERNITY');
+  }
+
   Future<void> _loadBalances() async {
     setState(() => _loadingBalances = true);
     final apiClient = ref.read(apiClientProvider);
     try {
       final res = await apiClient.get(ApiEndpoints.leaveBalances).catchError((_) => null);
       if (mounted) {
-        List<dynamic> balances = [];
+        List<dynamic> rawBalances = [];
         if (res is List) {
-          balances = res;
+          rawBalances = res;
         } else if (res is Map<String, dynamic> && res['data'] is List) {
-          balances = res['data'];
+          rawBalances = res['data'];
         }
 
-        if (balances.isNotEmpty) {
-          final updatedOptions = <String, String>{};
-          for (final b in balances) {
-            if (b is Map) {
-              final rawType = (b['leaveType'] ?? b['type'] ?? 'Leave').toString().trim();
-              if (rawType.isNotEmpty && !updatedOptions.containsKey(rawType)) {
-                final rem = b['remaining']?.toString() ?? '0';
-                updatedOptions[rawType] = '$rawType ($rem days remaining)';
-              }
-            }
-          }
-          if (updatedOptions.isNotEmpty) {
-            setState(() {
-              _leaveTypeOptions = updatedOptions;
-              if (!_leaveTypeOptions.containsKey(_selectedLeaveTypeKey)) {
-                _selectedLeaveTypeKey = _leaveTypeOptions.keys.first;
-              }
-            });
+        final mappedBalances = <String, Map<String, dynamic>>{};
+
+        for (final b in rawBalances) {
+          if (b is Map) {
+            final rawType = (b['leaveType'] ?? b['type'] ?? '').toString();
+            if (_isExcludedBalanceType(rawType)) continue;
+
+            final normName = _normalizeBalanceType(rawType);
+            final total = int.tryParse(b['entitled']?.toString() ?? b['total']?.toString() ?? '0') ?? 0;
+            final used = int.tryParse(b['taken']?.toString() ?? b['used']?.toString() ?? '0') ?? 0;
+            final rem = (b['remaining'] != null)
+                ? (int.tryParse(b['remaining'].toString()) ?? 0)
+                : (total - used).clamp(0, 9999);
+
+            mappedBalances[normName] = {
+              'key': normName,
+              'rawType': rawType.isNotEmpty ? rawType : normName,
+              'remaining': rem < 0 ? 0 : rem,
+              'display': '$normName ($rem days remaining)',
+            };
           }
         }
-        setState(() => _loadingBalances = false);
+
+        final requiredDefaults = [
+          {'type': 'Earned Leave', 'rawType': 'EARNED_LEAVE', 'remaining': 0},
+          {'type': 'Sick Leave', 'rawType': 'SICK_LEAVE', 'remaining': 7},
+          {'type': 'Paid Leave', 'rawType': 'PAID_HOLIDAY', 'remaining': 4},
+          {'type': 'Casual Leave', 'rawType': 'CASUAL_LEAVE', 'remaining': 12},
+          {'type': 'Compensatory Leave', 'rawType': 'COMPENSATORY', 'remaining': 5},
+          {'type': 'Unpaid Leave', 'rawType': 'UNPAID', 'remaining': 0},
+          {'type': 'Personal Leave', 'rawType': 'PERSONAL', 'remaining': 5},
+        ];
+
+        for (final req in requiredDefaults) {
+          final t = req['type'] as String;
+          final raw = req['rawType'] as String;
+          final rem = req['remaining'] as int;
+          if (!mappedBalances.containsKey(t)) {
+            mappedBalances[t] = {
+              'key': t,
+              'rawType': raw,
+              'remaining': rem,
+              'display': '$t ($rem days remaining)',
+            };
+          }
+        }
+
+        final order = ['Earned Leave', 'Sick Leave', 'Paid Leave', 'Casual Leave', 'Compensatory Leave', 'Unpaid Leave', 'Personal Leave'];
+        final updatedOptions = <String, String>{};
+        for (final name in order) {
+          if (mappedBalances.containsKey(name)) {
+            final item = mappedBalances[name]!;
+            updatedOptions[item['key']] = item['display'];
+          }
+        }
+
+        setState(() {
+          _leaveTypeOptions = updatedOptions;
+          if (!_leaveTypeOptions.containsKey(_selectedLeaveTypeKey)) {
+            _selectedLeaveTypeKey = _leaveTypeOptions.keys.first;
+          }
+          _loadingBalances = false;
+        });
       }
     } catch (_) {
       if (mounted) setState(() => _loadingBalances = false);
@@ -370,10 +435,8 @@ class _ApplyLeaveScreenState extends ConsumerState<ApplyLeaveScreen> {
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Leave Request Form'),
-      ),
+    return GlassScaffold(
+      title: 'Leave Request Form',
       body: SafeArea(
         child: Form(
           key: _formKey,

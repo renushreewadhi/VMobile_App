@@ -7,6 +7,7 @@ import '../../shared/widgets/custom_button.dart';
 import '../../shared/widgets/custom_text_field.dart';
 import '../../shared/widgets/loading_shimmer.dart';
 import '../../shared/widgets/status_chip.dart';
+import '../../core/widgets/glass_scaffold.dart';
 
 class HelpdeskDashboardScreen extends ConsumerStatefulWidget {
   const HelpdeskDashboardScreen({super.key});
@@ -44,8 +45,8 @@ class _HelpdeskDashboardScreenState extends ConsumerState<HelpdeskDashboardScree
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('Helpdesk Dashboard')),
+    return GlassScaffold(
+      title: 'Helpdesk Dashboard',
       body: _isLoading
           ? const DashboardSkeleton()
           : RefreshIndicator(
@@ -117,8 +118,8 @@ class HelpdeskTicketsScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('Helpdesk Tickets')),
+    return GlassScaffold(
+      title: 'Helpdesk Tickets',
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: const [
@@ -141,8 +142,8 @@ class HelpdeskKnowledgeBaseScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('Knowledge Base')),
+    return GlassScaffold(
+      title: 'Knowledge Base',
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: const [
@@ -177,8 +178,8 @@ class _AiAssistantScreenState extends ConsumerState<AiAssistantScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('AI HR Assistant')),
+    return GlassScaffold(
+      title: 'AI HR Assistant',
       body: Column(
         children: [
           Expanded(
@@ -223,8 +224,8 @@ class MySettingsScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('My Settings')),
+    return GlassScaffold(
+      title: 'My Settings',
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: const [

@@ -35,10 +35,10 @@ class AppColors {
   static const Color textOnPrimary = Color(0xFFFFFFFF);
 
   // Dark theme backgrounds & text
-  static const Color darkAppBackground = Color(0xFF06201F);
-  static const Color darkMainSurface = Color(0xFF141D2E);
-  static const Color darkCardBackground = Color(0x14FFFFFF); // 8% white glass
-  static const Color darkSecondarySurface = Color(0xFF1C2940);
+  static const Color darkAppBackground = Color(0xFF0F2E2C);
+  static const Color darkMainSurface = Color(0xFF1B2A38);
+  static const Color darkCardBackground = Color(0xFF1B2A38);
+  static const Color darkSecondarySurface = Color(0xFF1F3244);
   
   static const Color darkPrimaryText = Color(0xFFEAF6F5);
   static const Color darkSecondaryText = Color(0xFFA5B4C8);

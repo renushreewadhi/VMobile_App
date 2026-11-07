@@ -4,6 +4,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/api/api_client.dart';
 import '../../core/api/api_endpoints.dart';
 import '../../core/theme/app_colors.dart';
+import '../../core/theme/glass_theme.dart';
+import '../../core/widgets/glass_header.dart';
+import '../../core/widgets/glass_scaffold.dart';
 import '../../shared/widgets/app_card.dart';
 import '../../shared/widgets/loading_shimmer.dart';
 import '../../shared/widgets/status_chip.dart';
@@ -44,7 +47,6 @@ class _TlPerformanceScreenState extends ConsumerState<TlPerformanceScreen> {
 
       final employees = results[0];
       final goals = results[1];
-      final reviews = results[2];
 
       List<dynamic> empList = [];
       if (employees is List) {
@@ -128,21 +130,24 @@ class _TlPerformanceScreenState extends ConsumerState<TlPerformanceScreen> {
   void _reviewGoalModal(Map<String, dynamic> goal) {
     double rating = double.tryParse(goal['managerRating']?.toString() ?? '5') ?? 5.0;
     final commentsController = TextEditingController(text: goal['managerComments'] ?? '');
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final glass = context.glass;
 
     showDialog(
       context: context,
       builder: (context) => StatefulBuilder(
         builder: (context, setModalState) => AlertDialog(
-          title: const Text('TL Review & Rating'),
+          backgroundColor: isDark ? const Color(0xFF111C24) : Colors.white,
+          title: Text('TL Review & Rating', style: TextStyle(color: glass.textPrimary, fontWeight: FontWeight.bold)),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('Employee: ${goal['employeeName']}'),
+              Text('Employee: ${goal['employeeName']}', style: TextStyle(color: glass.textSecondary)),
               const SizedBox(height: 4),
-              Text('Goal: ${goal['title']}', style: const TextStyle(fontWeight: FontWeight.bold)),
+              Text('Goal: ${goal['title']}', style: TextStyle(fontWeight: FontWeight.bold, color: glass.textPrimary)),
               const SizedBox(height: 12),
-              Text('Rating: ${rating.toStringAsFixed(1)} / 5.0'),
+              Text('Rating: ${rating.toStringAsFixed(1)} / 5.0', style: TextStyle(color: glass.textPrimary, fontWeight: FontWeight.w600)),
               Slider(
                 value: rating,
                 min: 1.0,
@@ -155,7 +160,12 @@ class _TlPerformanceScreenState extends ConsumerState<TlPerformanceScreen> {
               TextField(
                 controller: commentsController,
                 maxLines: 3,
-                decoration: const InputDecoration(labelText: 'Review Feedback', border: OutlineInputBorder()),
+                style: TextStyle(color: glass.textPrimary),
+                decoration: InputDecoration(
+                  labelText: 'Review Feedback',
+                  labelStyle: TextStyle(color: glass.textSecondary),
+                  border: const OutlineInputBorder(),
+                ),
               ),
             ],
           ),
@@ -188,6 +198,7 @@ class _TlPerformanceScreenState extends ConsumerState<TlPerformanceScreen> {
                   }
                 }
               },
+              style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary, foregroundColor: Colors.white),
               child: const Text('Submit Review'),
             ),
           ],
@@ -203,7 +214,15 @@ class _TlPerformanceScreenState extends ConsumerState<TlPerformanceScreen> {
 
   @override
   Widget build(BuildContext context) {
-    if (_isLoading) return const Scaffold(body: LoadingShimmer());
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final glass = context.glass;
+
+    if (_isLoading) {
+      return GlassScaffold(
+        appBar: const GlassHeader(title: 'Team Performance & Goals'),
+        body: LoadingShimmer(),
+      );
+    }
 
     final filteredPerformances = _performances.where((p) {
       final name = (p['name'] ?? '').toString().toLowerCase();
@@ -217,8 +236,8 @@ class _TlPerformanceScreenState extends ConsumerState<TlPerformanceScreen> {
       return _searchTerm.isEmpty || name.contains(_searchTerm.toLowerCase()) || title.contains(_searchTerm.toLowerCase());
     }).toList();
 
-    return Scaffold(
-      appBar: AppBar(title: const Text('Team Performance & Goals')),
+    return GlassScaffold(
+      appBar: const GlassHeader(title: 'Team Performance & Goals'),
       body: RefreshIndicator(
         onRefresh: _loadPerformanceData,
         child: SingleChildScrollView(
@@ -239,22 +258,26 @@ class _TlPerformanceScreenState extends ConsumerState<TlPerformanceScreen> {
               ),
               const SizedBox(height: 16),
 
-              // Action Bar & Tabs
+              // Action Bar & Tabs (Wrapped with Expanded to prevent horizontal overflow)
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  SingleChildScrollView(
-                    scrollDirection: Axis.horizontal,
-                    child: Row(
-                      children: [
-                        ChoiceChip(label: const Text('Overview'), selected: _activeTab == 'team', onSelected: (_) => setState(() => _activeTab = 'team')),
-                        const SizedBox(width: 8),
-                        ChoiceChip(label: Text('Goals (${_teamGoals.length})'), selected: _activeTab == 'goals', onSelected: (_) => setState(() => _activeTab = 'goals')),
-                        const SizedBox(width: 8),
-                        ChoiceChip(label: Text('Pending Review (${_pendingReviewGoals.length})'), selected: _activeTab == 'review', onSelected: (_) => setState(() => _activeTab = 'review')),
-                      ],
+                  Expanded(
+                    child: SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      physics: const BouncingScrollPhysics(),
+                      child: Row(
+                        children: [
+                          _buildTabChip('Overview', 'team'),
+                          const SizedBox(width: 6),
+                          _buildTabChip('Goals (${_teamGoals.length})', 'goals'),
+                          const SizedBox(width: 6),
+                          _buildTabChip('Pending (${_pendingReviewGoals.length})', 'review'),
+                        ],
+                      ),
                     ),
                   ),
+                  const SizedBox(width: 8),
                   ElevatedButton.icon(
                     onPressed: () async {
                       await Navigator.push(
@@ -263,8 +286,13 @@ class _TlPerformanceScreenState extends ConsumerState<TlPerformanceScreen> {
                       );
                       _loadPerformanceData();
                     },
-                    icon: const Icon(Icons.add),
+                    icon: const Icon(Icons.add, size: 16),
                     label: const Text('Assign Goal'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.primary,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                    ),
                   ),
                 ],
               ),
@@ -272,21 +300,28 @@ class _TlPerformanceScreenState extends ConsumerState<TlPerformanceScreen> {
 
               // Search Bar
               TextField(
-                decoration: const InputDecoration(
+                style: TextStyle(color: glass.textPrimary),
+                decoration: InputDecoration(
                   labelText: 'Search employee or goals...',
-                  prefixIcon: Icon(Icons.search),
-                  border: OutlineInputBorder(),
+                  labelStyle: TextStyle(color: glass.textSecondary),
+                  prefixIcon: Icon(Icons.search, color: glass.textSecondary),
+                  filled: true,
+                  fillColor: isDark ? const Color(0xFF1A2632) : AppColors.lightInputBackground,
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide.none),
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                 ),
                 onChanged: (val) => setState(() => _searchTerm = val),
               ),
               const SizedBox(height: 16),
 
               if (_activeTab == 'team') ...[
-                const Text('Team Scorecards Overview', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                Text('Team Scorecards Overview', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: glass.textPrimary)),
                 const SizedBox(height: 12),
 
                 if (filteredPerformances.isEmpty)
-                  const AppCard(child: Padding(padding: EdgeInsets.all(24), child: Center(child: Text('No performance records found.'))))
+                  AppCard(
+                    child: Padding(padding: const EdgeInsets.all(24), child: Center(child: Text('No performance records found.', style: TextStyle(color: glass.textSecondary)))),
+                  )
                 else
                   ListView.builder(
                     shrinkWrap: true,
@@ -316,8 +351,8 @@ class _TlPerformanceScreenState extends ConsumerState<TlPerformanceScreen> {
                                     child: Column(
                                       crossAxisAlignment: CrossAxisAlignment.start,
                                       children: [
-                                        Text(name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
-                                        Text(desig, style: const TextStyle(fontSize: 12, color: AppColors.lightSecondaryText)),
+                                        Text(name, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: glass.textPrimary)),
+                                        Text(desig, style: TextStyle(fontSize: 12, color: glass.textSecondary)),
                                       ],
                                     ),
                                   ),
@@ -325,7 +360,7 @@ class _TlPerformanceScreenState extends ConsumerState<TlPerformanceScreen> {
                                     children: [
                                       const Icon(Icons.star, size: 14, color: AppColors.warning),
                                       const SizedBox(width: 2),
-                                      Text('$rating', style: const TextStyle(fontWeight: FontWeight.bold)),
+                                      Text('$rating', style: TextStyle(fontWeight: FontWeight.bold, color: glass.textPrimary)),
                                     ],
                                   ),
                                 ],
@@ -355,11 +390,13 @@ class _TlPerformanceScreenState extends ConsumerState<TlPerformanceScreen> {
                     },
                   ),
               ] else if (_activeTab == 'goals') ...[
-                const Text('Team Tracked Goals', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                Text('Team Tracked Goals', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: glass.textPrimary)),
                 const SizedBox(height: 12),
 
                 if (filteredGoals.isEmpty)
-                  const AppCard(child: Padding(padding: EdgeInsets.all(24), child: Center(child: Text('No goals assigned.'))))
+                  AppCard(
+                    child: Padding(padding: const EdgeInsets.all(24), child: Center(child: Text('No goals assigned.', style: TextStyle(color: glass.textSecondary)))),
+                  )
                 else
                   ListView.builder(
                     shrinkWrap: true,
@@ -382,20 +419,23 @@ class _TlPerformanceScreenState extends ConsumerState<TlPerformanceScreen> {
                               Row(
                                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                 children: [
-                                  Text(name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+                                  Expanded(
+                                    child: Text(name, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: glass.textPrimary), maxLines: 1, overflow: TextOverflow.ellipsis),
+                                  ),
+                                  const SizedBox(width: 8),
                                   StatusChip(status: status),
                                 ],
                               ),
                               const SizedBox(height: 4),
-                              Text(title, style: const TextStyle(fontSize: 13, color: AppColors.lightSecondaryText)),
+                              Text(title, style: TextStyle(fontSize: 13, color: glass.textSecondary)),
                               const SizedBox(height: 8),
                               LinearProgressIndicator(
                                 value: (pct / 100).clamp(0.0, 1.0),
-                                backgroundColor: AppColors.lightSurface,
+                                backgroundColor: isDark ? AppColors.darkSecondarySurface : AppColors.lightSurface,
                                 color: pct >= 80 ? AppColors.success : AppColors.primary,
                               ),
                               const SizedBox(height: 6),
-                              Text('$cat • $pct% Achieved', style: const TextStyle(fontSize: 11, color: AppColors.lightMutedText)),
+                              Text('$cat • $pct% Achieved', style: TextStyle(fontSize: 11, color: glass.textSecondary)),
                             ],
                           ),
                         ),
@@ -403,11 +443,13 @@ class _TlPerformanceScreenState extends ConsumerState<TlPerformanceScreen> {
                     },
                   ),
               ] else ...[
-                const Text('Goals Pending Review', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                Text('Goals Pending Review', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: glass.textPrimary)),
                 const SizedBox(height: 12),
 
                 if (_pendingReviewGoals.isEmpty)
-                  const AppCard(child: Padding(padding: EdgeInsets.all(24), child: Center(child: Text('All caught up! No pending reviews.'))))
+                  AppCard(
+                    child: Padding(padding: const EdgeInsets.all(24), child: Center(child: Text('All caught up! No pending reviews.', style: TextStyle(color: glass.textSecondary)))),
+                  )
                 else
                   ListView.builder(
                     shrinkWrap: true,
@@ -424,9 +466,9 @@ class _TlPerformanceScreenState extends ConsumerState<TlPerformanceScreen> {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text(name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+                              Text(name, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: glass.textPrimary)),
                               const SizedBox(height: 4),
-                              Text(title, style: const TextStyle(fontSize: 13, color: AppColors.lightSecondaryText)),
+                              Text(title, style: TextStyle(fontSize: 13, color: glass.textSecondary)),
                               const Divider(height: 20),
                               Row(
                                 mainAxisAlignment: MainAxisAlignment.end,
@@ -435,6 +477,7 @@ class _TlPerformanceScreenState extends ConsumerState<TlPerformanceScreen> {
                                     onPressed: () => _reviewGoalModal(g),
                                     icon: const Icon(Icons.rate_review, size: 16),
                                     label: const Text('Review Goal'),
+                                    style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary, foregroundColor: Colors.white),
                                   ),
                                 ],
                               ),
@@ -448,6 +491,25 @@ class _TlPerformanceScreenState extends ConsumerState<TlPerformanceScreen> {
             ],
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _buildTabChip(String label, String tabKey) {
+    final isSelected = _activeTab == tabKey;
+    final glass = context.glass;
+    return Material(
+      color: Colors.transparent,
+      child: ChoiceChip(
+        label: Text(label),
+        selected: isSelected,
+        selectedColor: AppColors.primary,
+        labelStyle: TextStyle(
+          color: isSelected ? Colors.white : glass.textPrimary,
+          fontWeight: isSelected ? FontWeight.bold : FontWeight.w600,
+          fontSize: 12,
+        ),
+        onSelected: (_) => setState(() => _activeTab = tabKey),
       ),
     );
   }

@@ -136,10 +136,7 @@ class _TlDashboardScreenState extends ConsumerState<TlDashboardScreen> {
                     Navigator.push(
                       context,
                       MaterialPageRoute(
-                        builder: (_) => Scaffold(
-                          appBar: AppBar(title: const Text('Team Tasks')),
-                          body: const TlTasksScreen(),
-                        ),
+                        builder: (_) => const TlTasksScreen(),
                       ),
                     );
                   },
@@ -152,10 +149,7 @@ class _TlDashboardScreenState extends ConsumerState<TlDashboardScreen> {
                     Navigator.push(
                       context,
                       MaterialPageRoute(
-                        builder: (_) => Scaffold(
-                          appBar: AppBar(title: const Text('Team Projects')),
-                          body: const TlProjectsScreen(),
-                        ),
+                        builder: (_) => const TlProjectsScreen(),
                       ),
                     );
                   },
@@ -189,10 +183,7 @@ class _TlDashboardScreenState extends ConsumerState<TlDashboardScreen> {
               Navigator.push(
                 context,
                 MaterialPageRoute(
-                  builder: (_) => Scaffold(
-                    appBar: AppBar(title: const Text('Team Projects')),
-                    body: const TlProjectsScreen(),
-                  ),
+                  builder: (_) => const TlProjectsScreen(),
                 ),
               );
             }),
@@ -200,10 +191,7 @@ class _TlDashboardScreenState extends ConsumerState<TlDashboardScreen> {
               Navigator.push(
                 context,
                 MaterialPageRoute(
-                  builder: (_) => Scaffold(
-                    appBar: AppBar(title: const Text('Team Analytics')),
-                    body: const TlReportsScreen(),
-                  ),
+                  builder: (_) => const TlReportsScreen(),
                 ),
               );
             }),
@@ -211,10 +199,7 @@ class _TlDashboardScreenState extends ConsumerState<TlDashboardScreen> {
               Navigator.push(
                 context,
                 MaterialPageRoute(
-                  builder: (_) => Scaffold(
-                    appBar: AppBar(title: const Text('Team Tasks')),
-                    body: const TlTasksScreen(),
-                  ),
+                  builder: (_) => const TlTasksScreen(),
                 ),
               );
             }),
@@ -222,10 +207,7 @@ class _TlDashboardScreenState extends ConsumerState<TlDashboardScreen> {
               Navigator.push(
                 context,
                 MaterialPageRoute(
-                  builder: (_) => Scaffold(
-                    appBar: AppBar(title: const Text('Expense Claims')),
-                    body: const TlExpensesScreen(),
-                  ),
+                  builder: (_) => const TlExpensesScreen(),
                 ),
               );
             }),
@@ -239,10 +221,7 @@ class _TlDashboardScreenState extends ConsumerState<TlDashboardScreen> {
               Navigator.push(
                 context,
                 MaterialPageRoute(
-                  builder: (_) => Scaffold(
-                    appBar: AppBar(title: const Text('Performance & Goals')),
-                    body: const TlPerformanceScreen(),
-                  ),
+                  builder: (_) => const TlPerformanceScreen(),
                 ),
               );
             }),

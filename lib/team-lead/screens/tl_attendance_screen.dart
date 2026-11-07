@@ -4,6 +4,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/api/api_client.dart';
 import '../../core/api/api_endpoints.dart';
 import '../../core/theme/app_colors.dart';
+import '../../core/widgets/glass_header.dart';
+import '../../core/widgets/glass_scaffold.dart';
 import '../../shared/widgets/app_card.dart';
 import '../../shared/widgets/compact_summary_widgets.dart';
 import '../../shared/widgets/loading_shimmer.dart';
@@ -200,7 +202,12 @@ class _TlAttendanceScreenState extends ConsumerState<TlAttendanceScreen> {
 
   @override
   Widget build(BuildContext context) {
-    if (_isLoading) return const Scaffold(body: LoadingShimmer());
+    if (_isLoading) {
+      return const GlassScaffold(
+        appBar: GlassHeader(title: 'Team Attendance & Approvals'),
+        body: LoadingShimmer(),
+      );
+    }
 
     final totalCount = _attendance.length;
     final presentCount = _attendance.where((a) => a['status'] == 'PRESENT' || a['status'] == 'PRESENT_WFH' || a['isWfh'] == true).length;
@@ -223,8 +230,8 @@ class _TlAttendanceScreenState extends ConsumerState<TlAttendanceScreen> {
       return matchesSearch && matchesStatus;
     }).toList();
 
-    return Scaffold(
-      appBar: AppBar(title: const Text('Team Attendance & Approvals')),
+    return GlassScaffold(
+      appBar: const GlassHeader(title: 'Team Attendance & Approvals'),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
         child: Column(
@@ -235,13 +242,13 @@ class _TlAttendanceScreenState extends ConsumerState<TlAttendanceScreen> {
               scrollDirection: Axis.horizontal,
               child: Row(
                 children: [
-                  ChoiceChip(label: const Text('Team Attendance'), selected: _activeTab == 'attendance', onSelected: (_) => setState(() => _activeTab = 'attendance')),
+                  Material(color: Colors.transparent, child: ChoiceChip(label: const Text('Team Attendance'), selected: _activeTab == 'attendance', onSelected: (_) => setState(() => _activeTab = 'attendance'))),
                   const SizedBox(width: 8),
-                  ChoiceChip(label: Text('Corrections (${_correctionsList.length})'), selected: _activeTab == 'corrections', onSelected: (_) => setState(() => _activeTab = 'corrections')),
+                  Material(color: Colors.transparent, child: ChoiceChip(label: Text('Corrections (${_correctionsList.length})'), selected: _activeTab == 'corrections', onSelected: (_) => setState(() => _activeTab = 'corrections'))),
                   const SizedBox(width: 8),
-                  ChoiceChip(label: const Text('Team Summary'), selected: _activeTab == 'summary', onSelected: (_) => setState(() => _activeTab = 'summary')),
+                  Material(color: Colors.transparent, child: ChoiceChip(label: const Text('Team Summary'), selected: _activeTab == 'summary', onSelected: (_) => setState(() => _activeTab = 'summary'))),
                   const SizedBox(width: 8),
-                  ChoiceChip(label: const Text('Rules'), selected: _activeTab == 'rules', onSelected: (_) => setState(() => _activeTab = 'rules')),
+                  Material(color: Colors.transparent, child: ChoiceChip(label: const Text('Rules'), selected: _activeTab == 'rules', onSelected: (_) => setState(() => _activeTab = 'rules'))),
                 ],
               ),
             ),
@@ -272,15 +279,15 @@ class _TlAttendanceScreenState extends ConsumerState<TlAttendanceScreen> {
                 scrollDirection: Axis.horizontal,
                 child: Row(
                   children: [
-                    ChoiceChip(label: Text('All ($totalCount)'), selected: _filterStatus == 'ALL', onSelected: (_) => setState(() => _filterStatus = 'ALL')),
+                    Material(color: Colors.transparent, child: ChoiceChip(label: Text('All ($totalCount)'), selected: _filterStatus == 'ALL', onSelected: (_) => setState(() => _filterStatus = 'ALL'))),
                     const SizedBox(width: 8),
-                    ChoiceChip(label: Text('Present ($presentCount)'), selected: _filterStatus == 'PRESENT', onSelected: (_) => setState(() => _filterStatus = 'PRESENT')),
+                    Material(color: Colors.transparent, child: ChoiceChip(label: Text('Present ($presentCount)'), selected: _filterStatus == 'PRESENT', onSelected: (_) => setState(() => _filterStatus = 'PRESENT'))),
                     const SizedBox(width: 8),
-                    ChoiceChip(label: Text('WFH ($wfhCount)'), selected: _filterStatus == 'WFH', onSelected: (_) => setState(() => _filterStatus = 'WFH')),
+                    Material(color: Colors.transparent, child: ChoiceChip(label: Text('WFH ($wfhCount)'), selected: _filterStatus == 'WFH', onSelected: (_) => setState(() => _filterStatus = 'WFH'))),
                     const SizedBox(width: 8),
-                    ChoiceChip(label: Text('Absent ($absentCount)'), selected: _filterStatus == 'ABSENT', onSelected: (_) => setState(() => _filterStatus = 'ABSENT')),
+                    Material(color: Colors.transparent, child: ChoiceChip(label: Text('Absent ($absentCount)'), selected: _filterStatus == 'ABSENT', onSelected: (_) => setState(() => _filterStatus = 'ABSENT'))),
                     const SizedBox(width: 8),
-                    ChoiceChip(label: Text('Late ($lateCount)'), selected: _filterStatus == 'LATE', onSelected: (_) => setState(() => _filterStatus = 'LATE')),
+                    Material(color: Colors.transparent, child: ChoiceChip(label: Text('Late ($lateCount)'), selected: _filterStatus == 'LATE', onSelected: (_) => setState(() => _filterStatus = 'LATE'))),
                   ],
                 ),
               ),

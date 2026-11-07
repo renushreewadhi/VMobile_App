@@ -1,7 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../../core/api/api_client.dart';
-import '../../../core/theme/app_colors.dart';
+import '../../core/api/api_client.dart';
+import '../../core/api/api_endpoints.dart';
+import '../../core/auth/auth_service.dart';
+import '../../core/errors/api_exception.dart';
+import '../../core/models/user_model.dart';
+import '../../core/theme/glass_theme.dart';
+import '../../core/widgets/app_button.dart';
+import '../../core/widgets/app_card.dart';
+import '../../core/widgets/glass_scaffold.dart';
+import '../../core/widgets/glass_header.dart';
 
 class AdminTeamFormScreen extends ConsumerStatefulWidget {
   final String? teamId;
@@ -17,6 +25,7 @@ class _AdminTeamFormScreenState extends ConsumerState<AdminTeamFormScreen> {
   final _formKey = GlobalKey<FormState>();
   bool _isLoading = false;
   bool _isSaving = false;
+  String? _errorMessage;
 
   final TextEditingController _nameController = TextEditingController();
   final TextEditingController _descriptionController = TextEditingController();
@@ -29,22 +38,73 @@ class _AdminTeamFormScreenState extends ConsumerState<AdminTeamFormScreen> {
   List<dynamic> _departments = [];
   List<dynamic> _employees = [];
 
+  // Request ID guard
+  int _requestId = 0;
+  String? _currentUserId;
+
   bool get _isEdit => widget.teamId != null || widget.initialData != null;
 
   @override
   void initState() {
     super.initState();
-    _loadDropdowns();
-    if (widget.initialData != null) {
-      _populateData(widget.initialData!);
-    } else if (_isEdit && widget.teamId != null) {
-      _loadTeamDetail();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        _checkUserAndLoad();
+      }
+    });
+  }
+
+  void _checkUserAndLoad() {
+    _requestId++; // Immediately invalidate any in-flight requests
+    final authState = ref.read(authServiceProvider);
+    final user = authState.user;
+
+    if (user == null || !authState.isAuthenticated) {
+      if (!mounted) return;
+      _resetState();
+      setState(() {
+        _isLoading = false;
+        _errorMessage = 'No authenticated user found.';
+      });
+      return;
     }
+
+    if (_currentUserId != user.id) {
+      _currentUserId = user.id;
+      _resetState();
+    }
+
+    // Role Guard Check: Must be ADMIN or HR
+    final userRole = user.role;
+    final bool isAuthorized = userRole == UserRole.ADMIN || userRole == UserRole.HR;
+
+    if (!isAuthorized) {
+      if (!mounted) return;
+      _resetState();
+      setState(() {
+        _isLoading = false;
+        _errorMessage = null;
+      });
+      return;
+    }
+
+    _loadDropdownsAndDetail();
+  }
+
+  void _resetState() {
+    _nameController.clear();
+    _descriptionController.clear();
+    _projectsController.text = '0';
+    _status = 'Active';
+    _departmentId = null;
+    _teamLeadId = null;
+    _departments = [];
+    _employees = [];
   }
 
   void _populateData(Map<String, dynamic> data) {
-    _nameController.text = data['name'] ?? '';
-    _descriptionController.text = data['description'] ?? '';
+    _nameController.text = data['name']?.toString() ?? '';
+    _descriptionController.text = data['description']?.toString() ?? '';
     _projectsController.text = '${data['activeProjectsCount'] ?? 0}';
     final allowedStatuses = ['Active', 'Inactive'];
     final rawStatus = data['status'] ?? 'Active';
@@ -52,36 +112,70 @@ class _AdminTeamFormScreenState extends ConsumerState<AdminTeamFormScreen> {
       (s) => s.toLowerCase() == rawStatus.toString().toLowerCase(),
       orElse: () => 'Active',
     );
-    _departmentId = data['departmentId'];
-    _teamLeadId = data['teamLeadId'];
+    _departmentId = data['departmentId']?.toString();
+    _teamLeadId = data['teamLeadId']?.toString();
   }
 
-  Future<void> _loadDropdowns() async {
+  Future<void> _loadDropdownsAndDetail() async {
+    final currentReq = ++_requestId;
+    if (!mounted) return;
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
+
     final apiClient = ref.read(apiClientProvider);
-    try {
-      final deptRes = await apiClient.get('/management/departments').catchError((_) => null);
-      final empRes = await apiClient.get('/management/employees').catchError((_) => null);
 
+    try {
+      final deptRes = await apiClient.get(ApiEndpoints.departments).catchError((_) => null);
+      if (!mounted || currentReq != _requestId) return;
+
+      final empRes = await apiClient.get(ApiEndpoints.employees).catchError((_) => null);
+      if (!mounted || currentReq != _requestId) return;
+
+      List<dynamic> depts = deptRes is List ? deptRes : (deptRes is Map ? (deptRes['items'] ?? deptRes['data'] ?? []) : []);
+      List<dynamic> emps = empRes is List ? empRes : (empRes is Map ? (empRes['items'] ?? empRes['data'] ?? []) : []);
+
+      if (!mounted || currentReq != _requestId) return;
       setState(() {
-        _departments = deptRes is List ? deptRes : (deptRes is Map ? (deptRes['items'] ?? deptRes['data'] ?? []) : []);
-        _employees = empRes is List ? empRes : (empRes is Map ? (empRes['items'] ?? empRes['data'] ?? []) : []);
+        _departments = depts;
+        _employees = emps;
       });
-    } catch (_) {}
-  }
 
-  Future<void> _loadTeamDetail() async {
-    setState(() => _isLoading = true);
-    try {
-      final res = await ref.read(apiClientProvider).get('/departments/teams/${widget.teamId}');
-      if (res is Map<String, dynamic>) {
-        _populateData(res);
-      }
-    } catch (_) {
       if (widget.initialData != null) {
         _populateData(widget.initialData!);
+      } else if (_isEdit && widget.teamId != null) {
+        final res = await apiClient.get(ApiEndpoints.teamDetail(widget.teamId!));
+        if (!mounted || currentReq != _requestId) return;
+        if (res is Map<String, dynamic>) {
+          _populateData(res);
+        }
       }
-    } finally {
+
+      if (!mounted || currentReq != _requestId) return;
       setState(() => _isLoading = false);
+    } on ApiException catch (e) {
+      if (!mounted || currentReq != _requestId) return;
+      if (widget.initialData != null) {
+        _populateData(widget.initialData!);
+        setState(() => _isLoading = false);
+      } else {
+        setState(() {
+          _errorMessage = e.message;
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      if (!mounted || currentReq != _requestId) return;
+      if (widget.initialData != null) {
+        _populateData(widget.initialData!);
+        setState(() => _isLoading = false);
+      } else {
+        setState(() {
+          _errorMessage = 'Failed to load team form data. Please check network connection.';
+          _isLoading = false;
+        });
+      }
     }
   }
 
@@ -89,130 +183,218 @@ class _AdminTeamFormScreenState extends ConsumerState<AdminTeamFormScreen> {
     if (!_formKey.currentState!.validate()) return;
 
     setState(() => _isSaving = true);
+    final currentReq = ++_requestId;
     final apiClient = ref.read(apiClientProvider);
 
-    final selectedDept = _departments.firstWhere((d) => d['id'] == _departmentId, orElse: () => null);
-    final selectedLead = _employees.firstWhere((e) => e['id'] == _teamLeadId, orElse: () => null);
+    final selectedDept = _departments.firstWhere((d) => (d['id'] ?? d['_id'])?.toString() == _departmentId, orElse: () => null);
+    final selectedLead = _employees.firstWhere((e) => (e['id'] ?? e['employeeId'])?.toString() == _teamLeadId, orElse: () => null);
 
     final payload = {
       'name': _nameController.text.trim(),
       'departmentId': _departmentId,
-      'departmentName': selectedDept != null ? selectedDept['name'] : null,
+      'departmentName': selectedDept != null ? selectedDept['name']?.toString() : null,
       'teamLeadId': _teamLeadId,
       'teamLeadName': selectedLead != null ? ('${selectedLead['firstName'] ?? ''} ${selectedLead['lastName'] ?? ''}'.trim().isNotEmpty ? '${selectedLead['firstName']} ${selectedLead['lastName']}' : selectedLead['fullName']) : null,
-      'description': _descriptionController.text.trim(),
+      'description': _descriptionController.text.trim().isEmpty ? null : _descriptionController.text.trim(),
       'status': _status,
-      'activeProjectsCount': int.tryParse(_projectsController.text) ?? 0,
+      'activeProjectsCount': int.tryParse(_projectsController.text.trim()) ?? 0,
     };
 
     try {
       if (_isEdit && widget.teamId != null) {
-        await apiClient.put('/departments/teams/${widget.teamId}', data: payload);
+        await apiClient.put(ApiEndpoints.teamDetail(widget.teamId!), body: payload);
       } else {
-        await apiClient.post('/departments/teams', data: payload);
+        await apiClient.post(ApiEndpoints.teams, body: payload);
       }
 
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(_isEdit ? 'Team updated successfully' : 'Team created successfully')),
-        );
-        Navigator.pop(context, true);
-      }
+      if (!mounted || currentReq != _requestId) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(_isEdit ? 'Team updated successfully' : 'Team created successfully')),
+      );
+      Navigator.pop(context, true);
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed to save team: $e')));
-      }
-    } finally {
-      if (mounted) setState(() => _isSaving = false);
+      if (!mounted || currentReq != _requestId) return;
+      setState(() => _isSaving = false);
+      final msg = e is ApiException ? e.message : 'Failed to save team.';
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(msg), backgroundColor: Colors.red),
+      );
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    if (_isLoading) {
-      return const Scaffold(body: Center(child: CircularProgressIndicator()));
-    }
+    final glass = context.glass;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final cardBgColor = isDark ? const Color(0xFF141D2E) : Colors.white;
 
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(_isEdit ? 'Edit Team' : 'Create Team'),
+    // Account switching listener
+    ref.listen<AuthState>(authServiceProvider, (previous, next) {
+      if (next.user?.id != _currentUserId) {
+        _checkUserAndLoad();
+      }
+    });
+
+    final authState = ref.watch(authServiceProvider);
+    final userRole = authState.user?.role;
+    final bool isAuthorized = userRole == UserRole.ADMIN || userRole == UserRole.HR;
+
+    return GlassScaffold(
+      appBar: GlassHeader(
+        title: _isEdit ? 'Edit Team' : 'Create Team',
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        child: Form(
-          key: _formKey,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text('Team Information', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.primary)),
-              const SizedBox(height: 12),
-              TextFormField(
-                controller: _nameController,
-                decoration: const InputDecoration(labelText: 'Team Name *', border: OutlineInputBorder()),
-                validator: (val) => (val == null || val.trim().isEmpty) ? 'Team name is required' : null,
-              ),
-              const SizedBox(height: 16),
-              DropdownButtonFormField<String>(
-                value: _departmentId,
-                decoration: const InputDecoration(labelText: 'Department', border: OutlineInputBorder()),
-                items: _departments.map<DropdownMenuItem<String>>((d) {
-                  return DropdownMenuItem<String>(
-                    value: d['id']?.toString(),
-                    child: Text(d['name'] ?? 'Department'),
-                  );
-                }).toList(),
-                onChanged: (val) => setState(() => _departmentId = val),
-              ),
-              const SizedBox(height: 16),
-              DropdownButtonFormField<String>(
-                value: _teamLeadId,
-                decoration: const InputDecoration(labelText: 'Team Lead', border: OutlineInputBorder()),
-                items: _employees.map<DropdownMenuItem<String>>((e) {
-                  final name = '${e['firstName'] ?? ''} ${e['lastName'] ?? ''}'.trim().isNotEmpty ? '${e['firstName']} ${e['lastName']}' : (e['fullName'] ?? e['name'] ?? 'Employee');
-                  return DropdownMenuItem<String>(
-                    value: e['id']?.toString(),
-                    child: Text(name),
-                  );
-                }).toList(),
-                onChanged: (val) => setState(() => _teamLeadId = val),
-              ),
-              const SizedBox(height: 16),
-              DropdownButtonFormField<String>(
-                value: _status,
-                decoration: const InputDecoration(labelText: 'Status', border: OutlineInputBorder()),
-                items: const [
-                  DropdownMenuItem(value: 'Active', child: Text('Active')),
-                  DropdownMenuItem(value: 'Inactive', child: Text('Inactive')),
-                ],
-                onChanged: (val) => setState(() => _status = val ?? 'Active'),
-              ),
-              const SizedBox(height: 16),
-              TextFormField(
-                controller: _projectsController,
-                keyboardType: TextInputType.number,
-                decoration: const InputDecoration(labelText: 'Active Projects Count', border: OutlineInputBorder()),
-              ),
-              const SizedBox(height: 16),
-              TextFormField(
-                controller: _descriptionController,
-                maxLines: 3,
-                decoration: const InputDecoration(labelText: 'Description / Notes', border: OutlineInputBorder()),
-              ),
-              const SizedBox(height: 32),
-              SizedBox(
-                width: double.infinity,
-                height: 50,
-                child: ElevatedButton.icon(
-                  onPressed: _isSaving ? null : _saveTeam,
-                  icon: _isSaving ? const CircularProgressIndicator(color: Colors.white) : const Icon(Icons.check),
-                  label: Text(_isSaving ? 'Saving...' : (_isEdit ? 'Save Changes' : 'Create Team'), style: const TextStyle(fontSize: 16)),
-                  style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary, foregroundColor: Colors.white),
+      body: !isAuthorized
+          ? Center(
+              child: Padding(
+                padding: const EdgeInsets.all(24.0),
+                child: AppCard(
+                  backgroundColor: cardBgColor,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.lock_outline, size: 48, color: Color(0xFFEF4444)),
+                      const SizedBox(height: 16),
+                      Text('Access Restricted', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: glass.textPrimary)),
+                      const SizedBox(height: 8),
+                      Text('You do not have administrative permissions to configure teams.', textAlign: TextAlign.center, style: TextStyle(fontSize: 14, color: glass.textSecondary)),
+                    ],
+                  ),
                 ),
               ),
-            ],
-          ),
-        ),
-      ),
+            )
+          : _isLoading
+              ? const Center(child: CircularProgressIndicator())
+              : _errorMessage != null
+                  ? SingleChildScrollView(
+                      padding: const EdgeInsets.all(24),
+                      child: Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            const Icon(Icons.error_outline_rounded, size: 54, color: Color(0xFFEF4444)),
+                            const SizedBox(height: 16),
+                            Text(_errorMessage!, textAlign: TextAlign.center, style: TextStyle(fontSize: 14, color: glass.textSecondary)),
+                            const SizedBox(height: 24),
+                            AppButton(label: 'Retry', icon: Icons.refresh_rounded, width: 140, onPressed: _loadDropdownsAndDetail),
+                          ],
+                        ),
+                      ),
+                    )
+                  : SingleChildScrollView(
+                      padding: const EdgeInsets.all(16),
+                      child: Form(
+                        key: _formKey,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text('Team Information', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: glass.textPrimary)),
+                            const SizedBox(height: 14),
+
+                            // Team Name
+                            TextFormField(
+                              controller: _nameController,
+                              enabled: !_isSaving,
+                              maxLength: 50,
+                              decoration: InputDecoration(
+                                labelText: 'Team Name *',
+                                hintText: 'e.g. Alpha Squad',
+                                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                              ),
+                              validator: (val) {
+                                if (val == null || val.trim().isEmpty) return 'Team name is required';
+                                if (val.trim().length > 50) return 'Team name cannot exceed 50 characters';
+                                return null;
+                              },
+                            ),
+                            const SizedBox(height: 16),
+
+                            // Department Dropdown
+                            DropdownButtonFormField<String>(
+                              initialValue: _departments.any((d) => (d['id'] ?? d['_id'])?.toString() == _departmentId) ? _departmentId : null,
+                              decoration: InputDecoration(
+                                labelText: 'Department',
+                                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                              ),
+                              items: _departments.map<DropdownMenuItem<String>>((d) {
+                                final id = (d['id'] ?? d['_id'])?.toString() ?? '';
+                                final name = d['name']?.toString() ?? 'Department';
+                                return DropdownMenuItem<String>(
+                                  value: id,
+                                  child: Text(name),
+                                );
+                              }).toList(),
+                              onChanged: _isSaving ? null : (val) => setState(() => _departmentId = val),
+                            ),
+                            const SizedBox(height: 16),
+
+                            // Team Lead Dropdown
+                            DropdownButtonFormField<String>(
+                              initialValue: _employees.any((e) => (e['id'] ?? e['employeeId'])?.toString() == _teamLeadId) ? _teamLeadId : null,
+                              decoration: InputDecoration(
+                                labelText: 'Team Lead',
+                                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                              ),
+                              items: _employees.map<DropdownMenuItem<String>>((e) {
+                                final id = (e['id'] ?? e['employeeId'])?.toString() ?? '';
+                                final name = '${e['firstName'] ?? ''} ${e['lastName'] ?? ''}'.trim().isNotEmpty ? '${e['firstName']} ${e['lastName']}' : (e['fullName'] ?? e['name'] ?? 'Employee');
+                                return DropdownMenuItem<String>(
+                                  value: id,
+                                  child: Text(name),
+                                );
+                              }).toList(),
+                              onChanged: _isSaving ? null : (val) => setState(() => _teamLeadId = val),
+                            ),
+                            const SizedBox(height: 16),
+
+                            // Status Dropdown
+                            DropdownButtonFormField<String>(
+                              initialValue: _status,
+                              decoration: InputDecoration(
+                                labelText: 'Status',
+                                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                              ),
+                              items: const [
+                                DropdownMenuItem(value: 'Active', child: Text('Active')),
+                                DropdownMenuItem(value: 'Inactive', child: Text('Inactive')),
+                              ],
+                              onChanged: _isSaving ? null : (val) => setState(() => _status = val ?? 'Active'),
+                            ),
+                            const SizedBox(height: 16),
+
+                            // Active Projects Count
+                            TextFormField(
+                              controller: _projectsController,
+                              enabled: !_isSaving,
+                              keyboardType: TextInputType.number,
+                              decoration: InputDecoration(
+                                labelText: 'Active Projects Count',
+                                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                              ),
+                            ),
+                            const SizedBox(height: 16),
+
+                            // Description
+                            TextFormField(
+                              controller: _descriptionController,
+                              enabled: !_isSaving,
+                              maxLines: 3,
+                              decoration: InputDecoration(
+                                labelText: 'Description / Notes',
+                                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                              ),
+                            ),
+                            const SizedBox(height: 32),
+
+                            AppButton(
+                              label: _isEdit ? 'Save Changes' : 'Create Team',
+                              isLoading: _isSaving,
+                              onPressed: _isSaving ? null : _saveTeam,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
     );
   }
 }

@@ -4,11 +4,14 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/api/api_client.dart';
 import '../../core/api/api_endpoints.dart';
 import '../../core/theme/app_colors.dart';
+import '../../core/widgets/glass_header.dart';
+import '../../core/widgets/glass_scaffold.dart';
 import '../../shared/widgets/app_card.dart';
 import '../../shared/widgets/loading_shimmer.dart';
 
 class TlAnnouncementsScreen extends ConsumerStatefulWidget {
-  const TlAnnouncementsScreen({super.key});
+  final bool showAppBar;
+  const TlAnnouncementsScreen({super.key, this.showAppBar = true});
 
   @override
   ConsumerState<TlAnnouncementsScreen> createState() => _TlAnnouncementsScreenState();
@@ -143,131 +146,139 @@ class _TlAnnouncementsScreenState extends ConsumerState<TlAnnouncementsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    if (_isLoading) return const ListSkeleton(itemCount: 4);
+    if (_isLoading) {
+      const skeleton = ListSkeleton(itemCount: 4);
+      if (!widget.showAppBar) return Material(color: Colors.transparent, child: skeleton);
+      return const GlassScaffold(title: 'Company Announcements', body: skeleton);
+    }
 
-    return Scaffold(
-      appBar: AppBar(title: const Text('Company Announcements')),
-      body: RefreshIndicator(
-        onRefresh: _fetchAnnouncements,
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(16),
-          physics: const AlwaysScrollableScrollPhysics(),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Search Bar
-              TextField(
-                decoration: const InputDecoration(
-                  labelText: 'Search announcements...',
-                  prefixIcon: Icon(Icons.search),
-                  border: OutlineInputBorder(),
-                ),
-                onChanged: (val) => setState(() => _searchTerm = val),
+    final content = RefreshIndicator(
+      onRefresh: _fetchAnnouncements,
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.all(16),
+        physics: const AlwaysScrollableScrollPhysics(),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Search Bar
+            TextField(
+              decoration: const InputDecoration(
+                labelText: 'Search announcements...',
+                prefixIcon: Icon(Icons.search),
+                border: OutlineInputBorder(),
               ),
-              const SizedBox(height: 12),
+              onChanged: (val) => setState(() => _searchTerm = val),
+            ),
+            const SizedBox(height: 12),
 
-              // Filter Chips
-              SingleChildScrollView(
-                scrollDirection: Axis.horizontal,
-                child: Row(
-                  children: [
-                    _filterChip('All', 'All'),
-                    _filterChip('Pinned', 'Pinned 📌'),
-                    ..._announcementTypes.map((t) => _filterChip(t['value']!, '${t['icon']} ${t['label']}')),
-                  ],
-                ),
+            // Filter Chips
+            SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                children: [
+                  _filterChip('All', 'All'),
+                  _filterChip('Pinned', 'Pinned 📌'),
+                  ..._announcementTypes.map((t) => _filterChip(t['value']!, '${t['icon']} ${t['label']}')),
+                ],
               ),
-              const SizedBox(height: 16),
+            ),
+            const SizedBox(height: 16),
 
-              // Notice Feed List
-              if (_filteredAnnouncements.isEmpty)
-                const AppCard(
-                  child: Padding(
-                    padding: EdgeInsets.all(24),
-                    child: Center(child: Text('No announcements found.')),
-                  ),
-                )
-              else
-                ListView.builder(
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  itemCount: _filteredAnnouncements.length,
-                  itemBuilder: (context, index) {
-                    final a = _filteredAnnouncements[index] as Map<String, dynamic>;
-                    final isPinned = a['isPinned'] == true;
-                    final priority = a['priority'] ?? 'NORMAL';
-                    final type = a['type'] ?? 'GENERAL';
-                    final typeColor = _getTypeColor(type);
-                    final typeIcon = _getTypeIcon(type);
-                    final title = a['title'] ?? 'Notice';
-                    final content = a['content'] ?? a['message'] ?? '';
-                    final author = a['authorName'] ?? 'HR Operations';
-                    final date = a['publishedDate'] ?? a['createdAt'] ?? 'Recent';
+            // Notice Feed List
+            if (_filteredAnnouncements.isEmpty)
+              const AppCard(
+                child: Padding(
+                  padding: EdgeInsets.all(24),
+                  child: Center(child: Text('No announcements found.')),
+                ),
+              )
+            else
+              ListView.builder(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                itemCount: _filteredAnnouncements.length,
+                itemBuilder: (context, index) {
+                  final a = _filteredAnnouncements[index] as Map<String, dynamic>;
+                  final isPinned = a['isPinned'] == true;
+                  final priority = a['priority'] ?? 'NORMAL';
+                  final type = a['type'] ?? 'GENERAL';
+                  final typeColor = _getTypeColor(type);
+                  final typeIcon = _getTypeIcon(type);
+                  final title = a['title'] ?? 'Notice';
+                  final contentText = a['content'] ?? a['message'] ?? '';
+                  final author = a['authorName'] ?? 'HR Operations';
+                  final date = a['publishedDate'] ?? a['createdAt'] ?? 'Recent';
 
-                    return Padding(
-                      padding: const EdgeInsets.only(bottom: 12),
-                      child: AppCard(
-                        onTap: () => setState(() => _selectedAnnouncement = a),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
-                              children: [
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 12),
+                    child: AppCard(
+                      onTap: () => setState(() => _selectedAnnouncement = a),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.all(8),
+                                decoration: BoxDecoration(color: typeColor.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(8)),
+                                child: Text(typeIcon, style: const TextStyle(fontSize: 18)),
+                              ),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+                                    Text('$author • $date', style: const TextStyle(fontSize: 11, color: AppColors.lightSecondaryText)),
+                                  ],
+                                ),
+                              ),
+                              if (isPinned)
                                 Container(
-                                  padding: const EdgeInsets.all(8),
-                                  decoration: BoxDecoration(color: typeColor.withOpacity(0.15), borderRadius: BorderRadius.circular(8)),
-                                  child: Text(typeIcon, style: const TextStyle(fontSize: 18)),
+                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                  decoration: BoxDecoration(color: AppColors.warningBg, borderRadius: BorderRadius.circular(4)),
+                                  child: const Text('Pinned 📌', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: AppColors.warning)),
                                 ),
-                                const SizedBox(width: 10),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      Text(title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
-                                      Text('$author • $date', style: const TextStyle(fontSize: 11, color: AppColors.lightSecondaryText)),
-                                    ],
-                                  ),
+                            ],
+                          ),
+                          const SizedBox(height: 10),
+                          Text(
+                            contentText,
+                            style: const TextStyle(fontSize: 13, color: AppColors.lightSecondaryText),
+                            maxLines: 3,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          const SizedBox(height: 8),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: priority == 'CRITICAL' ? AppColors.errorBg : (priority == 'IMPORTANT' ? AppColors.warningBg : AppColors.lightPrimary),
+                                  borderRadius: BorderRadius.circular(4),
                                 ),
-                                if (isPinned)
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                    decoration: BoxDecoration(color: AppColors.warningBg, borderRadius: BorderRadius.circular(4)),
-                                    child: const Text('Pinned 📌', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: AppColors.warning)),
-                                  ),
-                              ],
-                            ),
-                            const SizedBox(height: 10),
-                            Text(
-                              content,
-                              style: const TextStyle(fontSize: 13, color: AppColors.lightSecondaryText),
-                              maxLines: 3,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                            const SizedBox(height: 8),
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                                  decoration: BoxDecoration(
-                                    color: priority == 'CRITICAL' ? AppColors.errorBg : (priority == 'IMPORTANT' ? AppColors.warningBg : AppColors.lightPrimary),
-                                    borderRadius: BorderRadius.circular(4),
-                                  ),
-                                  child: Text(priority, style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: priority == 'CRITICAL' ? AppColors.error : (priority == 'IMPORTANT' ? AppColors.warning : AppColors.primary))),
-                                ),
-                                const Text('View Full Notice →', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.primary)),
-                              ],
-                            ),
-                          ],
-                        ),
+                                child: Text(priority, style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: priority == 'CRITICAL' ? AppColors.error : (priority == 'IMPORTANT' ? AppColors.warning : AppColors.primary))),
+                              ),
+                              const Text('View Full Notice →', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.primary)),
+                            ],
+                          ),
+                        ],
                       ),
-                    );
-                  },
-                ),
-            ],
-          ),
+                    ),
+                  );
+                },
+              ),
+          ],
         ),
       ),
+    );
+
+    if (!widget.showAppBar) return Material(color: Colors.transparent, child: content);
+
+    return GlassScaffold(
+      appBar: const GlassHeader(title: 'Company Announcements'),
+      body: content,
       bottomSheet: _selectedAnnouncement != null ? _buildDetailBottomSheet(context) : null,
     );
   }
@@ -276,12 +287,15 @@ class _TlAnnouncementsScreenState extends ConsumerState<TlAnnouncementsScreen> {
     final isSelected = _selectedFilter == key;
     return Padding(
       padding: const EdgeInsets.only(right: 8),
-      child: ChoiceChip(
-        label: Text(label, style: TextStyle(fontSize: 12, fontWeight: isSelected ? FontWeight.bold : FontWeight.normal)),
-        selected: isSelected,
-        onSelected: (selected) {
-          if (selected) setState(() => _selectedFilter = key);
-        },
+      child: Material(
+        color: Colors.transparent,
+        child: ChoiceChip(
+          label: Text(label, style: TextStyle(fontSize: 12, fontWeight: isSelected ? FontWeight.bold : FontWeight.normal)),
+          selected: isSelected,
+          onSelected: (selected) {
+            if (selected) setState(() => _selectedFilter = key);
+          },
+        ),
       ),
     );
   }
@@ -294,7 +308,7 @@ class _TlAnnouncementsScreenState extends ConsumerState<TlAnnouncementsScreen> {
       decoration: BoxDecoration(
         color: Theme.of(context).cardColor,
         borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.2), blurRadius: 20)],
+        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.2), blurRadius: 20)],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import '../../core/theme/app_colors.dart';
 
@@ -265,12 +266,18 @@ class CircularStatGroup extends StatelessWidget {
           alignment: Alignment.center,
           child: item.icon != null
               ? Icon(item.icon, color: item.ringColor, size: 22)
-              : Text(
-                  item.value,
-                  style: TextStyle(
-                    color: textColor,
-                    fontSize: 16,
-                    fontWeight: FontWeight.w800,
+              : Padding(
+                  padding: const EdgeInsets.all(4.0),
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Text(
+                      item.value,
+                      style: TextStyle(
+                        color: textColor,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
                   ),
                 ),
         ),
@@ -387,3 +394,200 @@ class CompactInfoRowTile extends StatelessWidget {
     return content;
   }
 }
+
+/// 5. Auto-Moving / Auto-Scrolling Horizontal Row for Summary Pills / Chips
+class AutoMovingRow extends StatefulWidget {
+  final List<Widget> children;
+  final double spacing;
+  final double speed;
+  final Duration timerInterval;
+
+  const AutoMovingRow({
+    super.key,
+    required this.children,
+    this.spacing = 8.0,
+    this.speed = 0.7,
+    this.timerInterval = const Duration(milliseconds: 30),
+  });
+
+  @override
+  State<AutoMovingRow> createState() => _AutoMovingRowState();
+}
+
+class _AutoMovingRowState extends State<AutoMovingRow> {
+  late final ScrollController _scrollController;
+  final GlobalKey _firstSetKey = GlobalKey();
+  Timer? _timer;
+  Timer? _resumeTimer;
+  bool _isUserInteracting = false;
+  double _singleSetWidth = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _scrollController = ScrollController();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _measureAndStart();
+    });
+  }
+
+  @override
+  void didUpdateWidget(covariant AutoMovingRow oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    _singleSetWidth = 0;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _measureAndStart();
+    });
+  }
+
+  void _measureAndStart() {
+    if (!mounted) return;
+    _measureSetWidth();
+    _startAutoScroll();
+  }
+
+  void _measureSetWidth() {
+    final context = _firstSetKey.currentContext;
+    if (context != null) {
+      final box = context.findRenderObject() as RenderBox?;
+      if (box != null && box.hasSize) {
+        _singleSetWidth = box.size.width + widget.spacing;
+      }
+    }
+  }
+
+  void _startAutoScroll() {
+    _timer?.cancel();
+    _timer = Timer.periodic(widget.timerInterval, (timer) {
+      if (_isUserInteracting || !mounted || !_scrollController.hasClients) return;
+
+      if (_singleSetWidth <= 0) {
+        _measureSetWidth();
+      }
+
+      final double maxScroll = _scrollController.position.maxScrollExtent;
+      if (maxScroll <= 0) return;
+
+      double currentOffset = _scrollController.offset;
+      double nextOffset = currentOffset + widget.speed;
+
+      if (_singleSetWidth > 0) {
+        if (nextOffset >= _singleSetWidth) {
+          nextOffset -= _singleSetWidth;
+        }
+      } else if (nextOffset >= maxScroll) {
+        nextOffset = 0;
+      }
+
+      _scrollController.jumpTo(nextOffset);
+    });
+  }
+
+  void _onPointerDown(PointerDownEvent event) {
+    _isUserInteracting = true;
+    _resumeTimer?.cancel();
+  }
+
+  void _onPointerUp(PointerUpEvent event) {
+    _scheduleResume();
+  }
+
+  void _onPointerCancel(PointerCancelEvent event) {
+    _scheduleResume();
+  }
+
+  void _scheduleResume() {
+    _resumeTimer?.cancel();
+    _resumeTimer = Timer(const Duration(seconds: 3), () {
+      if (mounted) {
+        setState(() {
+          _isUserInteracting = false;
+        });
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    _resumeTimer?.cancel();
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (widget.children.isEmpty) return const SizedBox.shrink();
+
+    final set1 = widget.children;
+    final set2 = widget.children;
+    final set3 = widget.children;
+
+    return Listener(
+      onPointerDown: _onPointerDown,
+      onPointerUp: _onPointerUp,
+      onPointerCancel: _onPointerCancel,
+      child: NotificationListener<ScrollNotification>(
+        onNotification: (notification) {
+          if (notification is ScrollUpdateNotification) {
+            if (_singleSetWidth > 0 && _scrollController.hasClients) {
+              if (_scrollController.offset >= _singleSetWidth * 2) {
+                final target = _scrollController.offset - _singleSetWidth;
+                WidgetsBinding.instance.addPostFrameCallback((_) {
+                  if (_scrollController.hasClients) {
+                    _scrollController.jumpTo(target);
+                  }
+                });
+              } else if (_scrollController.offset < 0) {
+                final target = _scrollController.offset + _singleSetWidth;
+                WidgetsBinding.instance.addPostFrameCallback((_) {
+                  if (_scrollController.hasClients) {
+                    _scrollController.jumpTo(target);
+                  }
+                });
+              }
+            }
+          }
+          return false;
+        },
+        child: SingleChildScrollView(
+          controller: _scrollController,
+          scrollDirection: Axis.horizontal,
+          physics: const BouncingScrollPhysics(),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Row(
+                key: _firstSetKey,
+                mainAxisSize: MainAxisSize.min,
+                children: _buildSpacedChildren(set1),
+              ),
+              SizedBox(width: widget.spacing),
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: _buildSpacedChildren(set2),
+              ),
+              SizedBox(width: widget.spacing),
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: _buildSpacedChildren(set3),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  List<Widget> _buildSpacedChildren(List<Widget> list) {
+    final result = <Widget>[];
+    for (int i = 0; i < list.length; i++) {
+      result.add(list[i]);
+      if (i < list.length - 1) {
+        result.add(SizedBox(width: widget.spacing));
+      }
+    }
+    return result;
+  }
+}
+

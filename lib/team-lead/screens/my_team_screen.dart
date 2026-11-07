@@ -2,15 +2,17 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/api/api_client.dart';
 import '../../core/api/api_endpoints.dart';
-import '../../core/auth/auth_service.dart';
 import '../../core/theme/app_colors.dart';
+import '../../core/widgets/glass_header.dart';
+import '../../core/widgets/glass_scaffold.dart';
 import '../../shared/widgets/app_card.dart';
 import '../../shared/widgets/loading_shimmer.dart';
 import '../../shared/widgets/status_chip.dart';
 import 'tl_add_task_screen.dart';
 
 class MyTeamScreen extends ConsumerStatefulWidget {
-  const MyTeamScreen({super.key});
+  final bool showAppBar;
+  const MyTeamScreen({super.key, this.showAppBar = true});
 
   @override
   ConsumerState<MyTeamScreen> createState() => _MyTeamScreenState();
@@ -31,7 +33,6 @@ class _MyTeamScreenState extends ConsumerState<MyTeamScreen> {
   Future<void> _fetchTeamMembers() async {
     setState(() => _isLoading = true);
     final apiClient = ref.read(apiClientProvider);
-    final user = ref.read(authServiceProvider).user;
 
     try {
       final results = await Future.wait([
@@ -215,7 +216,7 @@ class _MyTeamScreenState extends ConsumerState<MyTeamScreen> {
         Icon(icon, size: 16, color: AppColors.primary),
         const SizedBox(width: 8),
         Text('$label: ', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-        Text(value, style: const TextStyle(fontSize: 13, color: AppColors.lightSecondaryText)),
+        Expanded(child: Text(value, style: const TextStyle(fontSize: 13, color: AppColors.lightSecondaryText), overflow: TextOverflow.ellipsis)),
       ],
     );
   }
@@ -227,7 +228,11 @@ class _MyTeamScreenState extends ConsumerState<MyTeamScreen> {
 
   @override
   Widget build(BuildContext context) {
-    if (_isLoading) return const ListSkeleton(itemCount: 4);
+    if (_isLoading) {
+      const skeleton = ListSkeleton(itemCount: 4);
+      if (!widget.showAppBar) return Material(color: Colors.transparent, child: skeleton);
+      return const GlassScaffold(title: 'My Team Members', body: skeleton);
+    }
 
     final filtered = _members.where((m) {
       final map = m is Map<String, dynamic> ? m : {};
@@ -245,7 +250,7 @@ class _MyTeamScreenState extends ConsumerState<MyTeamScreen> {
     final activeCount = _members.where((m) => m['status'] == 'ACTIVE').length;
     final leaveCount = _members.where((m) => m['status'] == 'ON_LEAVE').length;
 
-    return RefreshIndicator(
+    final content = RefreshIndicator(
       onRefresh: _fetchTeamMembers,
       child: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
@@ -268,26 +273,38 @@ class _MyTeamScreenState extends ConsumerState<MyTeamScreen> {
             const SizedBox(height: 12),
 
             // Status Filter Chips
-            Row(
-              children: [
-                ChoiceChip(
-                  label: Text('All (${_members.length})'),
-                  selected: _filterStatus == 'ALL',
-                  onSelected: (_) => setState(() => _filterStatus = 'ALL'),
-                ),
-                const SizedBox(width: 8),
-                ChoiceChip(
-                  label: Text('Active ($activeCount)'),
-                  selected: _filterStatus == 'ACTIVE',
-                  onSelected: (_) => setState(() => _filterStatus = 'ACTIVE'),
-                ),
-                const SizedBox(width: 8),
-                ChoiceChip(
-                  label: Text('On Leave ($leaveCount)'),
-                  selected: _filterStatus == 'ON_LEAVE',
-                  onSelected: (_) => setState(() => _filterStatus = 'ON_LEAVE'),
-                ),
-              ],
+            SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                children: [
+                  Material(
+                    color: Colors.transparent,
+                    child: ChoiceChip(
+                      label: Text('All (${_members.length})'),
+                      selected: _filterStatus == 'ALL',
+                      onSelected: (_) => setState(() => _filterStatus = 'ALL'),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Material(
+                    color: Colors.transparent,
+                    child: ChoiceChip(
+                      label: Text('Active ($activeCount)'),
+                      selected: _filterStatus == 'ACTIVE',
+                      onSelected: (_) => setState(() => _filterStatus = 'ACTIVE'),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Material(
+                    color: Colors.transparent,
+                    child: ChoiceChip(
+                      label: Text('On Leave ($leaveCount)'),
+                      selected: _filterStatus == 'ON_LEAVE',
+                      onSelected: (_) => setState(() => _filterStatus = 'ON_LEAVE'),
+                    ),
+                  ),
+                ],
+              ),
             ),
             const SizedBox(height: 16),
 
@@ -311,7 +328,6 @@ class _MyTeamScreenState extends ConsumerState<MyTeamScreen> {
                   final desig = member['designation'] ?? 'Team Member';
                   final dept = member['department'] ?? 'Engineering';
                   final email = member['email'] ?? 'team@company.com';
-                  final phone = member['phone'] ?? '+91 9876543210';
                   final status = member['status'] ?? 'ACTIVE';
                   final tasksCount = member['tasksCount'] ?? 0;
 
@@ -344,16 +360,20 @@ class _MyTeamScreenState extends ConsumerState<MyTeamScreen> {
                           Row(
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
-                              Text('ID: $empId', style: const TextStyle(fontSize: 11, color: AppColors.lightMutedText)),
-                              Text(email, style: const TextStyle(fontSize: 11, color: AppColors.lightMutedText)),
+                              Expanded(child: Text('ID: $empId', style: const TextStyle(fontSize: 11, color: AppColors.lightMutedText), overflow: TextOverflow.ellipsis)),
+                              Expanded(child: Text(email, style: const TextStyle(fontSize: 11, color: AppColors.lightMutedText), textAlign: TextAlign.right, overflow: TextOverflow.ellipsis)),
                             ],
                           ),
                           const Divider(height: 20),
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          Wrap(
+                            alignment: WrapAlignment.spaceBetween,
+                            crossAxisAlignment: WrapCrossAlignment.center,
+                            spacing: 8,
+                            runSpacing: 8,
                             children: [
                               Text('$tasksCount Active Tasks', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: AppColors.primary)),
                               Row(
+                                mainAxisSize: MainAxisSize.min,
                                 children: [
                                   TextButton.icon(
                                     onPressed: () => _showProfileModal(member),
@@ -366,7 +386,7 @@ class _MyTeamScreenState extends ConsumerState<MyTeamScreen> {
                                       Navigator.push(context, MaterialPageRoute(builder: (_) => const TlAddTaskScreen()));
                                     },
                                     icon: const Icon(Icons.add_task, size: 16),
-                                    label: const Text('Assign Task'),
+                                    label: const Text('Assign'),
                                   ),
                                 ],
                               ),
@@ -381,6 +401,13 @@ class _MyTeamScreenState extends ConsumerState<MyTeamScreen> {
           ],
         ),
       ),
+    );
+
+    if (!widget.showAppBar) return Material(color: Colors.transparent, child: content);
+
+    return GlassScaffold(
+      appBar: const GlassHeader(title: 'My Team Members'),
+      body: content,
     );
   }
 }

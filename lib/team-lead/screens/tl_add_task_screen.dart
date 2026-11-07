@@ -3,8 +3,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/api/api_client.dart';
 import '../../core/api/api_endpoints.dart';
-import '../../core/auth/auth_service.dart';
 import '../../core/theme/app_colors.dart';
+import '../../core/widgets/glass_header.dart';
+import '../../core/widgets/glass_scaffold.dart';
 import '../../shared/widgets/app_card.dart';
 
 class TlAddTaskScreen extends ConsumerStatefulWidget {
@@ -121,8 +122,8 @@ class _TlAddTaskScreenState extends ConsumerState<TlAddTaskScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('Assign New Task')),
+    return GlassScaffold(
+      appBar: const GlassHeader(title: 'Assign New Task'),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
         child: AppCard(
@@ -147,7 +148,7 @@ class _TlAddTaskScreenState extends ConsumerState<TlAddTaskScreen> {
               const Text('Assign To Team Member *', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
               const SizedBox(height: 6),
               DropdownButtonFormField<String>(
-                value: _assignedToId.isEmpty ? null : _assignedToId,
+                initialValue: _assignedToId.isEmpty ? null : _assignedToId,
                 decoration: const InputDecoration(hintText: '-- Select Team Member --', border: OutlineInputBorder()),
                 items: _teamMembers.map((m) {
                   final id = m['id']?.toString() ?? m['employeeId']?.toString() ?? '';
@@ -169,7 +170,7 @@ class _TlAddTaskScreenState extends ConsumerState<TlAddTaskScreen> {
                         const Text('Priority Level', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
                         const SizedBox(height: 6),
                         DropdownButtonFormField<String>(
-                          value: _priority,
+                          initialValue: _priority,
                           decoration: const InputDecoration(border: OutlineInputBorder()),
                           items: const [
                             DropdownMenuItem(value: 'LOW', child: Text('Low')),

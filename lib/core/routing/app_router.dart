@@ -17,16 +17,26 @@ class AppRouter extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final authState = ref.watch(authServiceProvider);
+    debugPrint('[AuthDiag:AppRouter] state -> isLoading: ${authState.isLoading}, isAuthenticated: ${authState.isAuthenticated}, user: ${authState.user?.email}, role: ${authState.user?.role}');
 
     if (authState.isLoading) {
-      return const Scaffold(
+      final isDark = Theme.of(context).brightness == Brightness.dark;
+      return Scaffold(
+        backgroundColor: isDark ? const Color(0xFF0F2E2C) : const Color(0xFFE9FBF8),
         body: Center(
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              CircularProgressIndicator(),
-              SizedBox(height: 16),
-              Text('Initializing Etaprise HRMS...'),
+              const CircularProgressIndicator(),
+              const SizedBox(height: 16),
+              Text(
+                'Initializing Etaprise HRMS...',
+                style: TextStyle(
+                  color: isDark ? Colors.white : Colors.black87,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
             ],
           ),
         ),
@@ -35,6 +45,15 @@ class AppRouter extends ConsumerWidget {
 
     if (!authState.isAuthenticated || authState.user == null) {
       return const LoginScreen();
+    }
+
+    // OBS-01 Remediation: Prevent unverified cached roles from granting access to privileged screens while offline.
+    // If the session is unverified offline (isOfflineSession == true) and holds a privileged role, restrict to standard employee shell.
+    if (authState.isOfflineSession) {
+      final role = authState.user!.role;
+      if (role == UserRole.ADMIN || role == UserRole.HR || role == UserRole.FINANCE || role == UserRole.TL) {
+        return const EmployeeRoleShell();
+      }
     }
 
     switch (authState.user!.role) {

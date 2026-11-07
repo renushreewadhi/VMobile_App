@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/api/helpdesk_service.dart';
 import '../../core/theme/app_colors.dart';
 import '../../shared/widgets/app_card.dart';
+import '../../core/widgets/glass_scaffold.dart';
+import '../../core/widgets/glass_header.dart';
 
 class TicketDetailScreen extends ConsumerStatefulWidget {
   final String ticketId;
@@ -181,47 +183,49 @@ class _TicketDetailScreenState extends ConsumerState<TicketDetailScreen> {
   @override
   Widget build(BuildContext context) {
     if (_isLoading) {
-      return Scaffold(
-        appBar: AppBar(title: const Text('Ticket Details'), backgroundColor: AppColors.primary, foregroundColor: Colors.white),
-        body: const Center(child: CircularProgressIndicator()),
+      return const GlassScaffold(
+        title: 'Ticket Details',
+        body: Center(child: CircularProgressIndicator()),
       );
     }
 
     if (_ticket == null) {
-      return Scaffold(
-        appBar: AppBar(title: const Text('Ticket Details'), backgroundColor: AppColors.primary, foregroundColor: Colors.white),
-        body: const Center(child: Text('Ticket not found')),
+      return const GlassScaffold(
+        title: 'Ticket Details',
+        body: Center(child: Text('Ticket not found')),
       );
     }
 
     final ticket = _ticket!;
     final status = ticket['status'] ?? 'OPEN';
     final priority = ticket['priority'] ?? 'MEDIUM';
+    final ticketNumber = ticket['ticketNumber'] ?? 'Ticket Details';
 
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(ticket['ticketNumber'] ?? 'Ticket Details'),
-        backgroundColor: AppColors.primary,
-        foregroundColor: Colors.white,
-        actions: [
-          if (status != 'CLOSED' && status != 'RESOLVED') ...[
-            IconButton(
-              icon: const Icon(Icons.check_circle_outline),
-              tooltip: 'Resolve',
-              onPressed: _resolveTicket,
-            ),
-            IconButton(
-              icon: const Icon(Icons.arrow_upward),
-              tooltip: 'Escalate',
-              onPressed: _escalateTicket,
-            ),
-            IconButton(
-              icon: const Icon(Icons.close),
-              tooltip: 'Close',
-              onPressed: _closeTicket,
-            ),
-          ]
-        ],
+    List<Widget>? headerActions;
+    if (status != 'CLOSED' && status != 'RESOLVED') {
+      headerActions = [
+        IconButton(
+          icon: const Icon(Icons.check_circle_outline),
+          tooltip: 'Resolve',
+          onPressed: _resolveTicket,
+        ),
+        IconButton(
+          icon: const Icon(Icons.arrow_upward),
+          tooltip: 'Escalate',
+          onPressed: _escalateTicket,
+        ),
+        IconButton(
+          icon: const Icon(Icons.close),
+          tooltip: 'Close',
+          onPressed: _closeTicket,
+        ),
+      ];
+    }
+
+    return GlassScaffold(
+      appBar: GlassHeader(
+        title: ticketNumber,
+        actions: headerActions,
       ),
       body: Column(
         children: [

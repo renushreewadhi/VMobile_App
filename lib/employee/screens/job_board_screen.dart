@@ -7,6 +7,7 @@ import '../../core/theme/app_colors.dart';
 import '../../shared/widgets/app_card.dart';
 import '../../shared/widgets/loading_shimmer.dart';
 import '../../shared/widgets/status_chip.dart';
+import '../../core/widgets/glass_scaffold.dart';
 
 class JobBoardScreen extends ConsumerStatefulWidget {
   const JobBoardScreen({super.key});
@@ -288,8 +289,8 @@ class _JobBoardScreenState extends ConsumerState<JobBoardScreen> {
       return matchesDept && matchesQuery;
     }).toList();
 
-    return Scaffold(
-      appBar: AppBar(title: const Text('Internal Job Board')),
+    return GlassScaffold(
+      title: 'Internal Job Board',
       body: _loading
           ? const ListSkeleton(itemCount: 4)
           : RefreshIndicator(
@@ -398,10 +399,13 @@ class _JobBoardScreenState extends ConsumerState<JobBoardScreen> {
               final selected = _selectedDept == dept;
               return Padding(
                 padding: const EdgeInsets.only(right: 8),
-                child: ChoiceChip(
-                  label: Text(dept),
-                  selected: selected,
-                  onSelected: (_) => setState(() => _selectedDept = dept),
+                child: Material(
+                  color: Colors.transparent,
+                  child: ChoiceChip(
+                    label: Text(dept),
+                    selected: selected,
+                    onSelected: (_) => setState(() => _selectedDept = dept),
+                  ),
                 ),
               );
             }).toList(),

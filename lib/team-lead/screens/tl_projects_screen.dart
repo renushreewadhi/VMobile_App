@@ -4,13 +4,16 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/api/api_client.dart';
 import '../../core/api/api_endpoints.dart';
 import '../../core/theme/app_colors.dart';
+import '../../core/widgets/glass_header.dart';
+import '../../core/widgets/glass_scaffold.dart';
 import '../../shared/widgets/app_card.dart';
 import '../../shared/widgets/loading_shimmer.dart';
 import '../../shared/widgets/status_chip.dart';
 import 'tl_project_members_screen.dart';
 
 class TlProjectsScreen extends ConsumerStatefulWidget {
-  const TlProjectsScreen({super.key});
+  final bool showAppBar;
+  const TlProjectsScreen({super.key, this.showAppBar = true});
 
   @override
   ConsumerState<TlProjectsScreen> createState() => _TlProjectsScreenState();
@@ -153,7 +156,11 @@ class _TlProjectsScreenState extends ConsumerState<TlProjectsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    if (_isLoading) return const ListSkeleton(itemCount: 3);
+    if (_isLoading) {
+      const skeleton = ListSkeleton(itemCount: 3);
+      if (!widget.showAppBar) return Material(color: Colors.transparent, child: skeleton);
+      return const GlassScaffold(title: 'Team Projects', body: skeleton);
+    }
 
     final filteredProjects = _projects.where((p) {
       final map = p is Map<String, dynamic> ? p : {};
@@ -162,7 +169,7 @@ class _TlProjectsScreenState extends ConsumerState<TlProjectsScreen> {
       return _searchTerm.isEmpty || name.contains(_searchTerm.toLowerCase()) || code.contains(_searchTerm.toLowerCase());
     }).toList();
 
-    return RefreshIndicator(
+    final content = RefreshIndicator(
       onRefresh: _loadProjects,
       child: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
@@ -224,7 +231,7 @@ class _TlProjectsScreenState extends ConsumerState<TlProjectsScreen> {
                               Container(
                                 padding: const EdgeInsets.all(10),
                                 decoration: BoxDecoration(
-                                  color: AppColors.primary.withOpacity(0.1),
+                                  color: AppColors.primary.withValues(alpha: 0.1),
                                   borderRadius: BorderRadius.circular(8),
                                 ),
                                 child: const Icon(Icons.folder_shared, color: AppColors.primary),
@@ -349,6 +356,13 @@ class _TlProjectsScreenState extends ConsumerState<TlProjectsScreen> {
           ],
         ),
       ),
+    );
+
+    if (!widget.showAppBar) return Material(color: Colors.transparent, child: content);
+
+    return GlassScaffold(
+      appBar: const GlassHeader(title: 'Team Projects'),
+      body: content,
     );
   }
 }

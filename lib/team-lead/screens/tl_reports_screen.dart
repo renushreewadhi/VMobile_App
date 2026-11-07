@@ -3,13 +3,15 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/api/api_client.dart';
 import '../../core/api/api_endpoints.dart';
-import '../../core/auth/auth_service.dart';
 import '../../core/theme/app_colors.dart';
+import '../../core/widgets/glass_header.dart';
+import '../../core/widgets/glass_scaffold.dart';
 import '../../shared/widgets/app_card.dart';
 import '../../shared/widgets/loading_shimmer.dart';
 
 class TlReportsScreen extends ConsumerStatefulWidget {
-  const TlReportsScreen({super.key});
+  final bool showAppBar;
+  const TlReportsScreen({super.key, this.showAppBar = true});
 
   @override
   ConsumerState<TlReportsScreen> createState() => _TlReportsScreenState();
@@ -21,17 +23,15 @@ class _TlReportsScreenState extends ConsumerState<TlReportsScreen> {
   String _fromDate = DateTime(DateTime.now().year, DateTime.now().month, 1).toIso8601String().split('T')[0];
   String _toDate = DateTime.now().toIso8601String().split('T')[0];
 
-  int _avgAttendanceRate = 92;
+  final int _avgAttendanceRate = 92;
   int _completedTasksCount = 0;
   int _totalTasksCount = 0;
   int _taskCompletionRate = 85;
-  double _leaveImpactRate = 4.2;
+  final double _leaveImpactRate = 4.2;
 
   List<dynamic> _attendanceData = [];
-  List<dynamic> _taskDistribution = [];
   List<dynamic> _leaveSummary = [];
   List<dynamic> _topMembers = [];
-  List<dynamic> _allTeamMembers = [];
 
   @override
   void initState() {
@@ -63,7 +63,6 @@ class _TlReportsScreenState extends ConsumerState<TlReportsScreen> {
   Future<void> _loadReportData() async {
     setState(() => _isLoading = true);
     final apiClient = ref.read(apiClientProvider);
-    final user = ref.read(authServiceProvider).user;
 
     try {
       final results = await Future.wait<dynamic>(<Future<dynamic>>[
@@ -73,9 +72,7 @@ class _TlReportsScreenState extends ConsumerState<TlReportsScreen> {
         apiClient.get(ApiEndpoints.employees).catchError((_) => null),
       ]);
 
-      final teamAtt = results[0];
       final tasks = results[1];
-      final leaves = results[2];
       final employees = results[3];
 
       List<dynamic> teamList = [];
@@ -121,11 +118,6 @@ class _TlReportsScreenState extends ConsumerState<TlReportsScreen> {
         {'day': 'Fri', 'present': 5, 'absent': 0, 'percentage': 100},
       ];
 
-      _taskDistribution = [
-        {'label': 'Completed (Done)', 'count': _completedTasksCount, 'percentage': _taskCompletionRate, 'color': AppColors.success},
-        {'label': 'In Progress', 'count': _totalTasksCount - _completedTasksCount, 'percentage': 100 - _taskCompletionRate, 'color': AppColors.primary},
-      ];
-
       _leaveSummary = [
         {'label': 'Casual Leave', 'count': 3, 'percent': 60, 'color': AppColors.primary},
         {'label': 'Sick Leave', 'count': 2, 'percent': 40, 'color': AppColors.error},
@@ -140,21 +132,6 @@ class _TlReportsScreenState extends ConsumerState<TlReportsScreen> {
           'tasksCompleted': 4,
           'onTimeRate': 95,
           'rating': 4.8,
-        };
-      }).toList();
-
-      _allTeamMembers = teamList.map((e) {
-        final name = '${e['firstName'] ?? ''} ${e['lastName'] ?? ''}'.trim().isNotEmpty ? '${e['firstName']} ${e['lastName']}' : (e['name'] ?? 'Team Member');
-        return {
-          'id': e['employeeId'] ?? e['id'] ?? 'EMP-101',
-          'name': name,
-          'role': e['designation'] ?? 'Team Member',
-          'tasksAssigned': 5,
-          'tasksCompleted': 4,
-          'completionRate': 80,
-          'onTimeRate': 92,
-          'rating': 4.7,
-          'status': 'Top Performer',
         };
       }).toList();
 
@@ -180,9 +157,13 @@ class _TlReportsScreenState extends ConsumerState<TlReportsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    if (_isLoading) return const ListSkeleton(itemCount: 4);
+    if (_isLoading) {
+      const skeleton = ListSkeleton(itemCount: 4);
+      if (!widget.showAppBar) return Material(color: Colors.transparent, child: skeleton);
+      return const GlassScaffold(title: 'Team Analytics', body: skeleton);
+    }
 
-    return RefreshIndicator(
+    final content = RefreshIndicator(
       onRefresh: _loadReportData,
       child: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
@@ -419,6 +400,13 @@ class _TlReportsScreenState extends ConsumerState<TlReportsScreen> {
           ],
         ),
       ),
+    );
+
+    if (!widget.showAppBar) return Material(color: Colors.transparent, child: content);
+
+    return GlassScaffold(
+      appBar: const GlassHeader(title: 'Team Analytics'),
+      body: content,
     );
   }
 }

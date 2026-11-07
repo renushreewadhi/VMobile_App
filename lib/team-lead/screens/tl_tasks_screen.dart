@@ -4,12 +4,15 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/api/api_client.dart';
 import '../../core/api/api_endpoints.dart';
 import '../../core/theme/app_colors.dart';
+import '../../core/widgets/glass_header.dart';
+import '../../core/widgets/glass_scaffold.dart';
 import '../../shared/widgets/app_card.dart';
 import '../../shared/widgets/loading_shimmer.dart';
 import 'tl_add_task_screen.dart';
 
 class TlTasksScreen extends ConsumerStatefulWidget {
-  const TlTasksScreen({super.key});
+  final bool showAppBar;
+  const TlTasksScreen({super.key, this.showAppBar = true});
 
   @override
   ConsumerState<TlTasksScreen> createState() => _TlTasksScreenState();
@@ -22,13 +25,6 @@ class _TlTasksScreenState extends ConsumerState<TlTasksScreen> {
   String _filterAssignee = '';
   String _filterPriority = '';
   String _selectedStatusTab = 'ALL';
-
-  final List<Map<String, dynamic>> _columns = [
-    {'key': 'TODO', 'title': 'To Do', 'color': AppColors.lightMutedText},
-    {'key': 'IN_PROGRESS', 'title': 'In Progress', 'color': AppColors.primary},
-    {'key': 'IN_REVIEW', 'title': 'In Review', 'color': AppColors.warning},
-    {'key': 'DONE', 'title': 'Completed', 'color': AppColors.success},
-  ];
 
   @override
   void initState() {
@@ -126,7 +122,11 @@ class _TlTasksScreenState extends ConsumerState<TlTasksScreen> {
 
   @override
   Widget build(BuildContext context) {
-    if (_isLoading) return const ListSkeleton(itemCount: 4);
+    if (_isLoading) {
+      const skeleton = ListSkeleton(itemCount: 4);
+      if (!widget.showAppBar) return Material(color: Colors.transparent, child: skeleton);
+      return const GlassScaffold(title: 'Team Tasks', body: skeleton);
+    }
 
     final totalCount = _tasks.length;
     final inProgressCount = _tasks.where((t) => t['status'] == 'IN_PROGRESS').length;
@@ -151,7 +151,7 @@ class _TlTasksScreenState extends ConsumerState<TlTasksScreen> {
       return true;
     }).toList();
 
-    return RefreshIndicator(
+    final content = RefreshIndicator(
       onRefresh: _loadTasks,
       child: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
@@ -160,16 +160,20 @@ class _TlTasksScreenState extends ConsumerState<TlTasksScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // Stat Cards Row
-            Row(
-              children: [
-                Expanded(child: StatCard(title: 'Total', value: '$totalCount', icon: Icons.list_alt, iconColor: AppColors.primary, iconBgColor: AppColors.lightPrimary)),
-                const SizedBox(width: 8),
-                Expanded(child: StatCard(title: 'In Progress', value: '$inProgressCount', icon: Icons.hourglass_top, iconColor: AppColors.primary, iconBgColor: AppColors.lightPrimary)),
-                const SizedBox(width: 8),
-                Expanded(child: StatCard(title: 'In Review', value: '$inReviewCount', icon: Icons.remove_red_eye, iconColor: AppColors.warning, iconBgColor: AppColors.warningBg)),
-                const SizedBox(width: 8),
-                Expanded(child: StatCard(title: 'Done', value: '$doneCount', icon: Icons.check_circle, iconColor: AppColors.success, iconBgColor: AppColors.successBg)),
-              ],
+            SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              physics: const BouncingScrollPhysics(),
+              child: Row(
+                children: [
+                  SizedBox(width: 110, child: StatCard(title: 'Total', value: '$totalCount', icon: Icons.list_alt, iconColor: AppColors.primary, iconBgColor: AppColors.lightPrimary)),
+                  const SizedBox(width: 8),
+                  SizedBox(width: 115, child: StatCard(title: 'In Progress', value: '$inProgressCount', icon: Icons.hourglass_top, iconColor: AppColors.primary, iconBgColor: AppColors.lightPrimary)),
+                  const SizedBox(width: 8),
+                  SizedBox(width: 110, child: StatCard(title: 'In Review', value: '$inReviewCount', icon: Icons.remove_red_eye, iconColor: AppColors.warning, iconBgColor: AppColors.warningBg)),
+                  const SizedBox(width: 8),
+                  SizedBox(width: 100, child: StatCard(title: 'Done', value: '$doneCount', icon: Icons.check_circle, iconColor: AppColors.success, iconBgColor: AppColors.successBg)),
+                ],
+              ),
             ),
             const SizedBox(height: 20),
 
@@ -207,7 +211,7 @@ class _TlTasksScreenState extends ConsumerState<TlTasksScreen> {
               children: [
                 Expanded(
                   child: DropdownButtonFormField<String>(
-                    value: _filterAssignee.isEmpty ? null : _filterAssignee,
+                    initialValue: _filterAssignee.isEmpty ? null : _filterAssignee,
                     decoration: const InputDecoration(labelText: 'Assignee', border: OutlineInputBorder(), contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8)),
                     items: [
                       const DropdownMenuItem(value: '', child: Text('All Assignees')),
@@ -219,7 +223,7 @@ class _TlTasksScreenState extends ConsumerState<TlTasksScreen> {
                 const SizedBox(width: 12),
                 Expanded(
                   child: DropdownButtonFormField<String>(
-                    value: _filterPriority.isEmpty ? null : _filterPriority,
+                    initialValue: _filterPriority.isEmpty ? null : _filterPriority,
                     decoration: const InputDecoration(labelText: 'Priority', border: OutlineInputBorder(), contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8)),
                     items: const [
                       DropdownMenuItem(value: '', child: Text('All Priorities')),
@@ -243,10 +247,13 @@ class _TlTasksScreenState extends ConsumerState<TlTasksScreen> {
                   final isSelected = _selectedStatusTab == status;
                   return Padding(
                     padding: const EdgeInsets.only(right: 8),
-                    child: ChoiceChip(
-                      label: Text(status == 'ALL' ? 'All Tasks' : status.replaceAll('_', ' ')),
-                      selected: isSelected,
-                      onSelected: (_) => setState(() => _selectedStatusTab = status),
+                    child: Material(
+                      color: Colors.transparent,
+                      child: ChoiceChip(
+                        label: Text(status == 'ALL' ? 'All Tasks' : status.replaceAll('_', ' ')),
+                        selected: isSelected,
+                        onSelected: (_) => setState(() => _selectedStatusTab = status),
+                      ),
                     ),
                   );
                 }).toList(),
@@ -355,6 +362,13 @@ class _TlTasksScreenState extends ConsumerState<TlTasksScreen> {
           ],
         ),
       ),
+    );
+
+    if (!widget.showAppBar) return Material(color: Colors.transparent, child: content);
+
+    return GlassScaffold(
+      appBar: const GlassHeader(title: 'Team Tasks'),
+      body: content,
     );
   }
 }

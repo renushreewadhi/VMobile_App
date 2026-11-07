@@ -5,6 +5,7 @@ import '../core/auth/auth_service.dart';
 import '../core/theme/app_colors.dart';
 import '../core/widgets/app_button.dart';
 import '../core/widgets/app_card.dart';
+import '../core/widgets/glass_scaffold.dart';
 
 class RegisterScreen extends ConsumerStatefulWidget {
   const RegisterScreen({super.key});
@@ -79,9 +80,8 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
-    return Scaffold(
-      backgroundColor: isDark ? AppColors.darkAppBackground : AppColors.lightAppBackground,
-      appBar: AppBar(title: const Text('Register Account')),
+    return GlassScaffold(
+      title: 'Register Account',
       body: SafeArea(
         child: SingleChildScrollView(
           keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,

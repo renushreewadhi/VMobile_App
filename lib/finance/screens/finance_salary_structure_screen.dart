@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/api/api_client.dart';
 import '../../core/api/api_endpoints.dart';
 import '../../core/theme/app_colors.dart';
+import '../../core/widgets/glass_scaffold.dart';
 import '../../shared/widgets/app_card.dart';
 import '../../shared/widgets/loading_shimmer.dart';
 
@@ -185,147 +186,155 @@ class _FinanceSalaryStructureScreenState extends ConsumerState<FinanceSalaryStru
 
   @override
   Widget build(BuildContext context) {
-    if (_isLoading) return const DashboardSkeleton();
+    if (_isLoading) {
+      return const GlassScaffold(
+        title: 'Salary Structures',
+        body: DashboardSkeleton(),
+      );
+    }
 
-    return RefreshIndicator(
-      onRefresh: _loadStructures,
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        physics: const AlwaysScrollableScrollPhysics(),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Top Header Card
-            AppCard(
-              backgroundColor: AppColors.darkPrimary,
-              child: Row(
-                children: [
-                  const CircleAvatar(
-                    radius: 24,
-                    backgroundColor: Colors.white24,
-                    child: Icon(Icons.calculate, color: Colors.white, size: 26),
-                  ),
-                  const SizedBox(width: 14),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: const [
-                        Text(
-                          'Salary Structure Configuration',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
+    return GlassScaffold(
+      title: 'Salary Structures',
+      body: RefreshIndicator(
+        onRefresh: _loadStructures,
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(16),
+          physics: const AlwaysScrollableScrollPhysics(),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Top Header Card
+              AppCard(
+                backgroundColor: AppColors.darkPrimary,
+                child: Row(
+                  children: [
+                    const CircleAvatar(
+                      radius: 24,
+                      backgroundColor: Colors.white24,
+                      child: Icon(Icons.calculate, color: Colors.white, size: 26),
+                    ),
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: const [
+                          Text(
+                            'Salary Structure Configuration',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                            ),
                           ),
-                        ),
-                        SizedBox(height: 4),
-                        Text(
-                          'Configure salary grades, HRA, DA, medical, & variable bonuses',
-                          style: TextStyle(color: Colors.white70, fontSize: 12),
-                        ),
-                      ],
+                          SizedBox(height: 4),
+                          Text(
+                            'Configure salary grades, HRA, DA, medical, & variable bonuses',
+                            style: TextStyle(color: Colors.white70, fontSize: 12),
+                          ),
+                        ],
+                      ),
                     ),
-                  ),
-                  ElevatedButton.icon(
-                    onPressed: _showAddGradeDialog,
-                    icon: const Icon(Icons.add, size: 16),
-                    label: const Text('Add Grade'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.white,
-                      foregroundColor: AppColors.darkPrimary,
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                      textStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    ElevatedButton.icon(
+                      onPressed: _showAddGradeDialog,
+                      icon: const Icon(Icons.add, size: 16),
+                      label: const Text('Add Grade'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.white,
+                        foregroundColor: AppColors.darkPrimary,
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                        textStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
-            ),
-            const SizedBox(height: 16),
+              const SizedBox(height: 16),
 
-            // Salary Structure Cards Grid
-            ListView.builder(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              itemCount: _structures.length,
-              itemBuilder: (context, index) {
-                final item = _structures[index];
-                return Padding(
-                  padding: const EdgeInsets.only(bottom: 12),
-                  child: AppCard(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Text(
-                              item['grade'] ?? '',
-                              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: AppColors.primary),
-                            ),
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                              decoration: BoxDecoration(
-                                color: AppColors.successBg,
-                                borderRadius: BorderRadius.circular(10),
+              // Salary Structure Cards Grid
+              ListView.builder(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                itemCount: _structures.length,
+                itemBuilder: (context, index) {
+                  final item = _structures[index];
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 12),
+                    child: AppCard(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Text(
+                                item['grade'] ?? '',
+                                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: AppColors.primary),
                               ),
-                              child: const Text(
-                                'Active',
-                                style: TextStyle(fontSize: 11, color: AppColors.success, fontWeight: FontWeight.bold),
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                decoration: BoxDecoration(
+                                  color: AppColors.successBg,
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                                child: const Text(
+                                  'Active',
+                                  style: TextStyle(fontSize: 11, color: AppColors.success, fontWeight: FontWeight.bold),
+                                ),
                               ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 12),
+                            ],
+                          ),
+                          const SizedBox(height: 12),
 
-                        const Text('Base Pay Range', style: TextStyle(fontSize: 11, color: AppColors.lightMutedText)),
-                        const SizedBox(height: 2),
-                        Text(
-                          item['basePay'] ?? '',
-                          style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16, color: AppColors.lightPrimaryText),
-                        ),
-                        const SizedBox(height: 14),
+                          const Text('Base Pay Range', style: TextStyle(fontSize: 11, color: AppColors.lightMutedText)),
+                          const SizedBox(height: 2),
+                          Text(
+                            item['basePay'] ?? '',
+                            style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16, color: AppColors.lightPrimaryText),
+                          ),
+                          const SizedBox(height: 14),
 
-                        // Components Grid (HRA, DA, Medical, Bonus)
-                        Row(
-                          children: [
-                            Expanded(child: _buildComponentBox('HRA', item['HRA'] ?? '')),
-                            const SizedBox(width: 8),
-                            Expanded(child: _buildComponentBox('DA', item['DA'] ?? '')),
-                            const SizedBox(width: 8),
-                            Expanded(child: _buildComponentBox('Medical', item['medical'] ?? '')),
-                            const SizedBox(width: 8),
-                            Expanded(child: _buildComponentBox('Bonus', item['bonus'] ?? '')),
-                          ],
-                        ),
-                        const Divider(height: 18),
+                          // Components Grid (HRA, DA, Medical, Bonus)
+                          Row(
+                            children: [
+                              Expanded(child: _buildComponentBox('HRA', item['HRA'] ?? '')),
+                              const SizedBox(width: 8),
+                              Expanded(child: _buildComponentBox('DA', item['DA'] ?? '')),
+                              const SizedBox(width: 8),
+                              Expanded(child: _buildComponentBox('Medical', item['medical'] ?? '')),
+                              const SizedBox(width: 8),
+                              Expanded(child: _buildComponentBox('Bonus', item['bonus'] ?? '')),
+                            ],
+                          ),
+                          const Divider(height: 18),
 
-                        Align(
-                          alignment: Alignment.centerRight,
-                          child: OutlinedButton.icon(
-                            onPressed: () {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(content: Text('Editing grade: ${item['grade']}'), backgroundColor: AppColors.primary),
-                              );
-                            },
-                            icon: const Icon(Icons.edit_outlined, size: 14),
-                            label: const Text('Edit Grade'),
-                            style: OutlinedButton.styleFrom(
-                              foregroundColor: AppColors.primary,
-                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                              textStyle: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                          Align(
+                            alignment: Alignment.centerRight,
+                            child: OutlinedButton.icon(
+                              onPressed: () {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(content: Text('Editing grade: ${item['grade']}'), backgroundColor: AppColors.primary),
+                                );
+                              },
+                              icon: const Icon(Icons.edit_outlined, size: 14),
+                              label: const Text('Edit Grade'),
+                              style: OutlinedButton.styleFrom(
+                                foregroundColor: AppColors.primary,
+                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                                textStyle: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                              ),
                             ),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
-                  ),
-                );
-              },
-            ),
-            const SizedBox(height: 20),
-          ],
+                  );
+                },
+              ),
+              const SizedBox(height: 20),
+            ],
+          ),
         ),
       ),
     );

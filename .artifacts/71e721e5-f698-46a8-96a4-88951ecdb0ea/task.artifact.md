@@ -1,6 +1,5 @@
-- `[x]` 1. Update ItRoleShell & core IT screens (Dashboard, Assets, Tickets)
-- `[x]` 2. Implement ItAssetRequestsScreen & ItSoftwareScreen
-- `[x]` 3. Implement ItAccessScreen & ItOnboardingScreen
-- `[x]` 4. Implement ItOffboardingScreen & ItSecurityScreen
-- `[x]` 5. Implement ItReportsScreen & ItEmployeeAccounts / Create screens
-- `[x]` 6. Verify build, analyze code, and run tests
+- `[x]` 1. Standardize Admin Module Screens (42 files) with `GlassScaffold`, `GlassHeader`, and `showAppBar`
+- `[x]` 2. Standardize Finance Module Screens (17 files) with `GlassScaffold`, `GlassHeader`, and `showAppBar`
+- `[x]` 3. Standardize Team Lead Module Screens (14 files) with `GlassScaffold`, `GlassHeader`, and `showAppBar`
+- `[x]` 4. Standardize Features (`selfie_verify_screen.dart`) with `GlassScaffold`, `GlassHeader`, and `showAppBar`
+- `[x]` 5. Verify build success and analyze code inspections

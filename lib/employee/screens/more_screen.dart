@@ -9,12 +9,9 @@ import '../../core/widgets/section_label.dart';
 import '../../core/widgets/module_card.dart';
 import '../../core/widgets/glass_bottom_tab_bar.dart';
 import 'announcements_screen.dart';
+import 'apply_leave_screen.dart';
 import 'break_tracker_screen.dart';
 import 'daily_work_update_screen.dart';
-import '../../helpdesk/screens/helpdesk_dashboard_screen.dart';
-import '../../helpdesk/screens/helpdesk_tickets_screen.dart';
-import '../../helpdesk/screens/helpdesk_knowledge_base_screen.dart';
-import '../../helpdesk/screens/helpdesk_chatbot_screen.dart';
 import '../../resources/screens/holidays_screen.dart';
 import 'it_and_finance_screens.dart';
 import 'my_assets_screen.dart';
@@ -94,32 +91,40 @@ class _MoreScreenState extends ConsumerState<MoreScreen> {
 
   final List<ParentModuleItem> _parentModules = [
     ParentModuleItem(
-      title: 'Attendance & Time',
-      description: 'Attendance, Check In/Out, Timesheet',
-      icon: Icons.calendar_today_rounded,
-      colors: [const Color(0xFF34D399), const Color(0xFF059669)],
+      title: 'My Space',
+      description: 'Break Tracker, Daily Updates, WFH',
+      icon: Icons.space_dashboard_rounded,
+      colors: [const Color(0xFF3B82F6), const Color(0xFF1D4ED8)],
       submodules: [
-        SubModuleItem(
-          name: 'Attendance',
-          description: 'Attendance records and logs',
-          icon: Icons.calendar_today_rounded,
-          colors: [const Color(0xFF34D399), const Color(0xFF059669)],
-          screen: const MyAttendanceScreen(showAppBar: true),
-        ),
-        SubModuleItem(
-          name: 'Check In/Out',
-          description: 'Check in, check out, live status tracking',
-          icon: Icons.touch_app_rounded,
-          colors: [const Color(0xFF34D399), const Color(0xFF059669)],
-          screen: const PunchInOutScreen(),
-        ),
         SubModuleItem(
           name: 'Break Tracker',
           description: 'Manage your break time and history',
           icon: Icons.free_breakfast_rounded,
-          colors: [const Color(0xFF34D399), const Color(0xFF059669)],
+          colors: [const Color(0xFF3B82F6), const Color(0xFF1D4ED8)],
           screen: const BreakTrackerScreen(showAppBar: true),
         ),
+        SubModuleItem(
+          name: 'Daily Work Update',
+          description: 'Daily work updates and reporting',
+          icon: Icons.rate_review_rounded,
+          colors: [const Color(0xFF3B82F6), const Color(0xFF1D4ED8)],
+          screen: const DailyWorkUpdateScreen(showAppBar: true),
+        ),
+        SubModuleItem(
+          name: 'WFH Apply',
+          description: 'Work from home requests and status',
+          icon: Icons.home_work_rounded,
+          colors: [const Color(0xFF3B82F6), const Color(0xFF1D4ED8)],
+          screen: const WfhApplyScreen(),
+        ),
+      ],
+    ),
+    ParentModuleItem(
+      title: 'Time & Attendance',
+      description: 'Work from home applications & time tracking',
+      icon: Icons.access_time_filled_rounded,
+      colors: [const Color(0xFF34D399), const Color(0xFF059669)],
+      submodules: [
         SubModuleItem(
           name: 'WFH Apply',
           description: 'Work from home requests and status',
@@ -130,80 +135,37 @@ class _MoreScreenState extends ConsumerState<MoreScreen> {
       ],
     ),
     ParentModuleItem(
-      title: 'My Work',
-      description: 'Tasks, Projects, Updates, Reports',
-      icon: Icons.work_outline_rounded,
-      colors: [const Color(0xFFFB923C), const Color(0xFFEA580C)],
-      submodules: [
-        SubModuleItem(
-          name: 'My Tasks',
-          description: 'Tasks, Projects, Updates, Reports',
-          icon: Icons.work_outline_rounded,
-          colors: [const Color(0xFFFB923C), const Color(0xFFEA580C)],
-          screen: const MyTasksScreen(),
-        ),
-        SubModuleItem(
-          name: 'Work Update',
-          description: 'Daily work updates and reporting',
-          icon: Icons.rate_review_rounded,
-          colors: [const Color(0xFFFB923C), const Color(0xFFEA580C)],
-          screen: const DailyWorkUpdateScreen(showAppBar: true),
-        ),
-        SubModuleItem(
-          name: 'My Projects',
-          description: 'Project details and progress tracking',
-          icon: Icons.folder_special_rounded,
-          colors: [const Color(0xFFFB923C), const Color(0xFFEA580C)],
-          screen: const MyProjectsScreen(),
-        ),
-        SubModuleItem(
-          name: 'Performance',
-          description: 'View your performance reviews and goals',
-          icon: Icons.trending_up_rounded,
-          colors: [const Color(0xFFFB923C), const Color(0xFFEA580C)],
-          screen: const MyPerformanceScreen(),
-        ),
-      ],
-    ),
-    ParentModuleItem(
-      title: 'Leave & Benefits',
-      description: 'Leave, Benefits, Invoices',
-      icon: Icons.card_giftcard_rounded,
+      title: 'My Leave',
+      description: 'Leave balances and leave applications',
+      icon: Icons.event_note_rounded,
       colors: [const Color(0xFFF472B6), const Color(0xFFDB2777)],
       submodules: [
         SubModuleItem(
           name: 'My Leave',
-          description: 'Leave, Benefits, Invoices',
-          icon: Icons.card_giftcard_rounded,
+          description: 'View leave summary and history',
+          icon: Icons.calendar_month_rounded,
           colors: [const Color(0xFFF472B6), const Color(0xFFDB2777)],
           screen: const MyLeaveScreen(showAppBar: true),
         ),
         SubModuleItem(
-          name: 'My Benefits',
-          description: 'View your benefit plans and claims',
-          icon: Icons.favorite_rounded,
+          name: 'Apply Leave',
+          description: 'Apply for annual, sick, or casual leave',
+          icon: Icons.add_circle_outline_rounded,
           colors: [const Color(0xFFF472B6), const Color(0xFFDB2777)],
-          screen: const MyBenefitsScreen(showAppBar: true),
-        ),
-        SubModuleItem(
-          name: 'Benefit Invoices',
-          description: 'View benefit invoices and receipts',
-          icon: Icons.receipt_rounded,
-          colors: [const Color(0xFFF472B6), const Color(0xFFDB2777)],
-          screen: const MyBenefitInvoicesScreen(showAppBar: true),
+          screen: const ApplyLeaveScreen(),
         ),
       ],
     ),
     ParentModuleItem(
-      title: 'Finance',
-      description: 'Payslips, Salary, Expenses',
-      icon: Icons.account_balance_wallet_outlined,
+      title: 'My Payroll',
+      description: 'Payslips and salary information',
+      icon: Icons.account_balance_wallet_rounded,
       colors: [const Color(0xFF818CF8), const Color(0xFF4F46E5)],
       submodules: [
         SubModuleItem(
           name: 'My Payslips',
-          description: 'Payslips, Salary, Expenses',
-          icon: Icons.account_balance_wallet_outlined,
+          description: 'Download and view salary payslips',
+          icon: Icons.receipt_rounded,
           colors: [const Color(0xFF818CF8), const Color(0xFF4F46E5)],
           screen: const MyPayslipsScreen(showAppBar: true),
         ),
@@ -214,99 +176,65 @@ class _MoreScreenState extends ConsumerState<MoreScreen> {
           colors: [const Color(0xFF818CF8), const Color(0xFF4F46E5)],
           screen: const MySalaryScreen(),
         ),
-        SubModuleItem(
-          name: 'My Expenses',
-          description: 'Expense claims and tracking',
-          icon: Icons.receipt_long_rounded,
-          colors: [const Color(0xFF818CF8), const Color(0xFF4F46E5)],
-          screen: const MyExpensesScreen(),
-        ),
-        SubModuleItem(
-          name: 'Expense Invoices',
-          description: 'Submitted expense invoice documents',
-          icon: Icons.insert_drive_file_rounded,
-          colors: [const Color(0xFF818CF8), const Color(0xFF4F46E5)],
-          screen: const MyExpenseInvoicesScreen(),
-        ),
       ],
     ),
     ParentModuleItem(
-      title: 'Support & IT',
-      description: 'Helpdesk, Tickets, Assets',
-      icon: Icons.headset_mic_outlined,
-      colors: [const Color(0xFF38BDF8), const Color(0xFF0284C7)],
+      title: 'My Work',
+      description: 'Tasks, Performance reviews, and Projects',
+      icon: Icons.work_rounded,
+      colors: [const Color(0xFFFB923C), const Color(0xFFEA580C)],
       submodules: [
         SubModuleItem(
-          name: 'Helpdesk',
-          description: 'Helpdesk, Tickets, Assets',
-          icon: Icons.headset_mic_outlined,
-          colors: [const Color(0xFF38BDF8), const Color(0xFF0284C7)],
-          screen: const HelpdeskDashboardScreen(showAppBar: true),
+          name: 'My Tasks',
+          description: 'Assigned tasks and pending actions',
+          icon: Icons.check_box_rounded,
+          colors: [const Color(0xFFFB923C), const Color(0xFFEA580C)],
+          screen: const MyTasksScreen(),
         ),
         SubModuleItem(
-          name: 'Support Tickets',
-          description: 'Track and raise support tickets',
-          icon: Icons.confirmation_number_rounded,
-          colors: [const Color(0xFF38BDF8), const Color(0xFF0284C7)],
-          screen: const HelpdeskTicketsScreen(showAppBar: true),
+          name: 'My Performance',
+          description: 'View performance reviews and goals',
+          icon: Icons.trending_up_rounded,
+          colors: [const Color(0xFFFB923C), const Color(0xFFEA580C)],
+          screen: const MyPerformanceScreen(),
         ),
         SubModuleItem(
-          name: 'Knowledge Base',
-          description: 'FAQs, articles, and guides',
-          icon: Icons.menu_book_rounded,
-          colors: [const Color(0xFF38BDF8), const Color(0xFF0284C7)],
-          screen: const HelpdeskKnowledgeBaseScreen(showAppBar: true),
-        ),
-        SubModuleItem(
-          name: 'AI Assistant',
-          description: 'Chat with AI assistant for queries',
-          icon: Icons.smart_toy_rounded,
-          colors: [const Color(0xFF38BDF8), const Color(0xFF0284C7)],
-          screen: const HelpdeskChatbotScreen(),
-        ),
-        SubModuleItem(
-          name: 'My Assets',
-          description: 'Assigned company hardware and assets',
-          icon: Icons.laptop_mac_rounded,
-          colors: [const Color(0xFF38BDF8), const Color(0xFF0284C7)],
-          screen: const MyAssetsScreen(),
-        ),
-        SubModuleItem(
-          name: 'Asset Requests',
-          description: 'Request new hardware or equipment',
-          icon: Icons.assignment_turned_in_rounded,
-          colors: [const Color(0xFF38BDF8), const Color(0xFF0284C7)],
-          screen: const AssetRequestsScreen(),
-        ),
-        SubModuleItem(
-          name: 'IT Tickets',
-          description: 'IT support requests and tracking',
-          icon: Icons.support_agent_rounded,
-          colors: [const Color(0xFF38BDF8), const Color(0xFF0284C7)],
-          screen: const ItSupportTicketsScreen(),
+          name: 'My Projects',
+          description: 'Project details and progress tracking',
+          icon: Icons.folder_special_rounded,
+          colors: [const Color(0xFFFB923C), const Color(0xFFEA580C)],
+          screen: const MyProjectsScreen(),
         ),
       ],
     ),
     ParentModuleItem(
-      title: 'Company & Learning',
-      description: 'Policies, Courses, Directory',
-      icon: Icons.menu_book_rounded,
-      colors: [const Color(0xFF2DD4BF), const Color(0xFF0D9488)],
+      title: 'Resources',
+      description: 'Company holidays and announcements',
+      icon: Icons.folder_open_rounded,
+      colors: [const Color(0xFF14B8A6), const Color(0xFF0F766E)],
       submodules: [
         SubModuleItem(
           name: 'Holidays',
-          description: 'Policies, Courses, Directory',
-          icon: Icons.menu_book_rounded,
-          colors: [const Color(0xFF2DD4BF), const Color(0xFF0D9488)],
+          description: 'Company holidays calendar',
+          icon: Icons.calendar_today_rounded,
+          colors: [const Color(0xFF14B8A6), const Color(0xFF0F766E)],
           screen: const HolidaysScreen(),
         ),
         SubModuleItem(
           name: 'Announcements',
           description: 'Company news and announcements',
           icon: Icons.campaign_rounded,
-          colors: [const Color(0xFF2DD4BF), const Color(0xFF0D9488)],
+          colors: [const Color(0xFF14B8A6), const Color(0xFF0F766E)],
           screen: const AnnouncementsScreen(),
         ),
+      ],
+    ),
+    ParentModuleItem(
+      title: 'My Resources',
+      description: 'Personal documents and notifications',
+      icon: Icons.folder_shared_rounded,
+      colors: [const Color(0xFF2DD4BF), const Color(0xFF0D9488)],
+      submodules: [
         SubModuleItem(
           name: 'My Documents',
           description: 'Company policies and personal documents',
@@ -321,12 +249,115 @@ class _MoreScreenState extends ConsumerState<MoreScreen> {
           colors: [const Color(0xFF2DD4BF), const Color(0xFF0D9488)],
           screen: const NotificationsScreen(showAppBar: true),
         ),
+      ],
+    ),
+    ParentModuleItem(
+      title: 'My Assets',
+      description: 'Assigned hardware and devices',
+      icon: Icons.laptop_mac_rounded,
+      colors: [const Color(0xFF38BDF8), const Color(0xFF0284C7)],
+      submodules: [
         SubModuleItem(
-          name: 'Training Hub',
-          description: 'Courses, training, and learning',
-          icon: Icons.school_rounded,
-          colors: [const Color(0xFF2DD4BF), const Color(0xFF0D9488)],
+          name: 'My Assets',
+          description: 'Assigned company hardware and assets',
+          icon: Icons.laptop_mac_rounded,
+          colors: [const Color(0xFF38BDF8), const Color(0xFF0284C7)],
+          screen: const MyAssetsScreen(),
+        ),
+      ],
+    ),
+    ParentModuleItem(
+      title: 'Training',
+      description: 'Courses, progress, certifications and history',
+      icon: Icons.school_rounded,
+      colors: [const Color(0xFFA855F7), const Color(0xFF7E22CE)],
+      submodules: [
+        SubModuleItem(
+          name: 'Dashboard',
+          description: 'Training dashboard and overview',
+          icon: Icons.dashboard_rounded,
+          colors: [const Color(0xFFA855F7), const Color(0xFF7E22CE)],
           screen: const TrainingDashboardScreen(),
+        ),
+        SubModuleItem(
+          name: 'My Courses',
+          description: 'Enrolled and available training courses',
+          icon: Icons.menu_book_rounded,
+          colors: [const Color(0xFFA855F7), const Color(0xFF7E22CE)],
+          screen: const MyCoursesScreen(),
+        ),
+        SubModuleItem(
+          name: 'In Progress',
+          description: 'Training courses currently in progress',
+          icon: Icons.hourglass_top_rounded,
+          colors: [const Color(0xFFA855F7), const Color(0xFF7E22CE)],
+          screen: const TrainingInProgressScreen(),
+        ),
+        SubModuleItem(
+          name: 'Completed',
+          description: 'Completed training courses and certifications',
+          icon: Icons.task_alt_rounded,
+          colors: [const Color(0xFFA855F7), const Color(0xFF7E22CE)],
+          screen: const TrainingCompletedScreen(),
+        ),
+        SubModuleItem(
+          name: 'My Certificates',
+          description: 'Verified certificates and credentials',
+          icon: Icons.workspace_premium_rounded,
+          colors: [const Color(0xFFA855F7), const Color(0xFF7E22CE)],
+          screen: const MyCertificatesScreen(),
+        ),
+        SubModuleItem(
+          name: 'Training History',
+          description: 'History of completed training programs',
+          icon: Icons.history_rounded,
+          colors: [const Color(0xFFA855F7), const Color(0xFF7E22CE)],
+          screen: const TrainingHistoryScreen(),
+        ),
+      ],
+    ),
+    ParentModuleItem(
+      title: 'Employee Benefits',
+      description: 'Benefits plans and claims',
+      icon: Icons.card_giftcard_rounded,
+      colors: [const Color(0xFFEC4899), const Color(0xFFBE185D)],
+      submodules: [
+        SubModuleItem(
+          name: 'My Benefits',
+          description: 'View your benefit plans and claims',
+          icon: Icons.favorite_rounded,
+          colors: [const Color(0xFFEC4899), const Color(0xFFBE185D)],
+          screen: const MyBenefitsScreen(showAppBar: true),
+        ),
+      ],
+    ),
+    ParentModuleItem(
+      title: 'Expenses Management',
+      description: 'Expense claims and tracking',
+      icon: Icons.receipt_long_rounded,
+      colors: [const Color(0xFF6366F1), const Color(0xFF4338CA)],
+      submodules: [
+        SubModuleItem(
+          name: 'My Expenses',
+          description: 'Personal expense claims and tracking',
+          icon: Icons.receipt_rounded,
+          colors: [const Color(0xFF6366F1), const Color(0xFF4338CA)],
+          screen: const MyExpensesScreen(),
+        ),
+      ],
+    ),
+    ParentModuleItem(
+      title: 'Settings',
+      description: 'App preferences and settings',
+      icon: Icons.settings_rounded,
+      colors: [const Color(0xFF64748B), const Color(0xFF334155)],
+      submodules: [
+        SubModuleItem(
+          name: 'My Settings',
+          description: 'App preferences and account settings',
+          icon: Icons.manage_accounts_rounded,
+          colors: [const Color(0xFF64748B), const Color(0xFF334155)],
+          screen: const MySettingsScreen(),
         ),
       ],
     ),
@@ -361,39 +392,16 @@ class _MoreScreenState extends ConsumerState<MoreScreen> {
       return parent.submodules.any((s) => s.name.toLowerCase().contains(q) || s.description.toLowerCase().contains(q));
     }).toList();
 
-    return GlassScaffold(
-      showBottomBar: widget.showAppBar,
-      appBar: widget.showAppBar
-          ? GlassHeader(
-              title: "More Modules",
-              userInitial: "E",
-              leading: Container(
-                width: 40,
-                height: 40,
-                decoration: BoxDecoration(
-                  color: context.glass.headerIconTileFill,
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Center(
-                  child: Icon(
-                    Icons.apartment_rounded,
-                    size: 22,
-                    color: context.glass.headerIconColor,
-                  ),
-                ),
-              ),
-            )
-          : null,
-      body: ListView(
-        padding: const EdgeInsets.only(top: 4, bottom: 20),
-        children: [
-          GlassSearchBar(
-            controller: _searchController,
-            placeholder: "Search modules...",
-            onChanged: (val) => setState(() => _searchQuery = val),
-            onClear: () => setState(() => _searchQuery = ''),
-          ),
-          const SectionLabel("ALL MODULES"),
+    final content = ListView(
+      padding: const EdgeInsets.only(top: 4, bottom: 20),
+      children: [
+        GlassSearchBar(
+          controller: _searchController,
+          placeholder: "Search modules...",
+          onChanged: (val) => setState(() => _searchQuery = val),
+          onClear: () => setState(() => _searchQuery = ''),
+        ),
+        const SectionLabel("ALL MODULES"),
           if (isSearching && filteredParents.isEmpty)
             Center(
               child: Padding(
@@ -437,7 +445,16 @@ class _MoreScreenState extends ConsumerState<MoreScreen> {
               );
             }),
         ],
-      ),
+    );
+
+    if (!widget.showAppBar) {
+      return Material(color: Colors.transparent, child: content);
+    }
+
+    return GlassScaffold(
+      title: "More Modules",
+      showBottomBar: true,
+      body: content,
       tabs: [
         GlassTab(
           icon: Icons.home_rounded,

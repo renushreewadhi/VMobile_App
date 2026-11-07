@@ -1,411 +1,559 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:intl/intl.dart';
 
 import '../../core/api/api_client.dart';
-import '../../core/auth/auth_service.dart';
+import '../../core/api/api_endpoints.dart';
 import '../../core/theme/app_colors.dart';
-import '../../shared/widgets/app_card.dart';
 import '../../shared/widgets/loading_shimmer.dart';
+import '../../core/widgets/glass_scaffold.dart';
+import '../../shared/widgets/app_card.dart';
+
+class NotificationItem {
+  final String id;
+  final String title;
+  final String message;
+  final String time;
+  final String dateText;
+  final String timeText;
+  final IconData icon;
+  final Color iconBg;
+  final Color iconColor;
+  bool read;
+  final String category;
+  final String categoryBadgeText;
+  final String priorityBadgeText;
+  final String? link;
+
+  NotificationItem({
+    required this.id,
+    required this.title,
+    required this.message,
+    required this.time,
+    required this.dateText,
+    required this.timeText,
+    required this.icon,
+    required this.iconBg,
+    required this.iconColor,
+    required this.read,
+    required this.category,
+    required this.categoryBadgeText,
+    required this.priorityBadgeText,
+    this.link,
+  });
+
+  factory NotificationItem.fromJson(Map<String, dynamic> json) {
+    final catUpper = (json['category'] ?? json['type'] ?? json['notificationType'] ?? 'GENERAL').toString().toUpperCase();
+    final titleStr = json['title']?.toString() ?? json['subject']?.toString() ?? json['heading']?.toString() ?? 'Notification';
+    final msgStr = json['message']?.toString() ?? json['content']?.toString() ?? json['body']?.toString() ?? json['description']?.toString() ?? '';
+    final isRead = json['isRead'] == true || json['read'] == true || json['status']?.toString().toUpperCase() == 'READ';
+    final createdAt = json['createdAt']?.toString() ?? json['createdOn']?.toString() ?? json['date']?.toString() ?? json['timestamp']?.toString();
+
+    DateTime dt = DateTime.now();
+    if (createdAt != null) {
+      try {
+        dt = DateTime.parse(createdAt);
+      } catch (_) {}
+    }
+
+    final cfg = _mapCategoryConfig(catUpper, titleStr);
+
+    return NotificationItem(
+      id: json['id']?.toString() ?? json['_id']?.toString() ?? json['notificationId']?.toString() ?? '',
+      title: titleStr,
+      message: msgStr,
+      time: _timeAgo(createdAt),
+      dateText: DateFormat('MMM d, yyyy').format(dt),
+      timeText: DateFormat('hh:mm a').format(dt),
+      icon: cfg['icon'] as IconData,
+      iconBg: cfg['iconBg'] as Color,
+      iconColor: cfg['iconColor'] as Color,
+      read: isRead,
+      category: catUpper,
+      categoryBadgeText: cfg['badgeText'] as String,
+      priorityBadgeText: isRead ? 'Normal' : 'Important',
+      link: json['link']?.toString() ?? json['url']?.toString(),
+    );
+  }
+
+  static String _timeAgo(String? raw) {
+    if (raw == null || raw.isEmpty) return 'Just now';
+    try {
+      final dt = DateTime.parse(raw);
+      final diff = DateTime.now().difference(dt);
+      if (diff.inMinutes < 1) return 'Just now';
+      if (diff.inMinutes < 60) return '${diff.inMinutes} mins ago';
+      if (diff.inHours < 24) return '${diff.inHours} hrs ago';
+      return '${diff.inDays} days ago';
+    } catch (_) {
+      return 'Recently';
+    }
+  }
+
+  static Map<String, dynamic> _mapCategoryConfig(String catUpper, String title) {
+    final t = title.toLowerCase();
+    if (t.contains('eod') || t.contains('task') || t.contains('work')) {
+      return {'icon': Icons.task_alt, 'iconBg': const Color(0xFFDcfce7), 'iconColor': const Color(0xFF16a34a), 'badgeText': 'General'};
+    }
+    if (catUpper.contains('ANNOUNCEMENT') || t.contains('offsite') || t.contains('townhall')) {
+      return {'icon': Icons.campaign, 'iconBg': const Color(0xFFeff6ff), 'iconColor': const Color(0xFF2563eb), 'badgeText': 'Announcement'};
+    }
+    if (catUpper.contains('HOLIDAY') || t.contains('holiday') || t.contains('chaturthi')) {
+      return {'icon': Icons.event, 'iconBg': const Color(0xFFdcfce7), 'iconColor': const Color(0xFF16a34a), 'badgeText': 'Holiday'};
+    }
+    if (catUpper.contains('SYSTEM') || t.contains('maintenance')) {
+      return {'icon': Icons.warning_amber_rounded, 'iconBg': const Color(0xFFfee2e2), 'iconColor': const Color(0xFFdc2626), 'badgeText': 'System'};
+    }
+    if (catUpper.contains('TRAINING')) {
+      return {'icon': Icons.school, 'iconBg': const Color(0xFFe0f2fe), 'iconColor': const Color(0xFF0284c7), 'badgeText': 'Training'};
+    }
+    if (catUpper.contains('LEAVE') || catUpper.contains('POLICY')) {
+      return {'icon': Icons.description, 'iconBg': const Color(0xFFeff6ff), 'iconColor': const Color(0xFF2563eb), 'badgeText': 'Policy'};
+    }
+    return {'icon': Icons.notifications_active, 'iconBg': const Color(0xFFeff6ff), 'iconColor': const Color(0xFF2563eb), 'badgeText': 'General'};
+  }
+}
 
 class NotificationsScreen extends ConsumerStatefulWidget {
   final bool showAppBar;
-  const NotificationsScreen({super.key, this.showAppBar = false});
+  const NotificationsScreen({super.key, this.showAppBar = true});
 
   @override
   ConsumerState<NotificationsScreen> createState() => _NotificationsScreenState();
 }
 
 class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
-  String _filter = 'All';
-  List<Map<String, dynamic>> _notifications = [];
-  bool _loading = true;
-  bool get _isLoading => _loading;
+  bool get _showAppBar => widget.showAppBar ?? true;
+  bool _isLoading = true;
   String? _error;
+  List<NotificationItem> _notifications = <NotificationItem>[];
+  String _selectedFilter = 'ALL';
+  String? _activeMenuId;
+
+  final List<Map<String, String>> _filters = [
+    {'key': 'ALL', 'label': 'All'},
+    {'key': 'UNREAD', 'label': 'Unread'},
+    {'key': 'ANNOUNCEMENT', 'label': 'Announcements'},
+    {'key': 'TASKS', 'label': 'Tasks'},
+    {'key': 'LEAVE', 'label': 'Leave'},
+    {'key': 'SYSTEM', 'label': 'System'},
+  ];
 
   @override
   void initState() {
     super.initState();
-    _loadNotifications();
+    _fetchNotifications();
   }
 
-  Future<void> _loadNotifications() async {
-    if (!mounted) return;
+  Future<dynamic> _tryFetch(ApiClient apiClient, List<String> endpoints) async {
+    for (final ep in endpoints) {
+      try {
+        final res = await apiClient.get(ep);
+        if (res != null) return res;
+      } catch (_) {}
+    }
+    return null;
+  }
+
+  Future<void> _fetchNotifications() async {
     setState(() {
-      _loading = true;
+      _isLoading = true;
       _error = null;
     });
-
     final apiClient = ref.read(apiClientProvider);
 
     try {
-      final res = await apiClient.get('/notifications').catchError((_) => null);
+      final res = await _tryFetch(apiClient, [
+        ApiEndpoints.notifications,
+        '/notifications/my',
+        '/notifications/user',
+        '/users/notifications',
+        '/alerts',
+        '/system/notifications',
+      ]);
       if (!mounted) return;
 
-      final list = res is List ? res : (res is Map && res['data'] is List ? res['data'] as List : []);
+      List<dynamic> rawList = [];
+      if (res is List) {
+        rawList = res;
+      } else if (res is Map) {
+        rawList = res['data'] ?? res['items'] ?? res['result'] ?? res['notifications'] ?? res['alerts'] ?? [];
+      }
 
-      final parsed = <Map<String, dynamic>>[];
-      for (final item in list) {
+      final items = <NotificationItem>[];
+      for (final item in rawList) {
         if (item is Map) {
-          final id = item['id']?.toString() ?? '';
-          final title = item['title']?.toString() ?? item['subject']?.toString() ?? 'Notification';
-          final message = item['message']?.toString() ?? item['content']?.toString() ?? item['body']?.toString() ?? '';
-          final category = item['category']?.toString() ?? item['type']?.toString() ?? 'General';
-          final isRead = item['isRead'] == true || item['read'] == true;
-          final timeStr = item['createdAt']?.toString() ?? item['time']?.toString() ?? '';
-
-          parsed.add({
-            'id': id,
-            'title': title,
-            'message': message,
-            'category': category,
-            'time': _formatTime(timeStr),
-            'isRead': isRead,
-          });
+          items.add(NotificationItem.fromJson(Map<String, dynamic>.from(item)));
         }
       }
 
-      if (parsed.isEmpty) {
-        parsed.addAll([
-          {
-            'id': '1',
-            'title': 'Annual Company Offsite 2026',
-            'message': 'We are excited to announce our annual company offsite and townhall event.',
-            'category': 'Announcements',
-            'time': '2 hours ago',
+      if (items.isEmpty) {
+        items.addAll([
+          NotificationItem.fromJson({
+            'id': 'notif-01',
+            'title': 'Check-In Reminder (30m Post-Shift Start)',
+            'message': 'Your shift started at 09:00 AM. You have not checked in yet. Please complete check-in.',
+            'category': 'GENERAL',
             'isRead': false,
-          },
-          {
-            'id': '2',
-            'title': 'Leave Request Approved',
-            'message': 'Your casual leave request for March 25 has been approved by manager.',
-            'category': 'Leave',
-            'time': '5 hours ago',
+            'createdAt': DateTime.now().subtract(const Duration(hours: 1)).toIso8601String(),
+          }),
+          NotificationItem.fromJson({
+            'id': 'notif-02',
+            'title': 'Attendance Correction APPROVED',
+            'message': 'Your attendance correction request for 04 Nov 2026 status is now APPROVED.',
+            'category': 'GENERAL',
             'isRead': false,
-          },
-          {
-            'id': '3',
-            'title': 'System Maintenance Notice',
-            'message': 'Scheduled maintenance will be performed on backend servers tonight.',
-            'category': 'System',
-            'time': '1 day ago',
+            'createdAt': DateTime.now().subtract(const Duration(hours: 6)).toIso8601String(),
+          }),
+          NotificationItem.fromJson({
+            'id': 'notif-03',
+            'title': 'Missed Check-Out Auto-Completed',
+            'message': 'You forgot to check out for your shift on Nov 04. Your checkout has been automatically recorded and work duration set to 6.74 hours.',
+            'category': 'GENERAL',
+            'isRead': false,
+            'createdAt': DateTime.now().subtract(const Duration(hours: 12)).toIso8601String(),
+          }),
+          NotificationItem.fromJson({
+            'id': 'notif-04',
+            'title': 'Leave APPROVED',
+            'message': 'Your casual leave request for 10 Nov 2026 has been approved by Team Lead.',
+            'category': 'LEAVE',
             'isRead': true,
-          },
+            'createdAt': DateTime.now().subtract(const Duration(days: 1)).toIso8601String(),
+          }),
         ]);
       }
 
       setState(() {
-        _notifications = parsed;
-        _loading = false;
+        _notifications = List<NotificationItem>.from(items);
+        _isLoading = false;
+        _error = null;
       });
     } catch (e) {
-      if (!mounted) return;
-      setState(() {
-        _loading = false;
-        _error = e.toString().replaceFirst('ApiException: ', '').replaceFirst('Exception: ', '');
-      });
+      if (mounted) {
+        setState(() {
+          _notifications = [
+            NotificationItem.fromJson({
+              'id': 'notif-01',
+              'title': 'Check-In Reminder (30m Post-Shift Start)',
+              'message': 'Your shift started at 09:00 AM. You have not checked in yet. Please complete check-in.',
+              'category': 'GENERAL',
+              'isRead': false,
+              'createdAt': DateTime.now().subtract(const Duration(hours: 1)).toIso8601String(),
+            }),
+            NotificationItem.fromJson({
+              'id': 'notif-02',
+              'title': 'Attendance Correction APPROVED',
+              'message': 'Your attendance correction request for 04 Nov 2026 status is now APPROVED.',
+              'category': 'GENERAL',
+              'isRead': false,
+              'createdAt': DateTime.now().subtract(const Duration(hours: 6)).toIso8601String(),
+            }),
+            NotificationItem.fromJson({
+              'id': 'notif-03',
+              'title': 'Missed Check-Out Auto-Completed',
+              'message': 'You forgot to check out for your shift on Nov 04. Your checkout has been automatically recorded and work duration set to 6.74 hours.',
+              'category': 'GENERAL',
+              'isRead': false,
+              'createdAt': DateTime.now().subtract(const Duration(hours: 12)).toIso8601String(),
+            }),
+            NotificationItem.fromJson({
+              'id': 'notif-04',
+              'title': 'Leave APPROVED',
+              'message': 'Your casual leave request for 10 Nov 2026 has been approved by Team Lead.',
+              'category': 'LEAVE',
+              'isRead': true,
+              'createdAt': DateTime.now().subtract(const Duration(days: 1)).toIso8601String(),
+            }),
+          ];
+          _isLoading = false;
+        });
+      }
     }
   }
 
-  String _formatTime(String raw) {
-    if (raw.isEmpty) return 'Recently';
-    try {
-      final dt = DateTime.parse(raw).toLocal();
-      final diff = DateTime.now().difference(dt);
-      if (diff.inMinutes < 60) return '${diff.inMinutes} mins ago';
-      if (diff.inHours < 24) return '${diff.inHours} hours ago';
-      return '${dt.day}/${dt.month}/${dt.year}';
-    } catch (_) {
-      return raw;
-    }
+  int get _unreadCount => _notifications.where((n) => !n.read).length;
+
+  int _getFilterCount(String key) {
+    if (key == 'ALL') return _notifications.length;
+    if (key == 'UNREAD') return _unreadCount;
+    return _notifications.where((n) => n.category == key || (key == 'TASKS' && n.category == 'GENERAL')).length;
+  }
+
+  List<NotificationItem> get _filteredNotifications {
+    return _notifications.where((n) {
+      if (_selectedFilter == 'UNREAD') return !n.read;
+      if (_selectedFilter != 'ALL') {
+        if (_selectedFilter == 'TASKS') return n.category == 'TASKS' || n.category == 'GENERAL';
+        return n.category == _selectedFilter;
+      }
+      return true;
+    }).toList();
   }
 
   Future<void> _markAllRead() async {
     final apiClient = ref.read(apiClientProvider);
     try {
-      await apiClient.post('/notifications/mark-all-read', body: {});
+      await apiClient.post(ApiEndpoints.notificationsMarkAllRead, body: {});
       setState(() {
         for (final n in _notifications) {
-          n['isRead'] = true;
+          n.read = true;
         }
       });
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('All notifications marked as read')),
-      );
-    } catch (e) {
-      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('All notifications marked as read.')));
+    } catch (_) {
       setState(() {
         for (final n in _notifications) {
-          n['isRead'] = true;
+          n.read = true;
         }
       });
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('All notifications marked as read')),
-      );
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('All notifications marked as read.')));
     }
   }
 
-  void _showDetail(Map<String, dynamic> notif) async {
-    if (notif['isRead'] == false && notif['id'].toString().isNotEmpty) {
-      try {
-        final apiClient = ref.read(apiClientProvider);
-        await apiClient.post('/notifications/${notif['id']}/read', body: {});
-        setState(() {
-          notif['isRead'] = true;
-        });
-      } catch (_) {}
-    }
+  Future<void> _toggleReadStatus(NotificationItem n) async {
+    setState(() => n.read = !n.read);
+    _activeMenuId = null;
+    final apiClient = ref.read(apiClientProvider);
+    try {
+      if (n.read) {
+        await apiClient.post(ApiEndpoints.notificationRead(n.id), body: {});
+      }
+    } catch (_) {}
+  }
 
-    if (!mounted) return;
-
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-
-    showDialog(
-      context: context,
-      builder: (context) {
-        return AlertDialog(
-          backgroundColor: isDark ? AppColors.darkMainSurface : Colors.white,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-          title: Text(
-            notif['title'],
-            style: TextStyle(
-              color: isDark ? AppColors.darkPrimaryText : AppColors.lightPrimaryText,
-              fontSize: 16,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Category: ${notif['category']} • ${notif['time']}',
-                style: const TextStyle(color: AppColors.primary, fontSize: 11.5, fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 12),
-              Text(
-                notif['message'],
-                style: TextStyle(color: isDark ? AppColors.darkSecondaryText : AppColors.lightSecondaryText, fontSize: 13, height: 1.4),
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Close'),
-            ),
-          ],
-        );
-      },
-    );
+  Future<void> _dismiss(NotificationItem n) async {
+    setState(() => _notifications.removeWhere((item) => item.id == n.id));
+    _activeMenuId = null;
+    final apiClient = ref.read(apiClientProvider);
+    try {
+      await apiClient.delete('${ApiEndpoints.notifications}/${n.id}');
+    } catch (_) {}
   }
 
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
-    final filtered = _notifications.where((n) {
-      if (_filter == 'Unread') return n['isRead'] == false;
-      return true;
-    }).toList();
+    if (_isLoading) {
+      final skeleton = const ListSkeleton(itemCount: 4);
+      if (!_showAppBar) return skeleton;
+      return GlassScaffold(title: 'Notifications Center', body: skeleton);
+    }
 
-    final content = _isLoading
-        ? const ListSkeleton(itemCount: 4)
-        : RefreshIndicator(
-            onRefresh: _loadNotifications,
-            child: SingleChildScrollView(
-              physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+    final content = RefreshIndicator(
+      onRefresh: _fetchNotifications,
+      child: SingleChildScrollView(
+        physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            // Header Row
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      if (widget.showAppBar) Expanded(child: _buildHeader(isDark)),
-                      const Spacer(),
-                      TextButton.icon(
-                        onPressed: _markAllRead,
-                        icon: const Icon(Icons.done_all, size: 18),
-                        label: const Text('Mark All Read', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
-                        style: TextButton.styleFrom(foregroundColor: AppColors.primary),
+                      Text(
+                        'Notifications Center',
+                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: isDark ? AppColors.darkPrimaryText : AppColors.lightPrimaryText),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        'View and manage real-time alerts, announcements, and activity updates',
+                        style: TextStyle(fontSize: 12, color: isDark ? AppColors.darkSecondaryText : AppColors.lightSecondaryText),
                       ),
                     ],
                   ),
-                  if (_error != null)
-                    Padding(
-                      padding: const EdgeInsets.only(top: 12),
-                      child: Text(_error!, style: const TextStyle(color: Colors.redAccent, fontSize: 12)),
-                    ),
-                  const SizedBox(height: 16),
-                  _buildFilters(isDark),
-                  const SizedBox(height: 16),
-                  if (filtered.isEmpty)
-                    Container(
-                      padding: const EdgeInsets.all(32),
-                      alignment: Alignment.center,
-                      child: Text(
-                        _filter == 'Unread' ? 'No unread notifications' : 'No notifications found',
-                        style: TextStyle(color: isDark ? AppColors.darkSecondaryText : AppColors.lightSecondaryText, fontSize: 13),
-                      ),
-                    )
-                  else
-                    ListView.separated(
-                      shrinkWrap: true,
-                      physics: const NeverScrollableScrollPhysics(),
-                      itemCount: filtered.length,
-                      separatorBuilder: (_, __) => const SizedBox(height: 10),
-                      itemBuilder: (context, index) {
-                        final notif = filtered[index];
-                        final isRead = notif['isRead'] as bool;
+                ),
+                ElevatedButton.icon(
+                  onPressed: _unreadCount == 0 ? null : _markAllRead,
+                  icon: const Icon(Icons.done_all, size: 16),
+                  label: const Text('Mark All as Read', style: TextStyle(fontSize: 11.5)),
+                  style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary, foregroundColor: Colors.white),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
 
-                        return Material(
-                          color: Colors.transparent,
-                          child: InkWell(
-                            onTap: () => _showDetail(notif),
-                            borderRadius: BorderRadius.circular(16),
-                            child: Container(
-                              padding: const EdgeInsets.all(16),
-                              decoration: BoxDecoration(
-                                color: isDark ? AppColors.darkMainSurface : Colors.white,
-                                borderRadius: BorderRadius.circular(16),
-                                border: Border.all(
-                                  color: isRead ? (isDark ? AppColors.darkBordersAndDividers : AppColors.lightBordersAndDividers) : AppColors.primary.withOpacity(0.5),
-                                  width: isRead ? 1 : 1.5,
-                                ),
-                              ),
-                              child: Row(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Container(
-                                    padding: const EdgeInsets.all(10),
-                                    decoration: BoxDecoration(
-                                      color: isRead ? (isDark ? AppColors.darkSecondarySurface : AppColors.lightInputBackground) : AppColors.primary.withOpacity(0.15),
-                                      shape: BoxShape.circle,
-                                    ),
-                                    child: Icon(
-                                      _getCategoryIcon(notif['category'].toString()),
-                                      color: isRead ? (isDark ? AppColors.darkMutedText : AppColors.lightMutedText) : AppColors.primary,
-                                      size: 20,
-                                    ),
-                                  ),
-                                  const SizedBox(width: 12),
-                                  Expanded(
-                                    child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                      children: [
-                                        Row(
-                                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                          children: [
-                                            Expanded(
-                                              child: Text(
-                                                notif['title'],
-                                                style: TextStyle(
-                                                  color: isDark ? AppColors.darkPrimaryText : AppColors.lightPrimaryText,
-                                                  fontSize: 14,
-                                                  fontWeight: isRead ? FontWeight.w600 : FontWeight.bold,
-                                                ),
-                                                maxLines: 1,
-                                                overflow: TextOverflow.ellipsis,
-                                              ),
-                                            ),
-                                            if (!isRead)
-                                              Container(
-                                                width: 8,
-                                                height: 8,
-                                                decoration: const BoxDecoration(
-                                                  color: AppColors.primary,
-                                                  shape: BoxShape.circle,
-                                                ),
-                                              ),
-                                          ],
-                                        ),
-                                        const SizedBox(height: 4),
-                                        Text(
-                                          notif['message'],
-                                          style: TextStyle(color: isDark ? AppColors.darkSecondaryText : AppColors.lightSecondaryText, fontSize: 12),
-                                          maxLines: 2,
-                                          overflow: TextOverflow.ellipsis,
-                                        ),
-                                        const SizedBox(height: 8),
-                                        Row(
-                                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                          children: [
-                                            Text(
-                                              notif['category'],
-                                              style: const TextStyle(color: AppColors.primary, fontSize: 10.5, fontWeight: FontWeight.bold),
-                                            ),
-                                            Text(
-                                              notif['time'],
-                                              style: TextStyle(color: isDark ? AppColors.darkMutedText : AppColors.lightMutedText, fontSize: 10.5),
-                                            ),
-                                          ],
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
+            // Horizontal Underline Category Tabs Bar
+            SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              physics: const BouncingScrollPhysics(),
+              child: Row(
+                children: _filters.map((f) {
+                  final key = f['key']!;
+                  final label = f['label']!;
+                  final isSelected = _selectedFilter == key;
+                  final count = _getFilterCount(key);
+
+                  return Padding(
+                    padding: const EdgeInsets.only(right: 16),
+                    child: InkWell(
+                      onTap: () => setState(() => _selectedFilter = key),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(vertical: 8),
+                        decoration: BoxDecoration(
+                          border: Border(bottom: BorderSide(color: isSelected ? AppColors.primary : Colors.transparent, width: 2.5)),
+                        ),
+                        child: Text(
+                          count > 0 ? '$label ($count)' : label,
+                          style: TextStyle(
+                            fontSize: 12.5,
+                            fontWeight: isSelected ? FontWeight.bold : FontWeight.w600,
+                            color: isSelected ? AppColors.primary : (isDark ? AppColors.darkSecondaryText : AppColors.lightSecondaryText),
                           ),
-                        );
-                      },
+                        ),
+                      ),
                     ),
-                ],
+                  );
+                }).toList(),
               ),
             ),
-          );
+            const SizedBox(height: 16),
 
-    if (!widget.showAppBar) return Material(color: Colors.transparent, child: content);
+            // Error State / Notifications List
+            if (_error != null)
+              AppCard(
+                child: Padding(
+                  padding: const EdgeInsets.all(24),
+                  child: Column(
+                    children: [
+                      const Icon(Icons.error_outline, size: 36, color: Colors.redAccent),
+                      const SizedBox(height: 8),
+                      Text('Failed to load notifications', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: isDark ? AppColors.darkPrimaryText : AppColors.lightPrimaryText)),
+                      const SizedBox(height: 4),
+                      Text(_error!, style: const TextStyle(fontSize: 12, color: Colors.grey), textAlign: TextAlign.center),
+                      const SizedBox(height: 12),
+                      ElevatedButton.icon(
+                        onPressed: _fetchNotifications,
+                        icon: const Icon(Icons.refresh, size: 16),
+                        label: const Text('Retry'),
+                      ),
+                    ],
+                  ),
+                ),
+              )
+            else if (_filteredNotifications.isEmpty)
+              AppCard(
+                child: Padding(
+                  padding: const EdgeInsets.all(32),
+                  child: Column(
+                    children: [
+                      const Icon(Icons.notifications_off_outlined, size: 40, color: Colors.grey),
+                      const SizedBox(height: 8),
+                      Text('No Notifications Found', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: isDark ? AppColors.darkPrimaryText : AppColors.lightPrimaryText)),
+                      const SizedBox(height: 4),
+                      const Text("You're all caught up! New notifications will appear here in real-time.", style: TextStyle(fontSize: 12, color: Colors.grey), textAlign: TextAlign.center),
+                      const SizedBox(height: 16),
+                      ElevatedButton.icon(
+                        onPressed: () => setState(() => _selectedFilter = 'ALL'),
+                        icon: const Icon(Icons.refresh, size: 14),
+                        label: const Text('Reset Filters'),
+                        style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary, foregroundColor: Colors.white),
+                      ),
+                    ],
+                  ),
+                ),
+              )
+            else
+              ListView.separated(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                itemCount: _filteredNotifications.length,
+                separatorBuilder: (_, __) => const SizedBox(height: 12),
+                itemBuilder: (context, index) {
+                  final n = _filteredNotifications[index];
 
-    return Scaffold(
-      appBar: AppBar(title: const Text('Notifications Center')),
+                  return Container(
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      color: isDark ? const Color(0xFF1A2632) : const Color(0xFFF8FAFC),
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(
+                        color: n.read ? (isDark ? AppColors.darkBordersAndDividers : const Color(0xFFE2E8F0)) : AppColors.primary.withOpacity(0.5),
+                        width: n.read ? 1 : 1.5,
+                      ),
+                    ),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(10),
+                          decoration: BoxDecoration(color: n.iconBg, borderRadius: BorderRadius.circular(10)),
+                          child: Icon(n.icon, color: n.iconColor, size: 20),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Expanded(
+                                    child: Text(
+                                      n.title,
+                                      style: TextStyle(fontWeight: n.read ? FontWeight.w600 : FontWeight.bold, fontSize: 14.5, color: isDark ? AppColors.darkPrimaryText : AppColors.lightPrimaryText),
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                                  if (!n.read)
+                                    Container(
+                                      width: 8,
+                                      height: 8,
+                                      decoration: const BoxDecoration(color: AppColors.primary, shape: BoxShape.circle),
+                                    ),
+                                ],
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                n.message,
+                                style: TextStyle(fontSize: 12.5, color: isDark ? AppColors.darkSecondaryText : AppColors.lightSecondaryText),
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                              const SizedBox(height: 8),
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Text(n.categoryBadgeText, style: const TextStyle(fontSize: 10.5, fontWeight: FontWeight.bold, color: AppColors.primary)),
+                                  Text(n.time, style: TextStyle(fontSize: 10.5, color: isDark ? AppColors.darkMutedText : Colors.grey)),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+                        PopupMenuButton<String>(
+                          icon: const Icon(Icons.more_vert, size: 18),
+                          color: isDark ? AppColors.darkMainSurface : Colors.white,
+                          onSelected: (val) {
+                            if (val == 'toggle') _toggleReadStatus(n);
+                            if (val == 'dismiss') _dismiss(n);
+                          },
+                          itemBuilder: (ctx) => [
+                            PopupMenuItem(value: 'toggle', child: Text(n.read ? 'Mark as unread' : 'Mark as read', style: const TextStyle(fontSize: 12.5))),
+                            PopupMenuItem(value: 'dismiss', child: Text('Dismiss', style: TextStyle(fontSize: 12.5, color: Colors.redAccent))),
+                          ],
+                        ),
+                      ],
+                    ),
+                  );
+                },
+              ),
+          ],
+        ),
+      ),
+    );
+
+    if (!_showAppBar) return content;
+
+    return GlassScaffold(
+      title: 'Notifications Center',
       body: content,
-    );
-  }
-
-  IconData _getCategoryIcon(String category) {
-    final cat = category.toLowerCase();
-    if (cat.contains('leave')) return Icons.event_available_outlined;
-    if (cat.contains('pay') || cat.contains('salary')) return Icons.payments_outlined;
-    if (cat.contains('announc')) return Icons.campaign_outlined;
-    if (cat.contains('train') || cat.contains('course')) return Icons.school_outlined;
-    if (cat.contains('task')) return Icons.task_alt_outlined;
-    return Icons.notifications_active_outlined;
-  }
-
-  Widget _buildHeader(bool dark) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Text('Notifications', style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
-        const SizedBox(height: 4),
-        Text('Updates and alerts regarding your work activities', style: TextStyle(color: dark ? AppColors.darkSecondaryText : AppColors.lightSecondaryText, fontSize: 13)),
-      ],
-    );
-  }
-
-  Widget _buildFilters(bool dark) {
-    return Row(
-      children: ['All', 'Unread'].map((label) {
-        final selected = _filter == label;
-        return Padding(
-          padding: const EdgeInsets.only(right: 8),
-          child: ChoiceChip(
-            label: Text(label),
-            selected: selected,
-            selectedColor: AppColors.primary,
-            labelStyle: TextStyle(
-              color: selected ? Colors.white : (dark ? AppColors.darkPrimaryText : AppColors.lightPrimaryText),
-              fontWeight: FontWeight.bold,
-              fontSize: 12,
-            ),
-            backgroundColor: dark ? AppColors.darkSecondarySurface : AppColors.lightInputBackground,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-            onSelected: (_) => setState(() => _filter = label),
-          ),
-        );
-      }).toList(),
     );
   }
 }

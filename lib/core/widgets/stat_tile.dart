@@ -75,6 +75,8 @@ class StatTile extends StatelessWidget {
               fontWeight: FontWeight.w800,
               letterSpacing: -0.3,
             ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
           ),
           if (subtitle != null) ...[
             const SizedBox(height: 4),

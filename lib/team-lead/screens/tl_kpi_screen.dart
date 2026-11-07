@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/api/api_client.dart';
 import '../../core/theme/app_colors.dart';
+import '../../core/widgets/glass_header.dart';
+import '../../core/widgets/glass_scaffold.dart';
 import '../../shared/widgets/app_card.dart';
 import '../../shared/widgets/loading_shimmer.dart';
 
@@ -20,7 +22,6 @@ class _TlKpiScreenState extends ConsumerState<TlKpiScreen> {
 
   List<dynamic> _kpis = [];
   List<dynamic> _memberKpis = [];
-  List<dynamic> _trends = [];
 
   @override
   void initState() {
@@ -62,12 +63,6 @@ class _TlKpiScreenState extends ConsumerState<TlKpiScreen> {
         {'name': 'Priya Verma', 'role': 'UI Designer', 'completionRate': 88, 'qualityScore': 85, 'status': 'GOOD'},
         {'name': 'Amit Kumar', 'role': 'Backend Dev', 'completionRate': 78, 'qualityScore': 75, 'status': 'GOOD'},
         {'name': 'Neha Singh', 'role': 'QA Engineer', 'completionRate': 65, 'qualityScore': 60, 'status': 'NEEDS_IMPROVEMENT'},
-      ];
-
-      _trends = [
-        {'kpi': 'Avg Attendance', 'category': 'DELIVERY', 'm1': '90%', 'm2': '92%', 'm3': '94%', 'trendValue': '+2%', 'status': 'ON_TRACK'},
-        {'kpi': 'Task Completion Rate', 'category': 'EFFICIENCY', 'm1': '82%', 'm2': '85%', 'm3': '88%', 'trendValue': '+3%', 'status': 'ON_TRACK'},
-        {'kpi': 'Overall Performance', 'category': 'DELIVERY', 'm1': '80%', 'm2': '82%', 'm3': '86%', 'trendValue': '+4%', 'status': 'EXCEEDED'},
       ];
 
       if (mounted) {
@@ -125,7 +120,7 @@ class _TlKpiScreenState extends ConsumerState<TlKpiScreen> {
                 children: [
                   Expanded(
                     child: DropdownButtonFormField<String>(
-                      value: unit,
+                      initialValue: unit,
                       decoration: const InputDecoration(labelText: 'Unit', border: OutlineInputBorder()),
                       items: const [
                         DropdownMenuItem(value: '%', child: Text('%')),
@@ -138,7 +133,7 @@ class _TlKpiScreenState extends ConsumerState<TlKpiScreen> {
                   const SizedBox(width: 8),
                   Expanded(
                     child: DropdownButtonFormField<String>(
-                      value: category,
+                      initialValue: category,
                       decoration: const InputDecoration(labelText: 'Category', border: OutlineInputBorder()),
                       items: const [
                         DropdownMenuItem(value: 'DELIVERY', child: Text('Delivery')),
@@ -178,7 +173,7 @@ class _TlKpiScreenState extends ConsumerState<TlKpiScreen> {
                   _kpis.insert(0, newKpi);
                 });
                 Navigator.pop(context);
-                ScaffoldMessenger.of(this.context).showSnackBar(
+                ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(content: Text('KPI "${labelController.text}" created successfully!'), backgroundColor: AppColors.success),
                 );
               }
@@ -196,7 +191,12 @@ class _TlKpiScreenState extends ConsumerState<TlKpiScreen> {
 
   @override
   Widget build(BuildContext context) {
-    if (_isLoading) return const ListSkeleton(itemCount: 4);
+    if (_isLoading) {
+      return const GlassScaffold(
+        appBar: GlassHeader(title: 'Team KPI Tracking'),
+        body: ListSkeleton(itemCount: 4),
+      );
+    }
 
     final filteredKpis = _kpis.where((k) {
       final label = (k['label'] ?? '').toString().toLowerCase();
@@ -207,122 +207,176 @@ class _TlKpiScreenState extends ConsumerState<TlKpiScreen> {
       return matchesCat && matchesSearch;
     }).toList();
 
-    return RefreshIndicator(
-      onRefresh: _loadKpiData,
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        physics: const AlwaysScrollableScrollPhysics(),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Header
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                const Text('Team KPIs & Performance', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
-                ElevatedButton.icon(
-                  onPressed: _openAddKpiDialog,
-                  icon: const Icon(Icons.add),
-                  label: const Text('Set KPI'),
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-
-            // Health Summary Cards
-            Row(
-              children: [
-                Expanded(child: StatCard(title: 'Health Score', value: '89%', icon: Icons.show_chart, iconColor: AppColors.primary, iconBgColor: AppColors.lightPrimary)),
-                const SizedBox(width: 8),
-                Expanded(child: StatCard(title: 'Targets Met', value: '${_kpis.length - 1} / ${_kpis.length}', icon: Icons.verified, iconColor: AppColors.success, iconBgColor: AppColors.successBg)),
-              ],
-            ),
-            const SizedBox(height: 8),
-            Row(
-              children: [
-                Expanded(child: StatCard(title: 'At Risk', value: '1', icon: Icons.warning, iconColor: AppColors.warning, iconBgColor: AppColors.warningBg)),
-                const SizedBox(width: 8),
-                Expanded(child: StatCard(title: 'Avg Rating', value: '4.6 / 5.0', icon: Icons.star, iconColor: Colors.purple, iconBgColor: Colors.purple.shade50)),
-              ],
-            ),
-            const SizedBox(height: 20),
-
-            // Toolbar Search & Categories
-            TextField(
-              decoration: const InputDecoration(
-                labelText: 'Search KPI metrics...',
-                prefixIcon: Icon(Icons.search),
-                border: OutlineInputBorder(),
+    return GlassScaffold(
+      appBar: const GlassHeader(title: 'Team KPI Tracking'),
+      body: RefreshIndicator(
+        onRefresh: _loadKpiData,
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(16),
+          physics: const AlwaysScrollableScrollPhysics(),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Header
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text('Team KPIs & Performance', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+                  ElevatedButton.icon(
+                    onPressed: _openAddKpiDialog,
+                    icon: const Icon(Icons.add),
+                    label: const Text('Set KPI'),
+                  ),
+                ],
               ),
-              onChanged: (val) => setState(() => _searchTerm = val),
-            ),
-            const SizedBox(height: 12),
+              const SizedBox(height: 16),
 
-            SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: Row(
-                children: ['ALL', 'DELIVERY', 'EFFICIENCY', 'QUALITY'].map((cat) {
-                  final isSelected = _selectedCategory == cat;
-                  return Padding(
-                    padding: const EdgeInsets.only(right: 8),
-                    child: ChoiceChip(
-                      label: Text(cat == 'ALL' ? 'All Categories' : cat),
-                      selected: isSelected,
-                      onSelected: (_) => setState(() => _selectedCategory = cat),
-                    ),
-                  );
-                }).toList(),
+              // Health Summary Cards
+              Row(
+                children: [
+                  Expanded(child: StatCard(title: 'Health Score', value: '89%', icon: Icons.show_chart, iconColor: AppColors.primary, iconBgColor: AppColors.lightPrimary)),
+                  const SizedBox(width: 8),
+                  Expanded(child: StatCard(title: 'Targets Met', value: '${_kpis.length - 1} / ${_kpis.length}', icon: Icons.verified, iconColor: AppColors.success, iconBgColor: AppColors.successBg)),
+                ],
               ),
-            ),
-            const SizedBox(height: 20),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  Expanded(child: StatCard(title: 'At Risk', value: '1', icon: Icons.warning, iconColor: AppColors.warning, iconBgColor: AppColors.warningBg)),
+                  const SizedBox(width: 8),
+                  Expanded(child: StatCard(title: 'Avg Rating', value: '4.6 / 5.0', icon: Icons.star, iconColor: Colors.purple, iconBgColor: Colors.purple.shade50)),
+                ],
+              ),
+              const SizedBox(height: 20),
 
-            // Metric Cards Grid
-            const Text('Key Metric Cards', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-            const SizedBox(height: 12),
-
-            if (filteredKpis.isEmpty)
-              const AppCard(
-                child: Padding(
-                  padding: EdgeInsets.all(24),
-                  child: Center(child: Text('No KPI metrics found matching filter.')),
+              // Toolbar Search & Categories
+              TextField(
+                decoration: const InputDecoration(
+                  labelText: 'Search KPI metrics...',
+                  prefixIcon: Icon(Icons.search),
+                  border: OutlineInputBorder(),
                 ),
-              )
-            else
+                onChanged: (val) => setState(() => _searchTerm = val),
+              ),
+              const SizedBox(height: 12),
+
+              SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: Row(
+                  children: ['ALL', 'DELIVERY', 'EFFICIENCY', 'QUALITY'].map((cat) {
+                    final isSelected = _selectedCategory == cat;
+                    return Padding(
+                      padding: const EdgeInsets.only(right: 8),
+                      child: Material(
+                        color: Colors.transparent,
+                        child: ChoiceChip(
+                          label: Text(cat == 'ALL' ? 'All Categories' : cat),
+                          selected: isSelected,
+                          onSelected: (_) => setState(() => _selectedCategory = cat),
+                        ),
+                      ),
+                    );
+                  }).toList(),
+                ),
+              ),
+              const SizedBox(height: 20),
+
+              // Metric Cards Grid
+              const Text('Key Metric Cards', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+              const SizedBox(height: 12),
+
+              if (filteredKpis.isEmpty)
+                const AppCard(
+                  child: Padding(
+                    padding: EdgeInsets.all(24),
+                    child: Center(child: Text('No KPI metrics found matching filter.')),
+                  ),
+                )
+              else
+                ListView.builder(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  itemCount: filteredKpis.length,
+                  itemBuilder: (context, index) {
+                    final k = filteredKpis[index] as Map<String, dynamic>;
+                    final label = k['label'] ?? 'KPI Metric';
+                    final current = k['current'] ?? 0;
+                    final target = k['target'] ?? 100;
+                    final unit = k['unit'] ?? '%';
+                    final cat = k['category'] ?? 'DELIVERY';
+                    final pct = target > 0 ? (current * 100 ~/ target) : 0;
+
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 12),
+                      child: AppCard(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Text(cat, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 11, color: AppColors.primary)),
+                                Text('$pct% Goal', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: pct >= 80 ? AppColors.success : AppColors.warning)),
+                              ],
+                            ),
+                            const SizedBox(height: 6),
+                            Text(label, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+                            const SizedBox(height: 4),
+                            Text('$current / $target$unit', style: const TextStyle(fontSize: 13, color: AppColors.lightSecondaryText)),
+                            const SizedBox(height: 10),
+                            LinearProgressIndicator(
+                              value: (pct / 100).clamp(0.0, 1.0),
+                              backgroundColor: AppColors.lightSurface,
+                              color: pct >= 80 ? AppColors.success : AppColors.warning,
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              const SizedBox(height: 24),
+
+              // Member KPI Performance
+              const Text('Team Member Performance', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+              const SizedBox(height: 12),
               ListView.builder(
                 shrinkWrap: true,
                 physics: const NeverScrollableScrollPhysics(),
-                itemCount: filteredKpis.length,
+                itemCount: _memberKpis.length,
                 itemBuilder: (context, index) {
-                  final k = filteredKpis[index] as Map<String, dynamic>;
-                  final label = k['label'] ?? 'KPI Metric';
-                  final current = k['current'] ?? 0;
-                  final target = k['target'] ?? 100;
-                  final unit = k['unit'] ?? '%';
-                  final cat = k['category'] ?? 'DELIVERY';
-                  final pct = target > 0 ? (current * 100 ~/ target) : 0;
+                  final m = _memberKpis[index] as Map<String, dynamic>;
+                  final name = m['name'] ?? 'Member';
+                  final role = m['role'] ?? 'Team Member';
+                  final completion = m['completionRate'] ?? 0;
+                  final quality = m['qualityScore'] ?? 0;
+                  final status = m['status'] ?? 'GOOD';
 
                   return Padding(
-                    padding: const EdgeInsets.only(bottom: 12),
+                    padding: const EdgeInsets.only(bottom: 8),
                     child: AppCard(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+                      child: Row(
                         children: [
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              Text(cat, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 11, color: AppColors.primary)),
-                              Text('$pct% Goal', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: pct >= 80 ? AppColors.success : AppColors.warning)),
-                            ],
+                          CircleAvatar(
+                            backgroundColor: AppColors.primary,
+                            child: Text(_getInitial(name), style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
                           ),
-                          const SizedBox(height: 6),
-                          Text(label, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
-                          const SizedBox(height: 4),
-                          Text('$current / $target$unit', style: const TextStyle(fontSize: 13, color: AppColors.lightSecondaryText)),
-                          const SizedBox(height: 10),
-                          LinearProgressIndicator(
-                            value: (pct / 100).clamp(0.0, 1.0),
-                            backgroundColor: AppColors.lightSurface,
-                            color: pct >= 80 ? AppColors.success : AppColors.warning,
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                                Text('$role • Completion: $completion%', style: const TextStyle(fontSize: 12, color: AppColors.lightSecondaryText)),
+                              ],
+                            ),
+                          ),
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.end,
+                            children: [
+                              Text('$quality/100', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppColors.primary)),
+                              Text(status, style: const TextStyle(fontSize: 10, color: AppColors.lightMutedText)),
+                            ],
                           ),
                         ],
                       ),
@@ -330,56 +384,8 @@ class _TlKpiScreenState extends ConsumerState<TlKpiScreen> {
                   );
                 },
               ),
-            const SizedBox(height: 24),
-
-            // Member KPI Performance
-            const Text('Team Member Performance', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-            const SizedBox(height: 12),
-            ListView.builder(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              itemCount: _memberKpis.length,
-              itemBuilder: (context, index) {
-                final m = _memberKpis[index] as Map<String, dynamic>;
-                final name = m['name'] ?? 'Member';
-                final role = m['role'] ?? 'Team Member';
-                final completion = m['completionRate'] ?? 0;
-                final quality = m['qualityScore'] ?? 0;
-                final status = m['status'] ?? 'GOOD';
-
-                return Padding(
-                  padding: const EdgeInsets.only(bottom: 8),
-                  child: AppCard(
-                    child: Row(
-                      children: [
-                        CircleAvatar(
-                          backgroundColor: AppColors.primary,
-                          child: Text(_getInitial(name), style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
-                              Text('$role • Completion: $completion%', style: const TextStyle(fontSize: 12, color: AppColors.lightSecondaryText)),
-                            ],
-                          ),
-                        ),
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.end,
-                          children: [
-                            Text('$quality/100', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppColors.primary)),
-                            Text(status, style: const TextStyle(fontSize: 10, color: AppColors.lightMutedText)),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ),
-                );
-              },
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );

@@ -4,6 +4,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/api/api_client.dart';
 import '../../core/api/api_endpoints.dart';
 import '../../core/theme/app_colors.dart';
+import '../../core/widgets/glass_header.dart';
+import '../../core/widgets/glass_scaffold.dart';
 import '../../shared/widgets/app_card.dart';
 import '../../shared/widgets/loading_shimmer.dart';
 import '../../shared/widgets/status_chip.dart';
@@ -18,7 +20,6 @@ class TlMeetingsScreen extends ConsumerStatefulWidget {
 class _TlMeetingsScreenState extends ConsumerState<TlMeetingsScreen> {
   bool _isLoading = true;
   List<dynamic> _meetings = [];
-  List<dynamic> _teamEmployees = [];
   String _activeFilter = 'all';
   String _searchTerm = '';
   Map<String, dynamic>? _selectedMeeting;
@@ -34,13 +35,7 @@ class _TlMeetingsScreenState extends ConsumerState<TlMeetingsScreen> {
     final apiClient = ref.read(apiClientProvider);
 
     try {
-      final results = await Future.wait<dynamic>(<Future<dynamic>>[
-        apiClient.get('/meetings/my').catchError((_) => null),
-        apiClient.get(ApiEndpoints.employees).catchError((_) => null),
-      ]);
-
-      final meetings = results[0];
-      final employees = results[1];
+      final meetings = await apiClient.get('/meetings/my').catchError((_) => null);
 
       List<dynamic> items = [];
       if (meetings is List) {
@@ -89,18 +84,10 @@ class _TlMeetingsScreenState extends ConsumerState<TlMeetingsScreen> {
         ];
       }
 
-      List<dynamic> empList = [];
-      if (employees is List) {
-        empList = employees;
-      } else if (employees is Map<String, dynamic>) {
-        empList = employees['items'] ?? employees['data'] ?? [];
-      }
-
       if (mounted) {
         setState(() {
           _meetings = items;
           _selectedMeeting = items.isNotEmpty ? items.first : null;
-          _teamEmployees = empList;
           _isLoading = false;
         });
       }
@@ -118,7 +105,6 @@ class _TlMeetingsScreenState extends ConsumerState<TlMeetingsScreen> {
     String dateStr = DateTime.now().toIso8601String().split('T')[0];
     String startTime = '10:00';
     String endTime = '11:00';
-    final Set<String> selectedEmpIds = {};
 
     showDialog(
       context: context,
@@ -145,7 +131,7 @@ class _TlMeetingsScreenState extends ConsumerState<TlMeetingsScreen> {
                   children: [
                     Expanded(
                       child: DropdownButtonFormField<String>(
-                        value: meetingType,
+                        initialValue: meetingType,
                         decoration: const InputDecoration(labelText: 'Type', border: OutlineInputBorder()),
                         items: const [
                           DropdownMenuItem(value: 'Video', child: Text('📹 Video')),
@@ -232,7 +218,7 @@ class _TlMeetingsScreenState extends ConsumerState<TlMeetingsScreen> {
                     _selectedMeeting = newMeeting;
                   });
                   Navigator.pop(context);
-                  ScaffoldMessenger.of(this.context).showSnackBar(
+                  ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(content: Text('Meeting "${titleController.text}" scheduled!'), backgroundColor: AppColors.success),
                   );
                 }
@@ -259,7 +245,12 @@ class _TlMeetingsScreenState extends ConsumerState<TlMeetingsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    if (_isLoading) return const ListSkeleton(itemCount: 4);
+    if (_isLoading) {
+      return const GlassScaffold(
+        appBar: GlassHeader(title: 'Team Meetings'),
+        body: ListSkeleton(itemCount: 4),
+      );
+    }
 
     final upcomingCount = _meetings.where((m) => m['status'] == 'Scheduled').length;
     final liveCount = _meetings.where((m) => m['status'] == 'Live').length;
@@ -279,188 +270,191 @@ class _TlMeetingsScreenState extends ConsumerState<TlMeetingsScreen> {
       return matchesSearch && matchesFilter;
     }).toList();
 
-    return RefreshIndicator(
-      onRefresh: _loadMeetingsData,
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        physics: const AlwaysScrollableScrollPhysics(),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Header & Actions
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                const Text('Team Video Calls & Meetings', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
-                ElevatedButton.icon(
-                  onPressed: _openScheduleModal,
-                  icon: const Icon(Icons.video_call),
-                  label: const Text('Schedule'),
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-
-            // Summary Metrics Row
-            Row(
-              children: [
-                Expanded(child: StatCard(title: 'Total Meetings', value: '${_meetings.length}', icon: Icons.calendar_today, iconColor: AppColors.primary, iconBgColor: AppColors.lightPrimary)),
-                const SizedBox(width: 8),
-                Expanded(child: StatCard(title: 'Upcoming', value: '$upcomingCount', icon: Icons.schedule, iconColor: Colors.purple, iconBgColor: Colors.purple.shade50)),
-              ],
-            ),
-            const SizedBox(height: 8),
-            Row(
-              children: [
-                Expanded(child: StatCard(title: 'Live Now', value: '$liveCount', icon: Icons.live_tv, iconColor: AppColors.success, iconBgColor: AppColors.successBg)),
-                const SizedBox(width: 8),
-                Expanded(child: StatCard(title: 'Completed', value: '$completedCount', icon: Icons.check_circle, iconColor: AppColors.lightMutedText, iconBgColor: AppColors.lightSurface)),
-              ],
-            ),
-            const SizedBox(height: 20),
-
-            // Search Bar & Filter Tabs
-            TextField(
-              decoration: const InputDecoration(
-                labelText: 'Search meetings by title or room...',
-                prefixIcon: Icon(Icons.search),
-                border: OutlineInputBorder(),
-              ),
-              onChanged: (val) => setState(() => _searchTerm = val),
-            ),
-            const SizedBox(height: 12),
-
-            SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: Row(
+    return GlassScaffold(
+      appBar: const GlassHeader(title: 'Team Meetings'),
+      body: RefreshIndicator(
+        onRefresh: _loadMeetingsData,
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(16),
+          physics: const AlwaysScrollableScrollPhysics(),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Header & Actions
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  ChoiceChip(label: Text('All (${_meetings.length})'), selected: _activeFilter == 'all', onSelected: (_) => setState(() => _activeFilter = 'all')),
-                  const SizedBox(width: 8),
-                  ChoiceChip(label: Text('Scheduled ($upcomingCount)'), selected: _activeFilter == 'upcoming', onSelected: (_) => setState(() => _activeFilter = 'upcoming')),
-                  const SizedBox(width: 8),
-                  ChoiceChip(label: Text('Live Now ($liveCount)'), selected: _activeFilter == 'live', onSelected: (_) => setState(() => _activeFilter = 'live')),
-                  const SizedBox(width: 8),
-                  ChoiceChip(label: Text('Completed ($completedCount)'), selected: _activeFilter == 'completed', onSelected: (_) => setState(() => _activeFilter = 'completed')),
+                  const Text('Team Video Calls & Meetings', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+                  ElevatedButton.icon(
+                    onPressed: _openScheduleModal,
+                    icon: const Icon(Icons.video_call),
+                    label: const Text('Schedule'),
+                  ),
                 ],
               ),
-            ),
-            const SizedBox(height: 20),
+              const SizedBox(height: 16),
 
-            // Room Selector Bar
-            if (_meetings.isNotEmpty) ...[
-              const Text('Select Room:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppColors.lightSecondaryText)),
+              // Summary Metrics Row
+              Row(
+                children: [
+                  Expanded(child: StatCard(title: 'Total Meetings', value: '${_meetings.length}', icon: Icons.calendar_today, iconColor: AppColors.primary, iconBgColor: AppColors.lightPrimary)),
+                  const SizedBox(width: 8),
+                  Expanded(child: StatCard(title: 'Upcoming', value: '$upcomingCount', icon: Icons.schedule, iconColor: Colors.purple, iconBgColor: Colors.purple.shade50)),
+                ],
+              ),
               const SizedBox(height: 8),
+              Row(
+                children: [
+                  Expanded(child: StatCard(title: 'Live Now', value: '$liveCount', icon: Icons.live_tv, iconColor: AppColors.success, iconBgColor: AppColors.successBg)),
+                  const SizedBox(width: 8),
+                  Expanded(child: StatCard(title: 'Completed', value: '$completedCount', icon: Icons.check_circle, iconColor: AppColors.lightMutedText, iconBgColor: AppColors.lightSurface)),
+                ],
+              ),
+              const SizedBox(height: 20),
+
+              // Search Bar & Filter Tabs
+              TextField(
+                decoration: const InputDecoration(
+                  labelText: 'Search meetings by title or room...',
+                  prefixIcon: Icon(Icons.search),
+                  border: OutlineInputBorder(),
+                ),
+                onChanged: (val) => setState(() => _searchTerm = val),
+              ),
+              const SizedBox(height: 12),
+
               SingleChildScrollView(
                 scrollDirection: Axis.horizontal,
                 child: Row(
-                  children: _meetings.map((m) {
-                    final isSelected = _selectedMeeting != null && _selectedMeeting!['id'] == m['id'];
-                    return Padding(
-                      padding: const EdgeInsets.only(right: 8),
-                      child: ActionChip(
-                        avatar: Icon(Icons.video_call, size: 16, color: isSelected ? Colors.white : AppColors.primary),
-                        label: Text(m['title'] ?? 'Room', style: TextStyle(color: isSelected ? Colors.white : AppColors.lightPrimaryText, fontWeight: isSelected ? FontWeight.bold : FontWeight.normal)),
-                        backgroundColor: isSelected ? AppColors.primary : AppColors.lightSurface,
-                        onPressed: () => setState(() => _selectedMeeting = m),
-                      ),
-                    );
-                  }).toList(),
-                ),
-              ),
-              const SizedBox(height: 20),
-            ],
-
-            // Active Meeting Details Card
-            if (_selectedMeeting != null) ...[
-              AppCard(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                          decoration: BoxDecoration(color: AppColors.lightPrimary, borderRadius: BorderRadius.circular(4)),
-                          child: Text(_selectedMeeting!['meetingType'] ?? 'Video', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 11, color: AppColors.primary)),
-                        ),
-                        StatusChip(status: _selectedMeeting!['status'] ?? 'Scheduled'),
-                      ],
-                    ),
-                    const SizedBox(height: 12),
-                    Text(_selectedMeeting!['title'] ?? 'Meeting Title', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
-                    const SizedBox(height: 4),
-                    Text(_selectedMeeting!['description'] ?? '', style: const TextStyle(fontSize: 13, color: AppColors.lightSecondaryText)),
-                    const SizedBox(height: 16),
-
-                    Row(
-                      children: [
-                        const Icon(Icons.calendar_today, size: 14, color: AppColors.primary),
-                        const SizedBox(width: 4),
-                        Text(_selectedMeeting!['meetingDate'] ?? '', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
-                        const SizedBox(width: 16),
-                        const Icon(Icons.access_time, size: 14, color: AppColors.primary),
-                        const SizedBox(width: 4),
-                        Text('${_selectedMeeting!['startTime']} - ${_selectedMeeting!['endTime']}', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-                    Row(
-                      children: [
-                        const Icon(Icons.meeting_room, size: 14, color: AppColors.lightMutedText),
-                        const SizedBox(width: 4),
-                        Text('Room: ${_selectedMeeting!['roomName']}', style: const TextStyle(fontSize: 12, color: AppColors.lightMutedText)),
-                      ],
-                    ),
-                    const Divider(height: 24),
-
-                    // Participants List
-                    const Text('Participants', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-                    const SizedBox(height: 8),
-                    Column(
-                      children: ((_selectedMeeting!['participants'] as List?) ?? []).map((p) {
-                        final pName = p['employeeName'] ?? 'Member';
-                        final pRole = p['participantRole'] ?? 'Accepted';
-
-                        return Padding(
-                          padding: const EdgeInsets.only(bottom: 6),
-                          child: Row(
-                            children: [
-                              CircleAvatar(
-                                radius: 12,
-                                backgroundColor: AppColors.primary,
-                                child: Text(_getInitial(pName), style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold)),
-                              ),
-                              const SizedBox(width: 8),
-                              Expanded(child: Text(pName, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold))),
-                              Text(pRole, style: const TextStyle(fontSize: 11, color: AppColors.lightMutedText)),
-                            ],
-                          ),
-                        );
-                      }).toList(),
-                    ),
-                    const SizedBox(height: 16),
-
-                    SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton.icon(
-                        onPressed: () => _enterMeeting(_selectedMeeting!),
-                        icon: const Icon(Icons.login),
-                        label: const Text('Enter Meeting Room'),
-                        style: ElevatedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 12)),
-                      ),
-                    ),
+                    Material(color: Colors.transparent, child: ChoiceChip(label: Text('All (${_meetings.length})'), selected: _activeFilter == 'all', onSelected: (_) => setState(() => _activeFilter = 'all'))),
+                    const SizedBox(width: 8),
+                    Material(color: Colors.transparent, child: ChoiceChip(label: Text('Scheduled ($upcomingCount)'), selected: _activeFilter == 'upcoming', onSelected: (_) => setState(() => _activeFilter = 'upcoming'))),
+                    const SizedBox(width: 8),
+                    Material(color: Colors.transparent, child: ChoiceChip(label: Text('Live Now ($liveCount)'), selected: _activeFilter == 'live', onSelected: (_) => setState(() => _activeFilter = 'live'))),
+                    const SizedBox(width: 8),
+                    Material(color: Colors.transparent, child: ChoiceChip(label: Text('Completed ($completedCount)'), selected: _activeFilter == 'completed', onSelected: (_) => setState(() => _activeFilter = 'completed'))),
                   ],
                 ),
               ),
-            ] else
-              const AppCard(
-                child: Padding(
-                  padding: EdgeInsets.all(24),
-                  child: Center(child: Text('No meeting selected or available.')),
+              const SizedBox(height: 20),
+
+              // Room Selector Bar
+              if (filtered.isNotEmpty) ...[
+                const Text('Select Room:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppColors.lightSecondaryText)),
+                const SizedBox(height: 8),
+                SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: Row(
+                    children: filtered.map((m) {
+                      final isSelected = _selectedMeeting != null && _selectedMeeting!['id'] == m['id'];
+                      return Padding(
+                        padding: const EdgeInsets.only(right: 8),
+                        child: ActionChip(
+                          avatar: Icon(Icons.video_call, size: 16, color: isSelected ? Colors.white : AppColors.primary),
+                          label: Text(m['title'] ?? 'Room', style: TextStyle(color: isSelected ? Colors.white : AppColors.lightPrimaryText, fontWeight: isSelected ? FontWeight.bold : FontWeight.normal)),
+                          backgroundColor: isSelected ? AppColors.primary : AppColors.lightSurface,
+                          onPressed: () => setState(() => _selectedMeeting = m),
+                        ),
+                      );
+                    }).toList(),
+                  ),
                 ),
-              ),
-          ],
+                const SizedBox(height: 20),
+              ],
+
+              // Active Meeting Details Card
+              if (_selectedMeeting != null) ...[
+                AppCard(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                            decoration: BoxDecoration(color: AppColors.lightPrimary, borderRadius: BorderRadius.circular(4)),
+                            child: Text(_selectedMeeting!['meetingType'] ?? 'Video', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 11, color: AppColors.primary)),
+                          ),
+                          StatusChip(status: _selectedMeeting!['status'] ?? 'Scheduled'),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      Text(_selectedMeeting!['title'] ?? 'Meeting Title', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+                      const SizedBox(height: 4),
+                      Text(_selectedMeeting!['description'] ?? '', style: const TextStyle(fontSize: 13, color: AppColors.lightSecondaryText)),
+                      const SizedBox(height: 16),
+
+                      Row(
+                        children: [
+                          const Icon(Icons.calendar_today, size: 14, color: AppColors.primary),
+                          const SizedBox(width: 4),
+                          Text(_selectedMeeting!['meetingDate'] ?? '', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                          const SizedBox(width: 16),
+                          const Icon(Icons.access_time, size: 14, color: AppColors.primary),
+                          const SizedBox(width: 4),
+                          Text('${_selectedMeeting!['startTime']} - ${_selectedMeeting!['endTime']}', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      Row(
+                        children: [
+                          const Icon(Icons.meeting_room, size: 14, color: AppColors.lightMutedText),
+                          const SizedBox(width: 4),
+                          Text('Room: ${_selectedMeeting!['roomName']}', style: const TextStyle(fontSize: 12, color: AppColors.lightMutedText)),
+                        ],
+                      ),
+                      const Divider(height: 24),
+
+                      // Participants List
+                      const Text('Participants', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                      const SizedBox(height: 8),
+                      Column(
+                        children: ((_selectedMeeting!['participants'] as List?) ?? []).map((p) {
+                          final pName = p['employeeName'] ?? 'Member';
+                          final pRole = p['participantRole'] ?? 'Accepted';
+
+                          return Padding(
+                            padding: const EdgeInsets.only(bottom: 6),
+                            child: Row(
+                              children: [
+                                CircleAvatar(
+                                  radius: 12,
+                                  backgroundColor: AppColors.primary,
+                                  child: Text(_getInitial(pName), style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold)),
+                                ),
+                                const SizedBox(width: 8),
+                                Expanded(child: Text(pName, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold))),
+                                Text(pRole, style: const TextStyle(fontSize: 11, color: AppColors.lightMutedText)),
+                              ],
+                            ),
+                          );
+                        }).toList(),
+                      ),
+                      const SizedBox(height: 16),
+
+                      SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton.icon(
+                          onPressed: () => _enterMeeting(_selectedMeeting!),
+                          icon: const Icon(Icons.login),
+                          label: const Text('Enter Meeting Room'),
+                          style: ElevatedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 12)),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ] else
+                const AppCard(
+                  child: Padding(
+                    padding: EdgeInsets.all(24),
+                    child: Center(child: Text('No meeting selected or available.')),
+                  ),
+                ),
+            ],
+          ),
         ),
       ),
     );

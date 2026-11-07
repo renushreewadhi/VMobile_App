@@ -6,6 +6,7 @@ import '../core/auth/auth_service.dart';
 import '../core/theme/app_colors.dart';
 import '../core/widgets/app_button.dart';
 import '../core/widgets/app_card.dart';
+import '../core/widgets/glass_scaffold.dart';
 
 class ForgotPasswordScreen extends ConsumerStatefulWidget {
   const ForgotPasswordScreen({super.key});
@@ -59,11 +60,8 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
   Widget build(BuildContext context) {
     final colors = context.appColors;
 
-    return Scaffold(
-      backgroundColor: colors.appBackground,
-      appBar: AppBar(
-        title: const Text('Reset Password'),
-      ),
+    return GlassScaffold(
+      title: 'Reset Password',
       body: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),

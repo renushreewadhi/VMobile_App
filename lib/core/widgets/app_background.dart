@@ -12,10 +12,13 @@ class AppBackground extends ConsumerWidget {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Stack(
+      fit: StackFit.expand,
       children: [
         RepaintBoundary(
           child: IgnorePointer(
             child: Container(
+              width: double.infinity,
+              height: double.infinity,
               decoration: BoxDecoration(
                 gradient: LinearGradient(
                   begin: Alignment.topLeft,
@@ -24,6 +27,7 @@ class AppBackground extends ConsumerWidget {
                 ),
               ),
               child: Stack(
+                fit: StackFit.expand,
                 children: [
                   if (isDark) ...[
                     Positioned(

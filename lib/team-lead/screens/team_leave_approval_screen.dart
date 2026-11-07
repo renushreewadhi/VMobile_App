@@ -3,12 +3,15 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/api/api_client.dart';
 import '../../core/api/api_endpoints.dart';
 import '../../core/theme/app_colors.dart';
+import '../../core/widgets/glass_header.dart';
+import '../../core/widgets/glass_scaffold.dart';
 import '../../shared/widgets/app_card.dart';
 import '../../shared/widgets/loading_shimmer.dart';
 import '../../shared/widgets/status_chip.dart';
 
 class TeamLeaveApprovalScreen extends ConsumerStatefulWidget {
-  const TeamLeaveApprovalScreen({super.key});
+  final bool showAppBar;
+  const TeamLeaveApprovalScreen({super.key, this.showAppBar = true});
 
   @override
   ConsumerState<TeamLeaveApprovalScreen> createState() => _TeamLeaveApprovalScreenState();
@@ -152,7 +155,7 @@ class _TeamLeaveApprovalScreenState extends ConsumerState<TeamLeaveApprovalScree
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Action processed: $e'), backgroundColor: AppColors.success),
+          SnackBar(content: Text('Leave decision updated for $name'), backgroundColor: isApprove ? AppColors.success : AppColors.error),
         );
         _loadAllLeaveData();
       }
@@ -166,12 +169,16 @@ class _TeamLeaveApprovalScreenState extends ConsumerState<TeamLeaveApprovalScree
 
   @override
   Widget build(BuildContext context) {
-    if (_isLoading) return const ListSkeleton(itemCount: 4);
+    if (_isLoading) {
+      const skeleton = ListSkeleton(itemCount: 4);
+      if (!widget.showAppBar) return Material(color: Colors.transparent, child: skeleton);
+      return const GlassScaffold(title: 'Team Leave Approvals', body: skeleton);
+    }
 
     final approvedCount = _leaveHistory.where((h) => h['status'] == 'APPROVED').length;
     final rejectedCount = _leaveHistory.where((h) => h['status'] == 'REJECTED').length;
 
-    return RefreshIndicator(
+    final content = RefreshIndicator(
       onRefresh: _loadAllLeaveData,
       child: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
@@ -334,6 +341,13 @@ class _TeamLeaveApprovalScreenState extends ConsumerState<TeamLeaveApprovalScree
           ],
         ),
       ),
+    );
+
+    if (!widget.showAppBar) return Material(color: Colors.transparent, child: content);
+
+    return GlassScaffold(
+      appBar: const GlassHeader(title: 'Team Leave Approvals'),
+      body: content,
     );
   }
 }

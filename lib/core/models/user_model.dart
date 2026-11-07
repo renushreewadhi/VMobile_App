@@ -14,18 +14,33 @@ enum UserRole {
     final cleanRole = role.trim().toUpperCase();
     switch (cleanRole) {
       case 'ADMIN':
+      case 'SUPERADMIN':
+      case 'SUPER_ADMIN':
+      case 'SYSTEM_ADMIN':
+      case 'SYSTEM ADMIN':
+      case 'SYSTEMADMIN':
         return UserRole.ADMIN;
       case 'HR':
+      case 'HR_ADMIN':
+      case 'HRADMIN':
+      case 'HR_MANAGER':
         return UserRole.HR;
       case 'TL':
       case 'TEAMLEAD':
       case 'TEAM_LEAD':
+      case 'TEAM LEAD':
         return UserRole.TL;
       case 'IT':
+      case 'IT_ADMIN':
+      case 'IT ADMIN':
         return UserRole.IT;
       case 'FINANCE':
+      case 'FINANCE_ADMIN':
+      case 'FINANCE ADMIN':
         return UserRole.FINANCE;
       case 'HELPDESK':
+      case 'HELPDESK_ADMIN':
+      case 'HELPDESK ADMIN':
         return UserRole.HELPDESK;
       case 'EMPLOYEE':
       default:

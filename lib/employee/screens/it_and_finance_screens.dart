@@ -8,6 +8,7 @@ import '../../core/theme/app_colors.dart';
 import '../../shared/widgets/app_card.dart';
 import '../../shared/widgets/loading_shimmer.dart';
 import '../../shared/widgets/status_chip.dart';
+import '../../core/widgets/glass_scaffold.dart';
 
 class AssetRequestsScreen extends ConsumerStatefulWidget {
   const AssetRequestsScreen({super.key});
@@ -45,8 +46,8 @@ class _AssetRequestsScreenState extends ConsumerState<AssetRequestsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('Asset Requests')),
+    return GlassScaffold(
+      title: 'Asset Requests',
       body: _isLoading
           ? const ListSkeleton(itemCount: 3)
           : RefreshIndicator(
@@ -525,8 +526,8 @@ class _ItSupportTicketsScreenState extends ConsumerState<ItSupportTicketsScreen>
       return t['status'].toString().toLowerCase() == _activeStatus.toLowerCase();
     }).toList();
 
-    return Scaffold(
-      appBar: AppBar(title: const Text('IT Support Tickets')),
+    return GlassScaffold(
+      title: 'IT Support Tickets',
       body: _isLoading
           ? const ListSkeleton(itemCount: 4)
           : RefreshIndicator(
@@ -627,10 +628,13 @@ class _ItSupportTicketsScreenState extends ConsumerState<ItSupportTicketsScreen>
           final selected = _activeStatus == st;
           return Padding(
             padding: const EdgeInsets.only(right: 8),
-            child: ChoiceChip(
-              label: Text(st),
-              selected: selected,
-              onSelected: (_) => setState(() => _activeStatus = st),
+            child: Material(
+              color: Colors.transparent,
+              child: ChoiceChip(
+                label: Text(st),
+                selected: selected,
+                onSelected: (_) => setState(() => _activeStatus = st),
+              ),
             ),
           );
         }).toList(),

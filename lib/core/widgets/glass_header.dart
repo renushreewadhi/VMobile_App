@@ -2,6 +2,7 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../theme/glass_theme.dart';
+import '../theme/app_colors.dart';
 import '../theme/theme_provider.dart';
 import '../auth/auth_service.dart';
 import '../../employee/screens/my_profile_screen.dart';
@@ -39,7 +40,7 @@ class GlassHeader extends ConsumerWidget implements PreferredSizeWidget {
     final themeNotifier = ref.read(themeProvider.notifier);
     final authState = ref.watch(authServiceProvider);
     final user = authState.user;
-    final initial = userInitial ?? (user != null && user.firstName.isNotEmpty ? user.firstName[0].toUpperCase() : 'E');
+    final initial = userInitial ?? (authState.isAuthenticated && user != null && user.firstName.isNotEmpty ? user.firstName[0].toUpperCase() : '');
     final topPadding = MediaQuery.paddingOf(context).top;
     final hasTitle = title != null && title!.isNotEmpty;
     final ModalRoute<dynamic>? parentRoute = ModalRoute.of(context);
@@ -74,6 +75,7 @@ class GlassHeader extends ConsumerWidget implements PreferredSizeWidget {
                                 'lib/assets/img.png',
                                 height: 26,
                                 fit: BoxFit.contain,
+                                color: isDark ? Colors.white : null,
                               ),
                           const Spacer(),
                           if (actions != null) ...actions!,
@@ -90,44 +92,131 @@ class GlassHeader extends ConsumerWidget implements PreferredSizeWidget {
                                 ),
                               ),
                             ),
-                            const SizedBox(width: 4),
-                            Semantics(
-                              label: "User profile",
-                              button: true,
-                              child: GestureDetector(
-                                onTap: onAvatarTap ?? () {
-                                  Navigator.push(
-                                    context,
-                                    MaterialPageRoute(builder: (_) => const MyProfileScreen(showAppBar: true)),
-                                  );
-                                },
-                                child: Container(
-                                  width: 36,
-                                  height: 36,
-                                  decoration: BoxDecoration(
-                                    shape: BoxShape.circle,
-                                    gradient: LinearGradient(
-                                      colors: glass.avatarGradient,
-                                      begin: Alignment.topLeft,
-                                      end: Alignment.bottomRight,
+                            if (authState.isAuthenticated && authState.user != null) ...[
+                              const SizedBox(width: 4),
+                              Semantics(
+                                label: "User profile",
+                                button: true,
+                                child: PopupMenuButton<String>(
+                                  offset: const Offset(0, 48),
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                                  color: isDark ? const Color(0xFF141D2E) : Colors.white,
+                                  elevation: 8,
+                                  onSelected: (value) async {
+                                    if (value == 'profile') {
+                                      if (onAvatarTap != null) {
+                                        onAvatarTap!();
+                                      } else {
+                                        Navigator.push(
+                                          context,
+                                          MaterialPageRoute(builder: (_) => const MyProfileScreen(showAppBar: true)),
+                                        );
+                                      }
+                                    } else if (value == 'logout') {
+                                      final confirm = await showDialog<bool>(
+                                        context: context,
+                                        builder: (ctx) => AlertDialog(
+                                          backgroundColor: isDark ? const Color(0xFF141D2E) : Colors.white,
+                                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                                          title: Text(
+                                            'Confirm Logout',
+                                            style: TextStyle(color: isDark ? Colors.white : const Color(0xFF0F172A), fontWeight: FontWeight.bold),
+                                          ),
+                                          content: Text(
+                                            'Are you sure you want to log out of your account?',
+                                            style: TextStyle(color: isDark ? const Color(0xFFA3AFBD) : const Color(0xFF475569)),
+                                          ),
+                                          actions: [
+                                            TextButton(
+                                              onPressed: () => Navigator.pop(ctx, false),
+                                              child: const Text('Cancel'),
+                                            ),
+                                            ElevatedButton(
+                                              style: ElevatedButton.styleFrom(backgroundColor: AppColors.error),
+                                              onPressed: () => Navigator.pop(ctx, true),
+                                              child: const Text('Logout', style: TextStyle(color: Colors.white)),
+                                            ),
+                                          ],
+                                        ),
+                                      );
+
+                                      if (confirm == true && context.mounted) {
+                                        // Capture before awaiting: this header is disposed as soon as auth state flips.
+                                        final authNotifier = ref.read(authServiceProvider.notifier);
+                                        final navigator = Navigator.of(context, rootNavigator: true);
+                                        // Unwind any pushed screens; the auth-gated root shows the login screen.
+                                        // Do NOT push a standalone LoginScreen: it would replace the gated root,
+                                        // so the next login could never navigate to the dashboard.
+                                        navigator.popUntil((route) => route.isFirst);
+                                        await authNotifier.logout();
+                                      }
+                                    }
+                                  },
+                                  itemBuilder: (BuildContext context) => <PopupMenuEntry<String>>[
+                                    PopupMenuItem<String>(
+                                      value: 'profile',
+                                      child: Row(
+                                        children: [
+                                          Icon(Icons.person_outline_rounded, size: 18, color: isDark ? Colors.white : const Color(0xFF0F172A)),
+                                          const SizedBox(width: 10),
+                                          Text(
+                                            'My Profile',
+                                            style: TextStyle(
+                                              fontSize: 14,
+                                              fontWeight: FontWeight.w600,
+                                              color: isDark ? Colors.white : const Color(0xFF0F172A),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
                                     ),
-                                    border: glass.avatarRing != Colors.transparent
-                                        ? Border.all(color: glass.avatarRing, width: 2)
-                                        : null,
-                                  ),
-                                  child: Center(
-                                    child: Text(
-                                      initial,
-                                      style: const TextStyle(
-                                        fontSize: 14,
-                                        fontWeight: FontWeight.bold,
-                                        color: Colors.white,
+                                    const PopupMenuDivider(height: 1),
+                                    PopupMenuItem<String>(
+                                      value: 'logout',
+                                      child: Row(
+                                        children: const [
+                                          Icon(Icons.logout_rounded, size: 18, color: AppColors.error),
+                                          SizedBox(width: 10),
+                                          Text(
+                                            'Logout',
+                                            style: TextStyle(
+                                              fontSize: 14,
+                                              fontWeight: FontWeight.w600,
+                                              color: AppColors.error,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ],
+                                  child: Container(
+                                    width: 36,
+                                    height: 36,
+                                    decoration: BoxDecoration(
+                                      shape: BoxShape.circle,
+                                      gradient: LinearGradient(
+                                        colors: glass.avatarGradient,
+                                        begin: Alignment.topLeft,
+                                        end: Alignment.bottomRight,
+                                      ),
+                                      border: glass.avatarRing != Colors.transparent
+                                          ? Border.all(color: glass.avatarRing, width: 2)
+                                          : null,
+                                    ),
+                                    child: Center(
+                                      child: Text(
+                                        initial,
+                                        style: const TextStyle(
+                                          fontSize: 14,
+                                          fontWeight: FontWeight.bold,
+                                          color: Colors.white,
+                                        ),
                                       ),
                                     ),
                                   ),
                                 ),
                               ),
-                            ),
+                            ],
                           ],
                         ],
                       ),

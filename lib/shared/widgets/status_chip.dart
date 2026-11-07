@@ -35,9 +35,18 @@ class StatusChip extends StatelessWidget {
         case 'DONE':
         case 'PAID':
         case 'VERIFIED':
+        case 'ASSIGNED':
           textColor = AppColors.success;
           bgColor = AppColors.successBg;
           break;
+        case 'AVAILABLE':
+          textColor = const Color(0xFF0284C7);
+          bgColor = const Color(0xFFE0F2FE);
+          break;
+        case 'UNDER_REPAIR':
+        case 'UNDER REPAIR':
+        case 'EXPIRING_SOON':
+        case 'EXPIRING SOON':
         case 'PENDING':
         case 'IN_PROGRESS':
         case 'IN PROGRESS':
@@ -55,6 +64,7 @@ class StatusChip extends StatelessWidget {
         case 'URGENT':
         case 'OVERDUE':
         case 'FAILED':
+        case 'EXPIRED':
           textColor = AppColors.error;
           bgColor = AppColors.errorBg;
           break;

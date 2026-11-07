@@ -4,12 +4,15 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/api/api_client.dart';
 import '../../core/api/api_endpoints.dart';
 import '../../core/theme/app_colors.dart';
+import '../../core/widgets/glass_header.dart';
+import '../../core/widgets/glass_scaffold.dart';
 import '../../shared/widgets/app_card.dart';
 import '../../shared/widgets/loading_shimmer.dart';
 import '../../shared/widgets/status_chip.dart';
 
 class TlAssignTrainingScreen extends ConsumerStatefulWidget {
-  const TlAssignTrainingScreen({super.key});
+  final bool showAppBar;
+  const TlAssignTrainingScreen({super.key, this.showAppBar = true});
 
   @override
   ConsumerState<TlAssignTrainingScreen> createState() => _TlAssignTrainingScreenState();
@@ -148,17 +151,19 @@ class _TlAssignTrainingScreenState extends ConsumerState<TlAssignTrainingScreen>
       context: context,
       builder: (context) => StatefulBuilder(
         builder: (context, setModalState) => AlertDialog(
-          title: const Text('Assign New Training'),
+          title: const Text('Assign Training', style: TextStyle(fontWeight: FontWeight.bold)),
           content: SingleChildScrollView(
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text('Select Course *', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
-                const SizedBox(height: 4),
+                const Text('Select course and target team members to create new assignment.', style: TextStyle(fontSize: 12, color: AppColors.lightSecondaryText)),
+                const SizedBox(height: 16),
+                const Text('1. Select Training Course *', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                const SizedBox(height: 6),
                 DropdownButtonFormField<String>(
-                  value: selectedCourseId.isEmpty ? null : selectedCourseId,
-                  decoration: const InputDecoration(border: OutlineInputBorder()),
+                  initialValue: selectedCourseId.isEmpty ? null : selectedCourseId,
+                  decoration: const InputDecoration(border: OutlineInputBorder(), contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8)),
                   items: _courses.map((c) {
                     final id = c['id']?.toString() ?? '';
                     final title = c['title'] ?? 'Course';
@@ -166,28 +171,29 @@ class _TlAssignTrainingScreenState extends ConsumerState<TlAssignTrainingScreen>
                   }).toList(),
                   onChanged: (val) => setModalState(() => selectedCourseId = val ?? ''),
                 ),
-                const SizedBox(height: 12),
+                const SizedBox(height: 16),
 
-                const Text('Target Type *', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
-                const SizedBox(height: 4),
-                DropdownButtonFormField<String>(
-                  value: assignedToType,
-                  decoration: const InputDecoration(border: OutlineInputBorder()),
-                  items: const [
-                    DropdownMenuItem(value: 'INDIVIDUAL', child: Text('Individual')),
-                    DropdownMenuItem(value: 'TEAM', child: Text('Entire Team')),
-                    DropdownMenuItem(value: 'DEPARTMENT', child: Text('Department')),
+                const Text('2. Assign Target Type *', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    Expanded(child: _targetTypeChip('Individual', 'INDIVIDUAL', assignedToType, (val) => setModalState(() => assignedToType = val))),
+                    const SizedBox(width: 4),
+                    Expanded(child: _targetTypeChip('Team', 'TEAM', assignedToType, (val) => setModalState(() => assignedToType = val))),
+                    const SizedBox(width: 4),
+                    Expanded(child: _targetTypeChip('Dept', 'DEPARTMENT', assignedToType, (val) => setModalState(() => assignedToType = val))),
+                    const SizedBox(width: 4),
+                    Expanded(child: _targetTypeChip('Designation', 'DESIGNATION', assignedToType, (val) => setModalState(() => assignedToType = val))),
                   ],
-                  onChanged: (val) => setModalState(() => assignedToType = val ?? 'INDIVIDUAL'),
                 ),
-                const SizedBox(height: 12),
+                const SizedBox(height: 16),
 
                 if (assignedToType == 'INDIVIDUAL') ...[
-                  const Text('Select Member *', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
-                  const SizedBox(height: 4),
+                  const Text('Select Team Member *', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                  const SizedBox(height: 6),
                   DropdownButtonFormField<String>(
-                    value: selectedEmpId.isEmpty ? null : selectedEmpId,
-                    decoration: const InputDecoration(border: OutlineInputBorder()),
+                    initialValue: selectedEmpId.isEmpty ? null : selectedEmpId,
+                    decoration: const InputDecoration(border: OutlineInputBorder(), contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8)),
                     items: _employees.map((e) {
                       final id = (e['id'] ?? e['employeeId'])?.toString() ?? '';
                       final name = '${e['firstName'] ?? ''} ${e['lastName'] ?? ''}'.trim().isNotEmpty ? '${e['firstName']} ${e['lastName']}' : (e['name'] ?? 'Member');
@@ -195,7 +201,7 @@ class _TlAssignTrainingScreenState extends ConsumerState<TlAssignTrainingScreen>
                     }).toList(),
                     onChanged: (val) => setModalState(() => selectedEmpId = val ?? ''),
                   ),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 16),
                 ],
 
                 Row(
@@ -204,11 +210,11 @@ class _TlAssignTrainingScreenState extends ConsumerState<TlAssignTrainingScreen>
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Text('Priority', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
-                          const SizedBox(height: 4),
+                          const Text('Assignment Priority', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                          const SizedBox(height: 6),
                           DropdownButtonFormField<String>(
-                            value: priority,
-                            decoration: const InputDecoration(border: OutlineInputBorder()),
+                            initialValue: priority,
+                            decoration: const InputDecoration(border: OutlineInputBorder(), contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8)),
                             items: const [
                               DropdownMenuItem(value: 'LOW', child: Text('Low')),
                               DropdownMenuItem(value: 'MEDIUM', child: Text('Medium')),
@@ -219,17 +225,17 @@ class _TlAssignTrainingScreenState extends ConsumerState<TlAssignTrainingScreen>
                         ],
                       ),
                     ),
-                    const SizedBox(width: 8),
+                    const SizedBox(width: 10),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Text('Due Date', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
-                          const SizedBox(height: 4),
+                          const Text('Completion Due Date *', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                          const SizedBox(height: 6),
                           TextField(
                             controller: TextEditingController(text: dueDate),
                             readOnly: true,
-                            decoration: const InputDecoration(border: OutlineInputBorder(), suffixIcon: Icon(Icons.calendar_today, size: 16)),
+                            decoration: const InputDecoration(border: OutlineInputBorder(), contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8), suffixIcon: Icon(Icons.calendar_today, size: 16)),
                             onTap: () async {
                               final picked = await showDatePicker(
                                 context: context,
@@ -249,14 +255,14 @@ class _TlAssignTrainingScreenState extends ConsumerState<TlAssignTrainingScreen>
                     ),
                   ],
                 ),
-                const SizedBox(height: 12),
+                const SizedBox(height: 16),
 
-                const Text('Notes / Instructions', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
-                const SizedBox(height: 4),
+                const Text('Instructions / Notes for Trainees', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                const SizedBox(height: 6),
                 TextField(
                   controller: notesController,
-                  maxLines: 2,
-                  decoration: const InputDecoration(hintText: 'Add instructions for trainees...', border: OutlineInputBorder()),
+                  maxLines: 3,
+                  decoration: const InputDecoration(hintText: 'Add optional instructions, goals, or expectations...', border: OutlineInputBorder()),
                 ),
               ],
             ),
@@ -264,6 +270,7 @@ class _TlAssignTrainingScreenState extends ConsumerState<TlAssignTrainingScreen>
           actions: [
             TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
             ElevatedButton(
+              style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary, foregroundColor: Colors.white),
               onPressed: () async {
                 final apiClient = ref.read(apiClientProvider);
                 try {
@@ -278,7 +285,7 @@ class _TlAssignTrainingScreenState extends ConsumerState<TlAssignTrainingScreen>
 
                   if (mounted) {
                     Navigator.pop(context);
-                    ScaffoldMessenger.of(this.context).showSnackBar(
+                    ScaffoldMessenger.of(context).showSnackBar(
                       const SnackBar(content: Text('Training assigned successfully!'), backgroundColor: AppColors.success),
                     );
                     _loadAssignments();
@@ -286,16 +293,33 @@ class _TlAssignTrainingScreenState extends ConsumerState<TlAssignTrainingScreen>
                 } catch (e) {
                   if (mounted) {
                     Navigator.pop(context);
-                    ScaffoldMessenger.of(this.context).showSnackBar(
+                    ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(content: Text('Failed to assign training: $e'), backgroundColor: AppColors.error),
                     );
                   }
                 }
               },
-              child: const Text('Assign Training'),
+              child: const Text('Assign Training Now'),
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _targetTypeChip(String label, String value, String current, Function(String) onTap) {
+    final isSelected = current == value;
+    return InkWell(
+      onTap: () => onTap(value),
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+        decoration: BoxDecoration(
+          color: isSelected ? AppColors.primary.withOpacity(0.15) : Colors.transparent,
+          border: Border.all(color: isSelected ? AppColors.primary : AppColors.lightBordersAndDividers),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        alignment: Alignment.center,
+        child: Text(label, style: TextStyle(fontSize: 11, fontWeight: isSelected ? FontWeight.bold : FontWeight.normal, color: isSelected ? AppColors.primary : AppColors.lightPrimaryText)),
       ),
     );
   }
@@ -325,7 +349,11 @@ class _TlAssignTrainingScreenState extends ConsumerState<TlAssignTrainingScreen>
 
   @override
   Widget build(BuildContext context) {
-    if (_isLoading) return const Scaffold(body: LoadingShimmer());
+    if (_isLoading) {
+      const skeleton = LoadingShimmer();
+      if (!widget.showAppBar) return Material(color: Colors.transparent, child: skeleton);
+      return const GlassScaffold(title: 'Assign Training', body: skeleton);
+    }
 
     final filtered = _assignments.where((a) {
       final map = a is Map<String, dynamic> ? a : {};
@@ -342,78 +370,171 @@ class _TlAssignTrainingScreenState extends ConsumerState<TlAssignTrainingScreen>
       return matchesSearch && matchesCourse && matchesType && matchesStatus;
     }).toList();
 
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Assign Training & Progress'),
-      ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: _openAssignDialog,
-        child: const Icon(Icons.add),
-      ),
-      body: SingleChildScrollView(
+    final totalAssignments = _assignments.length;
+    final inProgressCount = _assignments.where((a) => (a['status'] ?? '').toString().toUpperCase() == 'IN_PROGRESS').length;
+    final completedCount = _assignments.where((a) => (a['status'] ?? '').toString().toUpperCase() == 'COMPLETED').length;
+    final overdueCount = _assignments.where((a) => (a['status'] ?? '').toString().toUpperCase() == 'OVERDUE').length;
+
+    final content = RefreshIndicator(
+      onRefresh: _loadAllData,
+      child: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Search & Filter Toolbar
-            TextField(
-              decoration: const InputDecoration(
-                labelText: 'Search by employee or course...',
-                prefixIcon: Icon(Icons.search),
-                border: OutlineInputBorder(),
-              ),
-              onChanged: (val) => setState(() => _searchTerm = val),
-            ),
-            const SizedBox(height: 12),
-
+            // Top Header & Button
             Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Expanded(
-                  child: DropdownButtonFormField<String>(
-                    value: _typeFilter.isEmpty ? null : _typeFilter,
-                    decoration: const InputDecoration(labelText: 'Target Type', border: OutlineInputBorder(), contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8)),
-                    items: const [
-                      DropdownMenuItem(value: '', child: Text('All Types')),
-                      DropdownMenuItem(value: 'INDIVIDUAL', child: Text('Individual')),
-                      DropdownMenuItem(value: 'TEAM', child: Text('Team')),
-                      DropdownMenuItem(value: 'DEPARTMENT', child: Text('Department')),
-                    ],
-                    onChanged: (val) => setState(() => _typeFilter = val ?? ''),
-                  ),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text('Assign Training', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+                    const SizedBox(height: 2),
+                    const Text('Assign courses to individual team members, departments, or teams and monitor their completion.', style: TextStyle(fontSize: 12, color: AppColors.lightSecondaryText)),
+                  ],
                 ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: DropdownButtonFormField<String>(
-                    value: _statusFilter.isEmpty ? null : _statusFilter,
-                    decoration: const InputDecoration(labelText: 'Status', border: OutlineInputBorder(), contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8)),
-                    items: const [
-                      DropdownMenuItem(value: '', child: Text('All Status')),
-                      DropdownMenuItem(value: 'IN_PROGRESS', child: Text('In Progress')),
-                      DropdownMenuItem(value: 'COMPLETED', child: Text('Completed')),
-                      DropdownMenuItem(value: 'OVERDUE', child: Text('Overdue')),
-                    ],
-                    onChanged: (val) => setState(() => _statusFilter = val ?? ''),
-                  ),
+                ElevatedButton.icon(
+                  onPressed: _openAssignDialog,
+                  icon: const Icon(Icons.person_add, size: 16),
+                  label: const Text('Assign New Training', style: TextStyle(fontSize: 11.5)),
+                  style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary, foregroundColor: Colors.white),
                 ),
               ],
             ),
-            const SizedBox(height: 20),
+            const SizedBox(height: 16),
+
+            // 4 KPI Cards (Total Assignments, In Progress, Completed, Overdue)
+            GridView.count(
+              crossAxisCount: 2,
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              crossAxisSpacing: 10,
+              mainAxisSpacing: 10,
+              childAspectRatio: 2.0,
+              children: [
+                _kpiCard('TOTAL ASSIGNMENTS', '$totalAssignments', 'Active & Completed', Icons.list_alt, AppColors.primary),
+                _kpiCard('IN PROGRESS', '$inProgressCount', 'Currently Learning', Icons.hourglass_top, Colors.orange),
+                _kpiCard('COMPLETED', '$completedCount', '100% Finished', Icons.check_circle, Colors.green),
+                _kpiCard('OVERDUE', '$overdueCount', 'Passed Due Date', Icons.error, Colors.red),
+              ],
+            ),
+            const SizedBox(height: 16),
+
+            // Search & Filter Toolbar
+            AppCard(
+              child: Column(
+                children: [
+                  TextField(
+                    decoration: const InputDecoration(
+                      hintText: 'Search by employee, course...',
+                      prefixIcon: Icon(Icons.search, size: 18),
+                      border: OutlineInputBorder(borderSide: BorderSide.none),
+                      filled: true,
+                      fillColor: AppColors.lightInputBackground,
+                      contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    ),
+                    onChanged: (val) => setState(() => _searchTerm = val),
+                  ),
+                  const SizedBox(height: 10),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: DropdownButtonFormField<String>(
+                          initialValue: _courseFilter.isEmpty ? null : _courseFilter,
+                          decoration: const InputDecoration(labelText: 'All Courses', border: OutlineInputBorder(), contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 6), isDense: true),
+                          items: [
+                            const DropdownMenuItem(value: '', child: Text('All Courses')),
+                            ..._courses.map((c) => DropdownMenuItem(value: c['title']?.toString() ?? '', child: Text(c['title']?.toString() ?? ''))),
+                          ],
+                          onChanged: (val) => setState(() => _courseFilter = val ?? ''),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: DropdownButtonFormField<String>(
+                          initialValue: _typeFilter.isEmpty ? null : _typeFilter,
+                          decoration: const InputDecoration(labelText: 'All Target Types', border: OutlineInputBorder(), contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 6), isDense: true),
+                          items: const [
+                            DropdownMenuItem(value: '', child: Text('All Target Types')),
+                            DropdownMenuItem(value: 'INDIVIDUAL', child: Text('Individual')),
+                            DropdownMenuItem(value: 'TEAM', child: Text('Team')),
+                            DropdownMenuItem(value: 'DEPARTMENT', child: Text('Department')),
+                          ],
+                          onChanged: (val) => setState(() => _typeFilter = val ?? ''),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: DropdownButtonFormField<String>(
+                          initialValue: _statusFilter.isEmpty ? null : _statusFilter,
+                          decoration: const InputDecoration(labelText: 'All Statuses', border: OutlineInputBorder(), contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 6), isDense: true),
+                          items: const [
+                            DropdownMenuItem(value: '', child: Text('All Statuses')),
+                            DropdownMenuItem(value: 'IN_PROGRESS', child: Text('In Progress')),
+                            DropdownMenuItem(value: 'COMPLETED', child: Text('Completed')),
+                            DropdownMenuItem(value: 'OVERDUE', child: Text('Overdue')),
+                          ],
+                          onChanged: (val) => setState(() => _statusFilter = val ?? ''),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      OutlinedButton.icon(
+                        onPressed: () => setState(() {
+                          _searchTerm = '';
+                          _courseFilter = '';
+                          _typeFilter = '';
+                          _statusFilter = '';
+                        }),
+                        icon: const Icon(Icons.refresh, size: 14),
+                        label: const Text('Reset', style: TextStyle(fontSize: 12)),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 16),
 
             // Assignments List
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                const Text('Training Assignments', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-                Text('${filtered.length} items', style: const TextStyle(fontSize: 12, color: AppColors.lightSecondaryText)),
+                const Text('Training Assignments', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+                Text('${filtered.length} items', style: const TextStyle(fontSize: 11.5, color: AppColors.lightSecondaryText)),
               ],
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 10),
 
             if (filtered.isEmpty)
-              const AppCard(
+              AppCard(
                 child: Padding(
-                  padding: EdgeInsets.all(24),
-                  child: Center(child: Text('No training assignments found matching filter.')),
+                  padding: const EdgeInsets.all(28),
+                  child: Center(
+                    child: Column(
+                      children: [
+                        const Icon(Icons.assignment_outlined, size: 40, color: Colors.grey),
+                        const SizedBox(height: 8),
+                        const Text('No assignments match your filter', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+                        const SizedBox(height: 4),
+                        const Text('Try clearing your search filters or create a new assignment for your team.', style: TextStyle(fontSize: 12, color: Colors.grey), textAlign: TextAlign.center),
+                        const SizedBox(height: 12),
+                        OutlinedButton(
+                          onPressed: () => setState(() {
+                            _searchTerm = '';
+                            _courseFilter = '';
+                            _typeFilter = '';
+                            _statusFilter = '';
+                          }),
+                          child: const Text('Clear Filters'),
+                        ),
+                      ],
+                    ),
+                  ),
                 ),
               )
             else
@@ -429,7 +550,7 @@ class _TlAssignTrainingScreenState extends ConsumerState<TlAssignTrainingScreen>
                   final type = a['assignedToType'] ?? 'INDIVIDUAL';
                   final priority = a['priority'] ?? 'MEDIUM';
                   final dueDate = a['dueDate'] ?? '';
-                  final progress = (a['progress'] ?? 0) as int;
+                  final progress = ((a['progress'] ?? 0) as num).toInt();
                   final status = a['status'] ?? 'IN_PROGRESS';
 
                   return Padding(
@@ -499,6 +620,46 @@ class _TlAssignTrainingScreenState extends ConsumerState<TlAssignTrainingScreen>
               ),
           ],
         ),
+      ),
+    );
+
+    if (!widget.showAppBar) return Material(color: Colors.transparent, child: content);
+
+    return GlassScaffold(
+      appBar: const GlassHeader(title: 'Assign Training'),
+      floatingActionButton: FloatingActionButton(
+        onPressed: _openAssignDialog,
+        backgroundColor: AppColors.primary,
+        child: const Icon(Icons.add, color: Colors.white),
+      ),
+      body: content,
+    );
+  }
+
+  Widget _kpiCard(String label, String value, String sub, IconData icon, Color color) {
+    return AppCard(
+      padding: const EdgeInsets.all(10),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(color: color.withOpacity(0.15), borderRadius: BorderRadius.circular(10)),
+            child: Icon(icon, color: color, size: 18),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text(value, style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: color)),
+                const SizedBox(height: 2),
+                Text(label, style: const TextStyle(fontSize: 9.5, fontWeight: FontWeight.bold), overflow: TextOverflow.ellipsis),
+                Text(sub, style: const TextStyle(fontSize: 9, color: AppColors.lightSecondaryText), overflow: TextOverflow.ellipsis),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }

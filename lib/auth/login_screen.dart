@@ -5,8 +5,9 @@ import '../core/auth/auth_service.dart';
 import '../core/theme/app_colors.dart';
 import '../core/widgets/app_button.dart';
 import '../core/widgets/app_card.dart';
-import '../core/widgets/app_background.dart';
+import '../core/widgets/glass_scaffold.dart';
 import 'forgot_password_screen.dart';
+import 'register_screen.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});
@@ -38,11 +39,12 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   void _handleLogin() async {
     FocusScope.of(context).unfocus();
     if (!_formKey.currentState!.validate()) return;
+    if (ref.read(authServiceProvider).isLoading) return;
 
     final email = _emailController.text.trim();
     final password = _passwordController.text;
 
-    final success = await ref.read(authServiceProvider.notifier).login(email, password);
+    final success = await ref.read(authServiceProvider.notifier).login(email, password, rememberMe: _rememberMe);
     if (!success && mounted) {
       final authState = ref.read(authServiceProvider);
       _message(authState.errorMessage ?? 'Login failed. Please check your credentials.');
@@ -54,121 +56,52 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     final authState = ref.watch(authServiceProvider);
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
-    return Scaffold(
-      backgroundColor: Colors.transparent,
-      resizeToAvoidBottomInset: true,
-      body: AppBackground(
-        child: SafeArea(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.fromLTRB(22, 17, 22, 16),
-            child: Center(
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 440),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    _buildHeader(isDark),
-                    const SizedBox(height: 25),
-                    Text(
-                      'Welcome back.',
+    return GlassScaffold(
+      body: SafeArea(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(22, 17, 22, 16),
+          child: Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 440),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Welcome back.',
+                    style: TextStyle(
+                      color: isDark ? AppColors.darkPrimaryText : AppColors.lightPrimaryText,
+                      fontSize: 31,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: -0.7,
+                    ),
+                  ),
+                  const SizedBox(height: 7),
+                  Text(
+                    'Sign in to access your workplace.',
+                    style: TextStyle(
+                      color: isDark ? AppColors.darkSecondaryText : AppColors.lightSecondaryText,
+                      fontSize: 13,
+                    ),
+                  ),
+                  const SizedBox(height: 23),
+                  _buildLoginCard(isDark, authState.isLoading),
+                  const SizedBox(height: 16),
+                  Center(
+                    child: Text(
+                      'PEOPLE  •  PROCESS  •  PROGRESS',
                       style: TextStyle(
-                        color: isDark ? AppColors.darkPrimaryText : AppColors.lightPrimaryText,
-                        fontSize: 31,
-                        fontWeight: FontWeight.w700,
-                        letterSpacing: -0.7,
+                        color: isDark ? AppColors.darkMutedText : AppColors.lightMutedText,
+                        fontSize: 9,
+                        letterSpacing: 1.5,
                       ),
                     ),
-                    const SizedBox(height: 7),
-                    Text(
-                      'Sign in to access your workplace.',
-                      style: TextStyle(
-                        color: isDark ? AppColors.darkSecondaryText : AppColors.lightSecondaryText,
-                        fontSize: 13,
-                      ),
-                    ),
-                    const SizedBox(height: 23),
-                    _buildLoginCard(isDark, authState.isLoading),
-                    const SizedBox(height: 16),
-                    Center(
-                      child: Text(
-                        'PEOPLE  •  PROCESS  •  PROGRESS',
-                        style: TextStyle(
-                          color: isDark ? AppColors.darkMutedText : AppColors.lightMutedText,
-                          fontSize: 9,
-                          letterSpacing: 1.5,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
+                  ),
+                ],
               ),
             ),
           ),
         ),
       ),
-    );
-  }
-
-  Widget _buildHeader(bool dark) {
-    return Row(
-      children: [
-        Container(
-          width: 40,
-          height: 40,
-          decoration: BoxDecoration(
-            color: AppColors.primary.withOpacity(0.15),
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: const Icon(Icons.business_rounded, color: AppColors.primary, size: 24),
-        ),
-        const SizedBox(width: 10),
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'ETAPRISE HRMS',
-              style: TextStyle(
-                color: dark ? AppColors.darkPrimaryText : AppColors.lightPrimaryText,
-                fontSize: 18,
-                fontWeight: FontWeight.w800,
-                letterSpacing: 1.2,
-              ),
-            ),
-            Text(
-              'PEOPLE OPERATIONS',
-              style: TextStyle(
-                color: dark ? AppColors.darkSecondaryText : AppColors.lightSecondaryText,
-                fontSize: 8,
-                letterSpacing: 1.4,
-              ),
-            ),
-          ],
-        ),
-        const Spacer(),
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-          decoration: BoxDecoration(
-            color: dark ? AppColors.darkSecondarySurface : AppColors.lightSecondarySurface,
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: dark ? AppColors.darkBordersAndDividers : AppColors.lightBordersAndDividers),
-          ),
-          child: Row(
-            children: [
-              const Icon(Icons.shield_outlined, color: AppColors.primary, size: 14),
-              const SizedBox(width: 4),
-              Text(
-                'SECURE',
-                style: TextStyle(
-                  color: dark ? AppColors.darkPrimaryText : AppColors.lightPrimaryText,
-                  fontSize: 9,
-                  fontWeight: FontWeight.w700,
-                  letterSpacing: 0.5,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ],
     );
   }
 
@@ -273,6 +206,29 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
               onPressed: _handleLogin,
               isLoading: isLoading,
               icon: Icons.arrow_forward_rounded,
+            ),
+            const SizedBox(height: 14),
+            Center(
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(
+                    "Don't have an account? ",
+                    style: TextStyle(fontSize: 12, color: dark ? AppColors.darkSecondaryText : AppColors.lightSecondaryText),
+                  ),
+                  GestureDetector(
+                    onTap: () {
+                      Navigator.of(context).push(
+                        MaterialPageRoute(builder: (_) => const RegisterScreen()),
+                      );
+                    },
+                    child: const Text(
+                      'Create account',
+                      style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.primary),
+                    ),
+                  ),
+                ],
+              ),
             ),
             const SizedBox(height: 20),
 

@@ -6,6 +6,7 @@ import '../core/auth/auth_service.dart';
 import '../core/theme/app_colors.dart';
 import '../core/widgets/app_button.dart';
 import '../core/widgets/app_card.dart';
+import '../core/widgets/glass_scaffold.dart';
 
 class ResetPasswordScreen extends ConsumerStatefulWidget {
   const ResetPasswordScreen({super.key, required this.token});
@@ -71,9 +72,8 @@ class _ResetPasswordScreenState extends ConsumerState<ResetPasswordScreen> {
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
-    return Scaffold(
-      backgroundColor: isDark ? AppColors.darkAppBackground : AppColors.lightAppBackground,
-      appBar: AppBar(title: const Text('Reset Password')),
+    return GlassScaffold(
+      title: 'Reset Password',
       body: SafeArea(
         child: Center(
           child: SingleChildScrollView(

@@ -1,7 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../../core/api/api_client.dart';
-import '../../../core/theme/app_colors.dart';
+import '../../core/api/api_client.dart';
+import '../../core/api/api_endpoints.dart';
+import '../../core/errors/api_exception.dart';
+import '../../core/theme/app_colors.dart';
+import '../../core/theme/glass_theme.dart';
+import '../../core/widgets/app_card.dart';
+import '../../core/widgets/glass_header.dart';
+import '../../core/widgets/glass_scaffold.dart';
 
 class AdminShiftFormScreen extends ConsumerStatefulWidget {
   final String? shiftId;
@@ -15,81 +21,99 @@ class AdminShiftFormScreen extends ConsumerStatefulWidget {
 
 class _AdminShiftFormScreenState extends ConsumerState<AdminShiftFormScreen> {
   final _formKey = GlobalKey<FormState>();
-  bool _isLoading = false;
-  bool _isSaving = false;
+  late TextEditingController _nameController;
+  late TextEditingController _codeController;
+  late TextEditingController _breakController;
+  late TextEditingController _graceController;
+  late TextEditingController _halfDayController;
+  late TextEditingController _overtimeController;
+  late TextEditingController _descController;
 
-  final TextEditingController _nameController = TextEditingController();
-  final TextEditingController _codeController = TextEditingController();
-  final TextEditingController _startTimeController = TextEditingController(text: '09:00');
-  final TextEditingController _endTimeController = TextEditingController(text: '18:00');
-  final TextEditingController _breakController = TextEditingController(text: '60');
-  final TextEditingController _graceController = TextEditingController(text: '15');
-  final TextEditingController _halfDayController = TextEditingController(text: '4.5');
-  final TextEditingController _overtimeController = TextEditingController(text: '1.0');
-  final TextEditingController _descController = TextEditingController();
-
-  String _category = 'Fixed';
   String _status = 'ACTIVE';
+  String _category = 'Fixed Shift';
+  String _startTimeHour = '07';
+  String _startTimeMinute = '00';
+  String _startTimeAmPm = 'AM';
+
+  String _endTimeHour = '04';
+  String _endTimeMinute = '00';
+  String _endTimeAmPm = 'PM';
+
   final List<String> _daysList = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
   final List<String> _workingDays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'];
-  final List<String> _categories = ['Fixed', 'Rotational', 'Flexible', 'Split'];
+
+  bool _isSaving = false;
 
   bool get _isEdit => widget.shiftId != null || widget.initialData != null;
 
   @override
   void initState() {
     super.initState();
-    if (widget.initialData != null) {
-      _populateData(widget.initialData!);
-    } else if (_isEdit && widget.shiftId != null) {
-      _loadShiftDetail();
+    final d = widget.initialData ?? {};
+    _nameController = TextEditingController(text: d['name']?.toString() ?? '');
+    _codeController = TextEditingController(text: d['code']?.toString() ?? 'SH-${(DateTime.now().millisecond % 900 + 100)}');
+    _breakController = TextEditingController(text: (d['breakDurationMinutes'] ?? 60).toString());
+    _graceController = TextEditingController(text: (d['lateGracePeriodMinutes'] ?? 15).toString());
+    _halfDayController = TextEditingController(text: (d['halfDayHours'] ?? 4.5).toString());
+    _overtimeController = TextEditingController(text: (d['overtimeThresholdHours'] ?? 1.0).toString());
+    _descController = TextEditingController(text: d['description']?.toString() ?? '');
+
+    _status = (d['status'] ?? 'ACTIVE').toString().toUpperCase();
+    _category = d['category']?.toString() ?? 'Fixed Shift';
+
+    if (d['startTime'] != null) {
+      final parsed = _parseTime12h(d['startTime'].toString());
+      _startTimeHour = parsed['hour']!;
+      _startTimeMinute = parsed['minute']!;
+      _startTimeAmPm = parsed['ampm']!;
     }
-  }
+    if (d['endTime'] != null) {
+      final parsed = _parseTime12h(d['endTime'].toString());
+      _endTimeHour = parsed['hour']!;
+      _endTimeMinute = parsed['minute']!;
+      _endTimeAmPm = parsed['ampm']!;
+    }
 
-  void _populateData(Map<String, dynamic> data) {
-    _nameController.text = data['name'] ?? '';
-    _codeController.text = data['code'] ?? '';
-    _startTimeController.text = data['startTime'] ?? '09:00';
-    _endTimeController.text = data['endTime'] ?? '18:00';
-    _breakController.text = '${data['breakDurationMinutes'] ?? data['breakMinutes'] ?? 60}';
-    _graceController.text = '${data['lateGracePeriodMinutes'] ?? data['lateGraceMinutes'] ?? 15}';
-    _halfDayController.text = '${data['halfDayHours'] ?? 4.5}';
-    _overtimeController.text = '${data['overtimeThresholdHours'] ?? 1.0}';
-    _category = data['category'] ?? 'Fixed';
-    final allowedStatuses = ['ACTIVE', 'INACTIVE'];
-    final rawStatus = data['status'] ?? 'ACTIVE';
-    _status = allowedStatuses.firstWhere(
-      (s) => s.toLowerCase() == rawStatus.toString().toLowerCase(),
-      orElse: () => 'ACTIVE',
-    );
-    _descController.text = data['description'] ?? '';
-
-    if (data['workingDays'] is List) {
+    if (d['workingDays'] is List) {
       _workingDays.clear();
-      _workingDays.addAll((data['workingDays'] as List).cast<String>());
+      _workingDays.addAll((d['workingDays'] as List).map((e) => e.toString()));
     }
   }
 
-  Future<void> _loadShiftDetail() async {
-    setState(() => _isLoading = true);
+  @override
+  void dispose() {
+    _nameController.dispose();
+    _codeController.dispose();
+    _breakController.dispose();
+    _graceController.dispose();
+    _halfDayController.dispose();
+    _overtimeController.dispose();
+    _descController.dispose();
+    super.dispose();
+  }
+
+  Map<String, String> _parseTime12h(String timeStr) {
     try {
-      final res = await ref.read(apiClientProvider).get('/attendance/shifts/${widget.shiftId}');
-      if (res is Map<String, dynamic>) {
-        _populateData(res);
-      }
+      final str = timeStr.trim().toUpperCase();
+      String ampm = str.contains('PM') ? 'PM' : 'AM';
+      final clean = str.replaceAll(RegExp(r'AM|PM', caseSensitive: false), '').trim();
+      final parts = clean.split(':');
+      int h = int.parse(parts[0]);
+      int m = parts.length > 1 ? int.parse(parts[1].substring(0, 2)) : 0;
+      return {
+        'hour': h.toString().padLeft(2, '0'),
+        'minute': m.toString().padLeft(2, '0'),
+        'ampm': ampm,
+      };
     } catch (_) {
-      if (widget.initialData != null) {
-        _populateData(widget.initialData!);
-      }
-    } finally {
-      setState(() => _isLoading = false);
+      return {'hour': '07', 'minute': '00', 'ampm': 'AM'};
     }
   }
 
   void _toggleDay(String day) {
     setState(() {
       if (_workingDays.contains(day)) {
-        _workingDays.remove(day);
+        if (_workingDays.length > 1) _workingDays.remove(day);
       } else {
         _workingDays.add(day);
       }
@@ -97,35 +121,38 @@ class _AdminShiftFormScreenState extends ConsumerState<AdminShiftFormScreen> {
   }
 
   Future<void> _saveShift() async {
-    if (!_formKey.currentState!.validate()) return;
+    if (!_formKey.currentState!.validate() || _isSaving) return;
     if (_workingDays.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please select at least one working day')));
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please select at least one working day.'), backgroundColor: Colors.red));
       return;
     }
 
     setState(() => _isSaving = true);
+    final apiClient = ref.read(apiClientProvider);
+
+    final startTime = '$_startTimeHour:$_startTimeMinute $_startTimeAmPm';
+    final endTime = '$_endTimeHour:$_endTimeMinute $_endTimeAmPm';
 
     final payload = {
       'name': _nameController.text.trim(),
-      'code': _codeController.text.trim().isNotEmpty ? _codeController.text.trim() : 'SH-${_nameController.text.trim().substring(0, 3).toUpperCase()}',
-      'startTime': _startTimeController.text.trim(),
-      'endTime': _endTimeController.text.trim(),
-      'breakDurationMinutes': int.tryParse(_breakController.text) ?? 60,
-      'lateGracePeriodMinutes': int.tryParse(_graceController.text) ?? 15,
-      'halfDayHours': double.tryParse(_halfDayController.text) ?? 4.5,
-      'overtimeThresholdHours': double.tryParse(_overtimeController.text) ?? 1.0,
+      'code': _codeController.text.trim(),
+      'startTime': startTime,
+      'endTime': endTime,
+      'breakDurationMinutes': int.tryParse(_breakController.text.trim()) ?? 60,
+      'lateGracePeriodMinutes': int.tryParse(_graceController.text.trim()) ?? 15,
+      'halfDayHours': double.tryParse(_halfDayController.text.trim()) ?? 4.5,
+      'overtimeThresholdHours': double.tryParse(_overtimeController.text.trim()) ?? 1.0,
       'category': _category,
-      'workingDays': _workingDays,
+      'workingDays': [..._workingDays],
       'status': _status,
-      'description': _descController.text.trim()
+      'description': _descController.text.trim(),
     };
 
     try {
-      final apiClient = ref.read(apiClientProvider);
-      if (_isEdit && widget.shiftId != null) {
-        await apiClient.put('/attendance/shifts/${widget.shiftId}', data: payload);
+      if (widget.shiftId != null) {
+        await apiClient.put('${ApiEndpoints.shifts}/${widget.shiftId}', body: payload);
       } else {
-        await apiClient.post('/attendance/shifts', data: payload);
+        await apiClient.post(ApiEndpoints.shifts, body: payload);
       }
 
       if (mounted) {
@@ -136,22 +163,21 @@ class _AdminShiftFormScreenState extends ConsumerState<AdminShiftFormScreen> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error saving shift: $e')));
+        setState(() => _isSaving = false);
+        final msg = e is ApiException ? e.message : 'Failed to save shift.';
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg), backgroundColor: Colors.red));
       }
-    } finally {
-      if (mounted) setState(() => _isSaving = false);
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    if (_isLoading) {
-      return const Scaffold(body: Center(child: CircularProgressIndicator()));
-    }
+    final dark = Theme.of(context).brightness == Brightness.dark;
+    final cardBgColor = dark ? AppColors.darkMainSurface : Colors.white;
 
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(_isEdit ? 'Edit Work Shift' : 'Create Work Shift'),
+    return GlassScaffold(
+      appBar: GlassHeader(
+        title: _isEdit ? 'Edit Work Shift' : 'Create New Work Shift',
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
@@ -160,136 +186,454 @@ class _AdminShiftFormScreenState extends ConsumerState<AdminShiftFormScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text('Basic Shift Details', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.primary)),
-              const SizedBox(height: 12),
-              TextFormField(
-                controller: _nameController,
-                decoration: const InputDecoration(labelText: 'Shift Name *', border: OutlineInputBorder()),
-                validator: (val) => (val == null || val.trim().isEmpty) ? 'Shift name is required' : null,
-              ),
-              const SizedBox(height: 16),
-              TextFormField(
-                controller: _codeController,
-                decoration: const InputDecoration(labelText: 'Shift Code (Optional)', border: OutlineInputBorder(), hintText: 'e.g. SH-GEN'),
-              ),
-              const SizedBox(height: 16),
-              DropdownButtonFormField<String>(
-                value: _category,
-                decoration: const InputDecoration(labelText: 'Shift Category', border: OutlineInputBorder()),
-                items: _categories.map((c) => DropdownMenuItem(value: c, child: Text('$c Shift'))).toList(),
-                onChanged: (val) => setState(() => _category = val ?? 'Fixed'),
-              ),
-              const SizedBox(height: 16),
-              DropdownButtonFormField<String>(
-                value: _status,
-                decoration: const InputDecoration(labelText: 'Status', border: OutlineInputBorder()),
-                items: const [
-                  DropdownMenuItem(value: 'ACTIVE', child: Text('Active')),
-                  DropdownMenuItem(value: 'INACTIVE', child: Text('Inactive')),
+              // 1. Top Hero Header Banner
+              _buildHeroHeaderBanner(),
+              const SizedBox(height: 18),
+
+              // Section 1: Basic Shift Details
+              _buildCardSection(
+                cardBgColor: cardBgColor,
+                icon: Icons.tune_rounded,
+                iconBg: const Color(0xFFE0EDFF),
+                iconColor: const Color(0xFF2563EB),
+                title: 'Basic Shift Details',
+                subtitle: 'Define shift name, identification code, and category',
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _buildInputField('Shift Name *', _nameController, Icons.badge_outlined, 'e.g. Morning Shift', validator: (val) => val == null || val.trim().isEmpty ? 'Required' : null),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: _buildInputField('Shift Code *', _codeController, Icons.code_rounded, 'e.g. SH-01', validator: (val) => val == null || val.trim().isEmpty ? 'Required' : null),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _buildDropdownField('Shift Category', _category, ['Fixed Shift', 'Rotational', 'Flexible', 'Split'], (val) => setState(() => _category = val ?? 'Fixed Shift'), Icons.category_outlined),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: _buildDropdownField('Status', _status, ['ACTIVE', 'INACTIVE'], (val) => setState(() => _status = val ?? 'ACTIVE'), Icons.toggle_on_outlined, isStatus: true),
+                      ),
+                    ],
+                  ),
                 ],
-                onChanged: (val) => setState(() => _status = val ?? 'ACTIVE'),
+              ),
+              const SizedBox(height: 16),
+
+              // Section 2: Timings & Grace Period Thresholds
+              _buildCardSection(
+                cardBgColor: cardBgColor,
+                icon: Icons.access_time_rounded,
+                iconBg: const Color(0xFFFEF3C7),
+                iconColor: const Color(0xFFD97706),
+                title: 'Timings & Grace Period Thresholds',
+                subtitle: 'Set clock-in / clock-out times, break durations, and late grace rules',
+                children: [
+                  const Text('Clock In / Start Time *', style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600, color: Color(0xFF334155))),
+                  const SizedBox(height: 6),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _buildTimeDropdown(_startTimeHour, List.generate(12, (i) => (i + 1).toString().padLeft(2, '0')), (val) => setState(() => _startTimeHour = val ?? '07')),
+                      ),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: _buildTimeDropdown(_startTimeMinute, ['00', '15', '30', '45'], (val) => setState(() => _startTimeMinute = val ?? '00')),
+                      ),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: _buildTimeDropdown(_startTimeAmPm, ['AM', 'PM'], (val) => setState(() => _startTimeAmPm = val ?? 'AM')),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  Text('Start Time: $_startTimeHour:$_startTimeMinute $_startTimeAmPm', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Color(0xFF9333EA))),
+                  const SizedBox(height: 16),
+
+                  const Text('Clock Out / End Time *', style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600, color: Color(0xFF334155))),
+                  const SizedBox(height: 6),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _buildTimeDropdown(_endTimeHour, List.generate(12, (i) => (i + 1).toString().padLeft(2, '0')), (val) => setState(() => _endTimeHour = val ?? '04')),
+                      ),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: _buildTimeDropdown(_endTimeMinute, ['00', '15', '30', '45'], (val) => setState(() => _endTimeMinute = val ?? '00')),
+                      ),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: _buildTimeDropdown(_endTimeAmPm, ['AM', 'PM'], (val) => setState(() => _endTimeAmPm = val ?? 'PM')),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  Text('End Time: $_endTimeHour:$_endTimeMinute $_endTimeAmPm', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Color(0xFF9333EA))),
+                  const SizedBox(height: 16),
+
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _buildInputField('Break Duration (Minutes)', _breakController, Icons.coffee_outlined, '60', isNumber: true, suffixText: 'mins'),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: _buildInputField('Late Grace Period (Mins)', _graceController, Icons.timer_outlined, '15', isNumber: true, suffixText: 'mins'),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _buildInputField('Half Day Threshold (Hrs)', _halfDayController, Icons.hourglass_bottom_rounded, '4.5', isNumber: true, suffixText: 'hrs'),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: _buildInputField('Overtime Min Threshold', _overtimeController, Icons.more_time_rounded, '1.0', isNumber: true, suffixText: 'hrs'),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+
+              // Section 3: Working Days Schedule
+              _buildCardSection(
+                cardBgColor: cardBgColor,
+                icon: Icons.calendar_month_rounded,
+                iconBg: const Color(0xFFDCFCE7),
+                iconColor: const Color(0xFF16A34A),
+                title: 'Working Days Schedule',
+                subtitle: 'Select active working days for this shift',
+                children: [
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: _daysList.map((day) {
+                      final isSelected = _workingDays.contains(day);
+                      return InkWell(
+                        onTap: _isSaving ? null : () => _toggleDay(day),
+                        borderRadius: BorderRadius.circular(20),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                          decoration: BoxDecoration(
+                            color: isSelected ? const Color(0xFFDCFCE7) : const Color(0xFFF8FAFC),
+                            borderRadius: BorderRadius.circular(20),
+                            border: Border.all(color: isSelected ? const Color(0xFF16A34A) : const Color(0xFFE2E8F0)),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                isSelected ? Icons.check_circle_rounded : Icons.radio_button_unchecked_rounded,
+                                size: 16,
+                                color: isSelected ? const Color(0xFF16A34A) : const Color(0xFF94A3B8),
+                              ),
+                              const SizedBox(width: 6),
+                              Text(
+                                day,
+                                style: TextStyle(
+                                  fontSize: 12.5,
+                                  fontWeight: isSelected ? FontWeight.bold : FontWeight.w600,
+                                  color: isSelected ? const Color(0xFF16A34A) : const Color(0xFF334155),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      );
+                    }).toList(),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+
+              // Section 4: Description & Notes
+              _buildCardSection(
+                cardBgColor: cardBgColor,
+                icon: Icons.description_outlined,
+                iconBg: const Color(0xFFF3E8FF),
+                iconColor: const Color(0xFF9333EA),
+                title: 'Description & Notes',
+                subtitle: 'Provide optional guidelines for employees assigned to this shift',
+                children: [
+                  Container(
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF8FAFC),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: const Color(0xFFE2E8F0)),
+                    ),
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                    child: TextFormField(
+                      controller: _descController,
+                      enabled: !_isSaving,
+                      maxLines: 3,
+                      style: const TextStyle(fontSize: 13, color: Color(0xFF0F172A), fontWeight: FontWeight.w500),
+                      decoration: const InputDecoration(
+                        hintText: 'e.g. Standard morning shift from 07:00 AM to 04:00 PM with 1 hour lunch break...',
+                        hintStyle: TextStyle(color: Color(0xFF94A3B8), fontSize: 13),
+                        border: InputBorder.none,
+                      ),
+                    ),
+                  ),
+                ],
               ),
               const SizedBox(height: 24),
 
-              const Text('Timings & Grace Period Thresholds', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.primary)),
-              const SizedBox(height: 12),
+              // Bottom Actions Navigation Bar
               Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Expanded(
-                    child: TextFormField(
-                      controller: _startTimeController,
-                      decoration: const InputDecoration(labelText: 'Start Time (HH:mm) *', border: OutlineInputBorder()),
-                      validator: (val) => (val == null || val.trim().isEmpty) ? 'Start time required' : null,
-                    ),
+                  TextButton(
+                    onPressed: _isSaving ? null : () => Navigator.pop(context),
+                    child: const Text('Cancel', style: TextStyle(fontSize: 13, color: Color(0xFF64748B), fontWeight: FontWeight.bold)),
                   ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: TextFormField(
-                      controller: _endTimeController,
-                      decoration: const InputDecoration(labelText: 'End Time (HH:mm) *', border: OutlineInputBorder()),
-                      validator: (val) => (val == null || val.trim().isEmpty) ? 'End time required' : null,
+                  ElevatedButton.icon(
+                    onPressed: _isSaving ? null : _saveShift,
+                    icon: _isSaving
+                        ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                        : const Icon(Icons.check_rounded, size: 18),
+                    label: Text(_isEdit ? 'Update Shift' : 'Create Shift'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF2563EB),
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 12),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      elevation: 0,
                     ),
                   ),
                 ],
               ),
-              const SizedBox(height: 16),
-              Row(
-                children: [
-                  Expanded(
-                    child: TextFormField(
-                      controller: _breakController,
-                      keyboardType: TextInputType.number,
-                      decoration: const InputDecoration(labelText: 'Break Duration (mins)', border: OutlineInputBorder(), suffixText: 'mins'),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: TextFormField(
-                      controller: _graceController,
-                      keyboardType: TextInputType.number,
-                      decoration: const InputDecoration(labelText: 'Late Grace (mins)', border: OutlineInputBorder(), suffixText: 'mins'),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 16),
-              Row(
-                children: [
-                  Expanded(
-                    child: TextFormField(
-                      controller: _halfDayController,
-                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                      decoration: const InputDecoration(labelText: 'Half Day (hrs)', border: OutlineInputBorder(), suffixText: 'hrs'),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: TextFormField(
-                      controller: _overtimeController,
-                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                      decoration: const InputDecoration(labelText: 'Overtime Threshold (hrs)', border: OutlineInputBorder(), suffixText: 'hrs'),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 24),
+              const SizedBox(height: 20),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 
-              const Text('Working Days Schedule', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.primary)),
-              const SizedBox(height: 12),
-              Wrap(
-                spacing: 8,
-                children: _daysList.map((day) {
-                  final isSelected = _workingDays.contains(day);
-                  return ChoiceChip(
-                    label: Text(day),
-                    selected: isSelected,
-                    onSelected: (_) => _toggleDay(day),
-                  );
-                }).toList(),
-              ),
-              const SizedBox(height: 24),
+  Widget _buildHeroHeaderBanner() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: const Color(0xFFEEF2FF),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFE0E7FF)),
+        boxShadow: const [BoxShadow(color: Color.fromRGBO(99, 102, 241, 0.05), blurRadius: 20, offset: Offset(0, 4))],
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFE0EDFF),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: const Text(
+                    'SHIFT CONFIGURATION',
+                    style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: Color(0xFF2563EB), letterSpacing: 0.5),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  _isEdit ? 'Edit Work Shift' : 'Create New Work Shift',
+                  style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w800, color: Color(0xFF0F172A), letterSpacing: -0.5),
+                ),
+                const SizedBox(height: 4),
+                const Text(
+                  'Define working hours, grace periods, half-day thresholds, and shift schedules.',
+                  style: TextStyle(fontSize: 12, color: Color(0xFF64748B)),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 12),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: const Color(0xFFE2E8F0)),
+              boxShadow: const [BoxShadow(color: Color.fromRGBO(37, 99, 235, 0.06), blurRadius: 10, offset: Offset(0, 2))],
+            ),
+            child: Column(
+              children: [
+                Container(
+                  width: 36,
+                  height: 36,
+                  decoration: BoxDecoration(color: const Color(0xFFFEF3C7), borderRadius: BorderRadius.circular(10)),
+                  child: const Icon(Icons.access_time_rounded, color: Color(0xFFD97706), size: 20),
+                ),
+                const SizedBox(height: 6),
+                const Text('Schedule & Rules', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Color(0xFF334155))),
+                const SizedBox(height: 2),
+                Container(width: 32, height: 3, decoration: BoxDecoration(color: const Color(0xFFD97706), borderRadius: BorderRadius.circular(2))),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 
-              const Text('Description & Notes', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.primary)),
-              const SizedBox(height: 12),
-              TextFormField(
-                controller: _descController,
-                maxLines: 3,
-                decoration: const InputDecoration(labelText: 'Description / Guidelines', border: OutlineInputBorder(), hintText: 'Optional notes...'),
+  Widget _buildCardSection({
+    required Color cardBgColor,
+    required IconData icon,
+    required Color iconBg,
+    required Color iconColor,
+    required String title,
+    required String subtitle,
+    required List<Widget> children,
+  }) {
+    return Container(
+      decoration: BoxDecoration(
+        color: cardBgColor,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: const Color(0xFFF1F5F9)),
+        boxShadow: const [BoxShadow(color: Color.fromRGBO(15, 23, 42, 0.03), blurRadius: 16, offset: Offset(0, 4))],
+      ),
+      padding: const EdgeInsets.all(20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 38,
+                height: 38,
+                decoration: BoxDecoration(color: iconBg, borderRadius: BorderRadius.circular(10)),
+                child: Icon(icon, color: iconColor, size: 20),
               ),
-              const SizedBox(height: 32),
-
-              SizedBox(
-                width: double.infinity,
-                height: 50,
-                child: ElevatedButton.icon(
-                  onPressed: _isSaving ? null : _saveShift,
-                  icon: _isSaving ? const CircularProgressIndicator(color: Colors.white) : const Icon(Icons.check),
-                  label: Text(_isSaving ? 'Saving...' : (_isEdit ? 'Save Changes' : 'Create Shift'), style: const TextStyle(fontSize: 16)),
-                  style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary, foregroundColor: Colors.white),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(title, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Color(0xFF0F172A))),
+                    Text(subtitle, style: const TextStyle(fontSize: 11, color: Color(0xFF94A3B8))),
+                  ],
                 ),
               ),
             ],
           ),
+          const SizedBox(height: 16),
+          const Divider(height: 1, color: Color(0xFFF1F5F9)),
+          const SizedBox(height: 20),
+          ...children,
+        ],
+      ),
+    );
+  }
+
+  Widget _buildInputField(String label, TextEditingController controller, IconData icon, String hint, {bool isNumber = false, String? suffixText, FormFieldValidator<String>? validator}) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(label, style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600, color: Color(0xFF334155))),
+        const SizedBox(height: 6),
+        Container(
+          decoration: BoxDecoration(
+            color: const Color(0xFFF8FAFC),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: const Color(0xFFE2E8F0)),
+          ),
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          child: Row(
+            children: [
+              Icon(icon, size: 18, color: const Color(0xFF64748B)),
+              const SizedBox(width: 10),
+              Expanded(
+                child: TextFormField(
+                  controller: controller,
+                  enabled: !_isSaving,
+                  keyboardType: isNumber ? const TextInputType.numberWithOptions(decimal: true) : TextInputType.text,
+                  style: const TextStyle(fontSize: 13, color: Color(0xFF0F172A), fontWeight: FontWeight.w500),
+                  decoration: InputDecoration(
+                    hintText: hint,
+                    hintStyle: const TextStyle(color: Color(0xFF94A3B8), fontSize: 13),
+                    suffixText: suffixText,
+                    suffixStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xFF64748B)),
+                    border: InputBorder.none,
+                  ),
+                  validator: validator,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildDropdownField(String label, String selectedValue, List<String> options, ValueChanged<String?> onChanged, IconData icon, {bool isStatus = false}) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(label, style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600, color: Color(0xFF334155))),
+        const SizedBox(height: 6),
+        Container(
+          decoration: BoxDecoration(
+            color: const Color(0xFFF8FAFC),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: const Color(0xFFE2E8F0)),
+          ),
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          child: Row(
+            children: [
+              Icon(icon, size: 18, color: const Color(0xFF64748B)),
+              const SizedBox(width: 10),
+              Expanded(
+                child: DropdownButtonHideUnderline(
+                  child: DropdownButton<String>(
+                    value: options.contains(selectedValue) ? selectedValue : (options.isNotEmpty ? options.first : null),
+                    isExpanded: true,
+                    style: const TextStyle(fontSize: 13, color: Color(0xFF0F172A), fontWeight: FontWeight.w500),
+                    icon: const Icon(Icons.keyboard_arrow_down_rounded, color: Color(0xFF64748B)),
+                    items: options.map((opt) {
+                      final displayLabel = isStatus ? (opt == 'ACTIVE' ? 'Active' : 'Inactive') : opt;
+                      return DropdownMenuItem<String>(value: opt, child: Text(displayLabel));
+                    }).toList(),
+                    onChanged: _isSaving ? null : onChanged,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildTimeDropdown(String selectedValue, List<String> options, ValueChanged<String?> onChanged) {
+    return Container(
+      decoration: BoxDecoration(
+        color: const Color(0xFFF8FAFC),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: 10),
+      child: DropdownButtonHideUnderline(
+        child: DropdownButton<String>(
+          value: options.contains(selectedValue) ? selectedValue : options.first,
+          isExpanded: true,
+          style: const TextStyle(fontSize: 13, color: Color(0xFF0F172A), fontWeight: FontWeight.bold),
+          icon: const Icon(Icons.keyboard_arrow_down_rounded, size: 18, color: Color(0xFF64748B)),
+          items: options.map((opt) => DropdownMenuItem(value: opt, child: Text(opt))).toList(),
+          onChanged: _isSaving ? null : onChanged,
         ),
       ),
     );

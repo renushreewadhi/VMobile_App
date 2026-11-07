@@ -4,8 +4,8 @@
     "fontSizes": 2
   },
   "lib/admin/screens/admin_attendance_screen.dart": {
-    "colors": 10,
-    "fontSizes": 5
+    "colors": 20,
+    "fontSizes": 8
   },
   "lib/admin/screens/admin_audit_logs_screen.dart": {
     "colors": 8,
@@ -94,6 +94,10 @@
   "lib/admin/screens/admin_leave_management_screen.dart": {
     "colors": 22,
     "fontSizes": 9
+  },
+  "lib/admin/screens/admin_more_screen.dart": {
+    "colors": 4,
+    "fontSizes": 2
   },
   "lib/admin/screens/admin_notification_settings_screen.dart": {
     "colors": 4,
@@ -204,12 +208,16 @@
     "fontSizes": 13
   },
   "lib/auth/register_screen.dart": {
-    "colors": 37,
+    "colors": 35,
     "fontSizes": 5
   },
   "lib/auth/reset_password_screen.dart": {
-    "colors": 23,
+    "colors": 21,
     "fontSizes": 3
+  },
+  "lib/core/widgets/app_background.dart": {
+    "colors": 12,
+    "fontSizes": 0
   },
   "lib/core/widgets/app_button.dart": {
     "colors": 6,
@@ -223,13 +231,17 @@
     "colors": 1,
     "fontSizes": 2
   },
+  "lib/core/widgets/glass_card.dart": {
+    "colors": 1,
+    "fontSizes": 0
+  },
   "lib/core/widgets/glass_component_preview.dart": {
     "colors": 12,
     "fontSizes": 0
   },
   "lib/core/widgets/glass_header.dart": {
-    "colors": 1,
-    "fontSizes": 1
+    "colors": 18,
+    "fontSizes": 4
   },
   "lib/core/widgets/glass_search_bar.dart": {
     "colors": 0,
@@ -264,11 +276,11 @@
     "fontSizes": 16
   },
   "lib/employee/screens/break_tracker_screen.dart": {
-    "colors": 52,
+    "colors": 48,
     "fontSizes": 15
   },
   "lib/employee/screens/daily_work_update_screen.dart": {
-    "colors": 50,
+    "colors": 46,
     "fontSizes": 13
   },
   "lib/employee/screens/edit_profile_screen.dart": {
@@ -276,15 +288,15 @@
     "fontSizes": 9
   },
   "lib/employee/screens/employee_dashboard_screen.dart": {
-    "colors": 35,
-    "fontSizes": 13
+    "colors": 26,
+    "fontSizes": 10
   },
   "lib/employee/screens/helpdesk_and_ai_screens.dart": {
     "colors": 10,
     "fontSizes": 1
   },
   "lib/employee/screens/holidays_screen.dart": {
-    "colors": 24,
+    "colors": 49,
     "fontSizes": 21
   },
   "lib/employee/screens/it_and_finance_screens.dart": {
@@ -304,12 +316,12 @@
     "fontSizes": 15
   },
   "lib/employee/screens/my_attendance_screen.dart": {
-    "colors": 155,
-    "fontSizes": 44
+    "colors": 151,
+    "fontSizes": 42
   },
   "lib/employee/screens/my_benefits_screen.dart": {
-    "colors": 55,
-    "fontSizes": 33
+    "colors": 36,
+    "fontSizes": 28
   },
   "lib/employee/screens/my_benefit_invoices_screen.dart": {
     "colors": 1,
@@ -328,11 +340,11 @@
     "fontSizes": 3
   },
   "lib/employee/screens/my_leave_screen.dart": {
-    "colors": 37,
+    "colors": 36,
     "fontSizes": 13
   },
   "lib/employee/screens/my_payslips_screen.dart": {
-    "colors": 100,
+    "colors": 96,
     "fontSizes": 35
   },
   "lib/employee/screens/my_performance_screen.dart": {
@@ -351,10 +363,6 @@
     "colors": 8,
     "fontSizes": 5
   },
-  "lib/employee/screens/my_settings_screen.dart": {
-    "colors": 58,
-    "fontSizes": 31
-  },
   "lib/employee/screens/my_tasks_screen.dart": {
     "colors": 15,
     "fontSizes": 7
@@ -365,7 +373,7 @@
   },
   "lib/employee/screens/punch_in_out_screen.dart": {
     "colors": 104,
-    "fontSizes": 55
+    "fontSizes": 53
   },
   "lib/employee/screens/training_screens.dart": {
     "colors": 49,
@@ -403,6 +411,10 @@
     "colors": 95,
     "fontSizes": 42
   },
+  "lib/finance/screens/finance_more_screen.dart": {
+    "colors": 4,
+    "fontSizes": 2
+  },
   "lib/finance/screens/finance_payments_screen.dart": {
     "colors": 100,
     "fontSizes": 42
@@ -428,15 +440,15 @@
     "fontSizes": 46
   },
   "lib/helpdesk/screens/create_article_screen.dart": {
-    "colors": 12,
+    "colors": 10,
     "fontSizes": 6
   },
   "lib/helpdesk/screens/create_ticket_screen.dart": {
-    "colors": 8,
+    "colors": 6,
     "fontSizes": 2
   },
   "lib/helpdesk/screens/helpdesk_chatbot_screen.dart": {
-    "colors": 14,
+    "colors": 12,
     "fontSizes": 5
   },
   "lib/helpdesk/screens/helpdesk_dashboard_screen.dart": {
@@ -444,15 +456,19 @@
     "fontSizes": 7
   },
   "lib/helpdesk/screens/helpdesk_knowledge_base_screen.dart": {
-    "colors": 6,
-    "fontSizes": 6
+    "colors": 12,
+    "fontSizes": 8
+  },
+  "lib/helpdesk/screens/helpdesk_more_screen.dart": {
+    "colors": 4,
+    "fontSizes": 2
   },
   "lib/helpdesk/screens/helpdesk_tickets_screen.dart": {
-    "colors": 9,
-    "fontSizes": 6
+    "colors": 10,
+    "fontSizes": 8
   },
   "lib/helpdesk/screens/ticket_detail_screen.dart": {
-    "colors": 19,
+    "colors": 13,
     "fontSizes": 8
   },
   "lib/hr/screens/attendance/hr_attendance_corrections_screen.dart": {
@@ -508,8 +524,8 @@
     "fontSizes": 9
   },
   "lib/hr/screens/hr_documents_screen.dart": {
-    "colors": 10,
-    "fontSizes": 3
+    "colors": 8,
+    "fontSizes": 4
   },
   "lib/hr/screens/hr_employees_screen.dart": {
     "colors": 3,
@@ -522,6 +538,10 @@
   "lib/hr/screens/hr_leave_management_screen.dart": {
     "colors": 3,
     "fontSizes": 1
+  },
+  "lib/hr/screens/hr_more_screen.dart": {
+    "colors": 4,
+    "fontSizes": 2
   },
   "lib/hr/screens/hr_payroll_screen.dart": {
     "colors": 6,
@@ -576,11 +596,11 @@
     "fontSizes": 3
   },
   "lib/it/screens/it_asset_requests_screen.dart": {
-    "colors": 11,
+    "colors": 12,
     "fontSizes": 5
   },
   "lib/it/screens/it_create_employee_account_screen.dart": {
-    "colors": 2,
+    "colors": 0,
     "fontSizes": 3
   },
   "lib/it/screens/it_dashboard_screen.dart": {
@@ -591,12 +611,16 @@
     "colors": 8,
     "fontSizes": 5
   },
+  "lib/it/screens/it_more_screen.dart": {
+    "colors": 4,
+    "fontSizes": 2
+  },
   "lib/it/screens/it_offboarding_screen.dart": {
-    "colors": 9,
+    "colors": 12,
     "fontSizes": 4
   },
   "lib/it/screens/it_onboarding_screen.dart": {
-    "colors": 12,
+    "colors": 16,
     "fontSizes": 4
   },
   "lib/it/screens/it_reports_screen.dart": {
@@ -612,11 +636,11 @@
     "fontSizes": 4
   },
   "lib/it/screens/it_tickets_screen.dart": {
-    "colors": 5,
+    "colors": 7,
     "fontSizes": 4
   },
   "lib/resources/screens/holidays_screen.dart": {
-    "colors": 24,
+    "colors": 49,
     "fontSizes": 21
   },
   "lib/shared/widgets/app_card.dart": {
@@ -656,7 +680,7 @@
     "fontSizes": 14
   },
   "lib/team-lead/screens/team_leave_approval_screen.dart": {
-    "colors": 21,
+    "colors": 22,
     "fontSizes": 12
   },
   "lib/team-lead/screens/tl_add_payroll_input_screen.dart": {
@@ -695,6 +719,10 @@
     "colors": 8,
     "fontSizes": 2
   },
+  "lib/team-lead/screens/tl_eod_updates_screen.dart": {
+    "colors": 20,
+    "fontSizes": 11
+  },
   "lib/team-lead/screens/tl_expenses_screen.dart": {
     "colors": 24,
     "fontSizes": 7
@@ -711,9 +739,13 @@
     "colors": 27,
     "fontSizes": 12
   },
+  "lib/team-lead/screens/tl_more_screen.dart": {
+    "colors": 4,
+    "fontSizes": 2
+  },
   "lib/team-lead/screens/tl_performance_screen.dart": {
-    "colors": 19,
-    "fontSizes": 11
+    "colors": 34,
+    "fontSizes": 12
   },
   "lib/team-lead/screens/tl_projects_screen.dart": {
     "colors": 23,
@@ -724,11 +756,11 @@
     "fontSizes": 10
   },
   "lib/team-lead/screens/tl_reports_screen.dart": {
-    "colors": 30,
+    "colors": 28,
     "fontSizes": 26
   },
   "lib/team-lead/screens/tl_tasks_screen.dart": {
-    "colors": 28,
+    "colors": 24,
     "fontSizes": 12
   },
   "lib/team-lead/screens/tl_team_payroll_screen.dart": {
@@ -736,7 +768,7 @@
     "fontSizes": 15
   },
   "lib/team-lead/screens/tl_team_training_screen.dart": {
-    "colors": 23,
+    "colors": 20,
     "fontSizes": 10
   }
 }

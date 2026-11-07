@@ -1,7 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../../core/api/api_client.dart';
-import '../../../core/theme/app_colors.dart';
+import '../../core/api/api_client.dart';
+import '../../core/api/api_endpoints.dart';
+import '../../core/auth/auth_service.dart';
+import '../../core/errors/api_exception.dart';
+import '../../core/models/user_model.dart';
+import '../../core/theme/glass_theme.dart';
+import '../../core/widgets/app_button.dart';
+import '../../core/widgets/app_card.dart';
+import '../../core/widgets/glass_scaffold.dart';
+import '../../core/widgets/glass_header.dart';
 import 'admin_team_form_screen.dart';
 
 class AdminTeamDetailScreen extends ConsumerStatefulWidget {
@@ -15,196 +23,380 @@ class AdminTeamDetailScreen extends ConsumerStatefulWidget {
 
 class _AdminTeamDetailScreenState extends ConsumerState<AdminTeamDetailScreen> {
   bool _isLoading = true;
+  String? _errorMessage;
   Map<String, dynamic> _team = {};
   List<dynamic> _teamMembers = [];
+
+  // Request ID guard
+  int _requestId = 0;
+  String? _currentUserId;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        _checkUserAndLoad();
+      }
+    });
+  }
+
+  void _checkUserAndLoad() {
+    _requestId++; // Immediately invalidate any in-flight requests
+    final authState = ref.read(authServiceProvider);
+    final user = authState.user;
+
+    if (user == null || !authState.isAuthenticated) {
+      if (!mounted) return;
+      _resetState();
+      setState(() {
+        _isLoading = false;
+        _errorMessage = 'No authenticated user found.';
+      });
+      return;
+    }
+
+    if (_currentUserId != user.id) {
+      _currentUserId = user.id;
+      _resetState();
+    }
+
+    // Role Guard Check: Must be ADMIN or HR
+    final userRole = user.role;
+    final bool isAuthorized = userRole == UserRole.ADMIN || userRole == UserRole.HR;
+
+    if (!isAuthorized) {
+      if (!mounted) return;
+      _resetState();
+      setState(() {
+        _isLoading = false;
+        _errorMessage = null;
+      });
+      return;
+    }
+
     _loadTeamDetails();
   }
 
+  void _resetState() {
+    _team = {};
+    _teamMembers = [];
+  }
+
   Future<void> _loadTeamDetails() async {
-    setState(() => _isLoading = true);
+    final currentReq = ++_requestId;
+    if (!mounted) return;
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
+
     final apiClient = ref.read(apiClientProvider);
 
     try {
-      final teamRes = await apiClient.get('/departments/teams/${widget.teamId}').catchError((_) => null);
-      final empRes = await apiClient.get('/management/employees').catchError((_) => null);
+      final teamRes = await apiClient.get(ApiEndpoints.teamDetail(widget.teamId)).catchError((_) => null);
+      if (!mounted || currentReq != _requestId) return;
 
-      if (teamRes is Map<String, dynamic>) {
-        _team = teamRes;
-      } else {
-        _team = {
-          'id': widget.teamId,
-          'name': 'Alpha Squad',
-          'departmentName': 'Engineering',
-          'teamLeadName': 'Michael Chen',
-          'status': 'Active',
-          'memberCount': 8,
-          'description': 'Core engineering squad working on microservices architecture.'
-        };
-      }
+      final empRes = await apiClient.get(ApiEndpoints.employees).catchError((_) => null);
+      if (!mounted || currentReq != _requestId) return;
 
-      List<dynamic> emps = empRes is List ? empRes : (empRes is Map ? (empRes['items'] ?? empRes['data'] ?? []) : []);
-      if (emps.isEmpty) {
-        emps = [
-          {'id': '1', 'employeeId': 'EMP-01', 'firstName': 'Rahul', 'lastName': 'Sharma', 'department': 'Engineering', 'designation': 'Developer'},
-          {'id': '2', 'employeeId': 'EMP-02', 'firstName': 'Priya', 'lastName': 'Verma', 'department': 'Engineering', 'designation': 'QA Engineer'},
-        ];
-      }
+      dynamic rawTeam = teamRes is Map<String, dynamic> && teamRes.containsKey('data') ? teamRes['data'] : teamRes;
+      Map<String, dynamic> team = rawTeam is Map<String, dynamic> ? rawTeam : {'name': 'Team Details'};
 
-      _teamMembers = emps;
-      setState(() => _isLoading = false);
-    } catch (_) {
-      setState(() => _isLoading = false);
+      dynamic rawEmps = empRes is Map<String, dynamic> && empRes.containsKey('data') ? empRes['data'] : empRes;
+      List<dynamic> employees = rawEmps is List ? rawEmps : [];
+
+      // Filter members belonging to this team ID or team name
+      final tId = widget.teamId.toLowerCase();
+      final tName = (team['name'] ?? '').toString().toLowerCase();
+
+      List<dynamic> members = employees.where((e) {
+        if (e is! Map<String, dynamic>) return false;
+        final empTeamId = (e['teamId'] ?? e['team']?['id'])?.toString().toLowerCase() ?? '';
+        final empTeamName = (e['teamName'] ?? e['team']?.toString() ?? '').toLowerCase();
+        return empTeamId == tId || empTeamName == tName;
+      }).toList();
+
+      if (!mounted || currentReq != _requestId) return;
+      setState(() {
+        _team = team;
+        _teamMembers = members;
+        _isLoading = false;
+      });
+    } on ApiException catch (e) {
+      if (!mounted || currentReq != _requestId) return;
+      setState(() {
+        _errorMessage = e.message;
+        _isLoading = false;
+      });
+    } catch (e) {
+      if (!mounted || currentReq != _requestId) return;
+      setState(() {
+        _errorMessage = 'Failed to load team details. Please check network connection.';
+        _isLoading = false;
+      });
     }
   }
 
   Future<void> _deactivateTeam() async {
+    final teamName = _team['name']?.toString() ?? 'Team';
+
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: Text('Deactivate team "${_team['name']}"?'),
+        title: Text('Deactivate team "$teamName"?'),
         content: const Text('This will change team status to Inactive.'),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
-          TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Deactivate', style: TextStyle(color: Colors.red))),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Deactivate'),
+          ),
         ],
       ),
     );
 
-    if (confirmed == true) {
-      try {
-        await ref.read(apiClientProvider).delete('/departments/teams/${widget.teamId}');
-      } catch (_) {}
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Team deactivated successfully')));
-        Navigator.pop(context);
-      }
+    if (confirmed != true) return;
+
+    final currentReq = ++_requestId;
+    final apiClient = ref.read(apiClientProvider);
+
+    try {
+      await apiClient.delete(ApiEndpoints.teamDetail(widget.teamId));
+      if (!mounted || currentReq != _requestId) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Team deactivated successfully')),
+      );
+      Navigator.pop(context, true);
+    } catch (e) {
+      if (!mounted || currentReq != _requestId) return;
+      final msg = e is ApiException ? e.message : 'Failed to deactivate team.';
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(msg), backgroundColor: Colors.red),
+      );
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    if (_isLoading) {
-      return const Scaffold(body: Center(child: CircularProgressIndicator()));
-    }
+    final glass = context.glass;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final cardBgColor = isDark ? const Color(0xFF141D2E) : Colors.white;
 
+    // Account switching listener
+    ref.listen<AuthState>(authServiceProvider, (previous, next) {
+      if (next.user?.id != _currentUserId) {
+        _checkUserAndLoad();
+      }
+    });
+
+    final authState = ref.watch(authServiceProvider);
+    final userRole = authState.user?.role;
+    final bool isAuthorized = userRole == UserRole.ADMIN || userRole == UserRole.HR;
+
+    final teamName = _team['name']?.toString() ?? 'Team Details';
     final isActive = (_team['status'] ?? 'Active').toString().toUpperCase() == 'ACTIVE';
 
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(_team['name'] ?? 'Team Details'),
+    return GlassScaffold(
+      appBar: GlassHeader(
+        title: teamName,
         actions: [
-          IconButton(
-            icon: const Icon(Icons.edit),
-            tooltip: 'Edit Team',
-            onPressed: () async {
-              await Navigator.push(context, MaterialPageRoute(builder: (_) => AdminTeamFormScreen(teamId: widget.teamId, initialData: _team)));
-              _loadTeamDetails();
-            },
-          ),
-          IconButton(
-            icon: const Icon(Icons.delete, color: Colors.red),
-            tooltip: 'Deactivate Team',
-            onPressed: _deactivateTeam,
-          ),
+          if (isAuthorized) ...[
+            IconButton(
+              icon: const Icon(Icons.edit_outlined),
+              tooltip: 'Edit Team',
+              onPressed: () async {
+                final updated = await Navigator.push<bool>(
+                  context,
+                  MaterialPageRoute(builder: (_) => AdminTeamFormScreen(teamId: widget.teamId, initialData: _team)),
+                );
+                if (updated == true) _loadTeamDetails();
+              },
+            ),
+            IconButton(
+              icon: const Icon(Icons.delete_outline, color: Colors.red),
+              tooltip: 'Deactivate Team',
+              onPressed: _deactivateTeam,
+            ),
+          ],
         ],
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Team Header Card
-            Card(
-              elevation: 3,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      body: !isAuthorized
+          ? Center(
               child: Padding(
-                padding: const EdgeInsets.all(20),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Row(
-                          children: [
-                            CircleAvatar(
-                              radius: 28,
-                              backgroundColor: AppColors.primary.withOpacity(0.1),
-                              child: Text((_team['name'] ?? 'T')[0].toUpperCase(), style: const TextStyle(fontSize: 24, color: AppColors.primary, fontWeight: FontWeight.bold)),
-                            ),
-                            const SizedBox(width: 16),
-                            Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(_team['name'] ?? 'Team', style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
-                                Text(_team['departmentName'] ?? 'Department', style: TextStyle(color: Colors.grey[600], fontSize: 14)),
-                              ],
-                            ),
-                          ],
-                        ),
-                        Chip(
-                          label: Text(isActive ? 'Active' : 'Inactive', style: const TextStyle(color: Colors.white)),
-                          backgroundColor: isActive ? Colors.green : Colors.grey,
-                        ),
-                      ],
-                    ),
-                    const Divider(height: 24),
-                    Row(
-                      children: [
-                        const Icon(Icons.person_pin, size: 18, color: Colors.grey),
-                        const SizedBox(width: 8),
-                        Text('Team Lead: ${_team['teamLeadName'] ?? 'Unassigned'}', style: const TextStyle(fontWeight: FontWeight.w600)),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-                    Row(
-                      children: [
-                        const Icon(Icons.group, size: 18, color: Colors.grey),
-                        const SizedBox(width: 8),
-                        Text('Total Members: ${_team['memberCount'] ?? _teamMembers.length}', style: const TextStyle(fontWeight: FontWeight.w600)),
-                      ],
-                    ),
-                    if (_team['description'] != null && _team['description'].toString().isNotEmpty) ...[
-                      const SizedBox(height: 12),
-                      Text(_team['description'], style: TextStyle(color: Colors.grey[700])),
+                padding: const EdgeInsets.all(24.0),
+                child: AppCard(
+                  backgroundColor: cardBgColor,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.lock_outline, size: 48, color: Color(0xFFEF4444)),
+                      const SizedBox(height: 16),
+                      Text('Access Restricted', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: glass.textPrimary)),
+                      const SizedBox(height: 8),
+                      Text('You do not have administrative permissions to view team details.', textAlign: TextAlign.center, style: TextStyle(fontSize: 14, color: glass.textSecondary)),
                     ],
-                  ],
+                  ),
                 ),
               ),
+            )
+          : RefreshIndicator(
+              onRefresh: _loadTeamDetails,
+              child: _buildMainContent(glass, cardBgColor, teamName, isActive),
             ),
-            const SizedBox(height: 24),
+    );
+  }
 
-            // Team Members Roster
-            const Text('Team Members Roster', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.primary)),
-            const SizedBox(height: 12),
-            _teamMembers.isEmpty
-                ? const Center(child: Text('No members found in this team.'))
-                : ListView.builder(
-                    shrinkWrap: true,
-                    physics: const NeverScrollableScrollPhysics(),
-                    itemCount: _teamMembers.length,
-                    itemBuilder: (context, index) {
-                      final member = _teamMembers[index];
-                      final name = '${member['firstName'] ?? ''} ${member['lastName'] ?? ''}'.trim().isNotEmpty ? '${member['firstName']} ${member['lastName']}' : (member['fullName'] ?? member['name'] ?? 'Employee');
-                      return Card(
-                        margin: const EdgeInsets.only(bottom: 8),
-                        child: ListTile(
-                          leading: CircleAvatar(
-                            backgroundColor: AppColors.primary.withOpacity(0.1),
-                            child: Text(name[0].toUpperCase(), style: const TextStyle(color: AppColors.primary, fontWeight: FontWeight.bold)),
-                          ),
-                          title: Text(name, style: const TextStyle(fontWeight: FontWeight.bold)),
-                          subtitle: Text('${member['employeeCode'] ?? member['id']} • ${member['department'] ?? 'Engineering'} (${member['designation'] ?? 'Staff'})'),
-                        ),
-                      );
-                    },
-                  ),
-          ],
+  Widget _buildMainContent(GlassTheme glass, Color cardBgColor, String teamName, bool isActive) {
+    if (_isLoading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    if (_errorMessage != null) {
+      return SingleChildScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        child: Container(
+          constraints: BoxConstraints(minHeight: MediaQuery.of(context).size.height * 0.7),
+          padding: const EdgeInsets.all(24),
+          alignment: Alignment.center,
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.error_outline_rounded, size: 54, color: Color(0xFFEF4444)),
+              const SizedBox(height: 16),
+              Text('Unable to Load Team Details', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: glass.textPrimary)),
+              const SizedBox(height: 8),
+              Text(_errorMessage!, textAlign: TextAlign.center, style: TextStyle(fontSize: 14, color: glass.textSecondary)),
+              const SizedBox(height: 24),
+              AppButton(label: 'Retry', icon: Icons.refresh_rounded, width: 140, onPressed: _loadTeamDetails),
+            ],
+          ),
         ),
+      );
+    }
+
+    return SingleChildScrollView(
+      physics: const AlwaysScrollableScrollPhysics(),
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Team Header Card
+          AppCard(
+            backgroundColor: cardBgColor,
+            padding: const EdgeInsets.all(18),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Row(
+                      children: [
+                        CircleAvatar(
+                          radius: 26,
+                          backgroundColor: const Color(0xFF0F6B66).withAlpha(30),
+                          child: Text(teamName.isNotEmpty ? teamName[0].toUpperCase() : 'T', style: const TextStyle(fontSize: 22, color: Color(0xFF0F6B66), fontWeight: FontWeight.bold)),
+                        ),
+                        const SizedBox(width: 14),
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(teamName, style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: glass.textPrimary)),
+                            Text(_team['departmentName'] ?? _team['department'] ?? 'General Department', style: TextStyle(color: glass.textSecondary, fontSize: 12)),
+                          ],
+                        ),
+                      ],
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: isActive ? const Color(0xFF10B981).withAlpha(30) : Colors.grey.withAlpha(30),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Text(
+                        isActive ? 'Active' : 'Inactive',
+                        style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: isActive ? const Color(0xFF10B981) : Colors.grey),
+                      ),
+                    ),
+                  ],
+                ),
+                const Divider(height: 24),
+                Row(
+                  children: [
+                    Icon(Icons.person_pin_rounded, size: 16, color: glass.textSecondary),
+                    const SizedBox(width: 8),
+                    Text('Team Lead: ${_team['teamLeadName'] ?? 'Unassigned'}', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13, color: glass.textPrimary)),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    Icon(Icons.groups_rounded, size: 16, color: glass.textSecondary),
+                    const SizedBox(width: 8),
+                    Text('Total Members: ${_team['memberCount'] ?? _teamMembers.length}', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13, color: glass.textPrimary)),
+                  ],
+                ),
+                if (_team['description'] != null && _team['description'].toString().isNotEmpty) ...[
+                  const SizedBox(height: 12),
+                  Text(_team['description'].toString(), style: TextStyle(color: glass.textSecondary, fontSize: 12)),
+                ],
+              ],
+            ),
+          ),
+          const SizedBox(height: 24),
+
+          // Team Members Roster Section
+          Text('Team Members Roster (${_teamMembers.length})', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: glass.textPrimary)),
+          const SizedBox(height: 12),
+
+          if (_teamMembers.isEmpty)
+            Container(
+              padding: const EdgeInsets.symmetric(vertical: 32),
+              alignment: Alignment.center,
+              child: Text('No members found in this team.', style: TextStyle(color: glass.textSecondary)),
+            )
+          else
+            ListView.builder(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: _teamMembers.length,
+              itemBuilder: (context, index) {
+                final member = _teamMembers[index];
+                final name = '${member['firstName'] ?? ''} ${member['lastName'] ?? ''}'.trim().isNotEmpty ? '${member['firstName']} ${member['lastName']}' : (member['fullName'] ?? member['name'] ?? 'Employee');
+                final code = member['employeeCode'] ?? member['employeeId'] ?? 'EMP';
+                final dept = member['department'] ?? 'General';
+                final desig = member['designation'] ?? 'Staff';
+
+                return AppCard(
+                  backgroundColor: cardBgColor,
+                  margin: const EdgeInsets.only(bottom: 10),
+                  padding: const EdgeInsets.all(12),
+                  child: Row(
+                    children: [
+                      CircleAvatar(
+                        radius: 18,
+                        backgroundColor: const Color(0xFF0F6B66).withAlpha(30),
+                        child: Text(name.isNotEmpty ? name[0].toUpperCase() : 'M', style: const TextStyle(color: Color(0xFF0F6B66), fontWeight: FontWeight.bold, fontSize: 12)),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(name, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: glass.textPrimary)),
+                            Text('$code • $dept ($desig)', style: TextStyle(fontSize: 11, color: glass.textSecondary)),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              },
+            ),
+        ],
       ),
     );
   }

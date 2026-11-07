@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/api/api_client.dart';
 import '../../core/theme/app_colors.dart';
+import '../../core/widgets/glass_header.dart';
+import '../../core/widgets/glass_scaffold.dart';
 import '../../shared/widgets/app_card.dart';
 import '../../shared/widgets/compact_summary_widgets.dart';
 import '../../shared/widgets/loading_shimmer.dart';
@@ -229,7 +231,12 @@ class _TlExpensesScreenState extends ConsumerState<TlExpensesScreen> {
 
   @override
   Widget build(BuildContext context) {
-    if (_isLoading) return const ListSkeleton(itemCount: 4);
+    if (_isLoading) {
+      return const GlassScaffold(
+        appBar: GlassHeader(title: 'Team Expense Claims'),
+        body: ListSkeleton(itemCount: 4),
+      );
+    }
 
     final totalExpenses = _expenses.length;
     final pendingCount = _expenses.where((e) {
@@ -274,210 +281,213 @@ class _TlExpensesScreenState extends ConsumerState<TlExpensesScreen> {
       return matchesSearch && matchesStatus && matchesCategory;
     }).toList();
 
-    return RefreshIndicator(
-      onRefresh: _fetchExpenses,
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        physics: const AlwaysScrollableScrollPhysics(),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text('Team Expense Claims & Authorization', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
-            const SizedBox(height: 14),
+    return GlassScaffold(
+      appBar: const GlassHeader(title: 'Team Expense Claims'),
+      body: RefreshIndicator(
+        onRefresh: _fetchExpenses,
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(16),
+          physics: const AlwaysScrollableScrollPhysics(),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text('Team Expense Claims & Authorization', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+              const SizedBox(height: 14),
 
-            // 1. PASTEL SUMMARY PILLS
-            SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              physics: const BouncingScrollPhysics(),
-              child: Row(
-                children: [
-                  PastelSummaryPill(
-                    label: '$totalExpenses Total Claims',
-                    variant: PastelPillVariant.blue,
+              // 1. PASTEL SUMMARY PILLS
+              SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                physics: const BouncingScrollPhysics(),
+                child: Row(
+                  children: [
+                    PastelSummaryPill(
+                      label: '$totalExpenses Total Claims',
+                      variant: PastelPillVariant.blue,
+                    ),
+                    const SizedBox(width: 8),
+                    PastelSummaryPill(
+                      label: '$pendingCount Pending TL Review',
+                      variant: PastelPillVariant.amber,
+                    ),
+                    const SizedBox(width: 8),
+                    PastelSummaryPill(
+                      label: '$approvedCount Approved',
+                      variant: PastelPillVariant.green,
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 14),
+
+              // 2. CIRCULAR STATISTIC INDICATOR GROUP
+              CircularStatGroup(
+                items: [
+                  CircularStatItemData(
+                    label: 'Total',
+                    value: '$totalExpenses',
+                    ringColor: AppColors.primary,
                   ),
-                  const SizedBox(width: 8),
-                  PastelSummaryPill(
-                    label: '$pendingCount Pending TL Review',
-                    variant: PastelPillVariant.amber,
+                  CircularStatItemData(
+                    label: 'Pending',
+                    value: '$pendingCount',
+                    ringColor: const Color(0xFFD97706),
                   ),
-                  const SizedBox(width: 8),
-                  PastelSummaryPill(
-                    label: '$approvedCount Approved',
-                    variant: PastelPillVariant.green,
+                  CircularStatItemData(
+                    label: 'Approved',
+                    value: '$approvedCount',
+                    ringColor: AppColors.success,
+                  ),
+                  CircularStatItemData(
+                    label: 'Rejected',
+                    value: '$rejectedCount',
+                    ringColor: AppColors.error,
                   ),
                 ],
               ),
-            ),
-            const SizedBox(height: 14),
+              const SizedBox(height: 18),
 
-            // 2. CIRCULAR STATISTIC INDICATOR GROUP
-            CircularStatGroup(
-              items: [
-                CircularStatItemData(
-                  label: 'Total',
-                  value: '$totalExpenses',
-                  ringColor: AppColors.primary,
+              // Search Bar & Filters
+              TextField(
+                decoration: const InputDecoration(
+                  labelText: 'Search team claims...',
+                  prefixIcon: Icon(Icons.search),
+                  border: OutlineInputBorder(),
                 ),
-                CircularStatItemData(
-                  label: 'Pending',
-                  value: '$pendingCount',
-                  ringColor: const Color(0xFFD97706),
-                ),
-                CircularStatItemData(
-                  label: 'Approved',
-                  value: '$approvedCount',
-                  ringColor: AppColors.success,
-                ),
-                CircularStatItemData(
-                  label: 'Rejected',
-                  value: '$rejectedCount',
-                  ringColor: AppColors.error,
-                ),
-              ],
-            ),
-            const SizedBox(height: 18),
-
-            // Search Bar & Filters
-            TextField(
-              decoration: const InputDecoration(
-                labelText: 'Search team claims...',
-                prefixIcon: Icon(Icons.search),
-                border: OutlineInputBorder(),
+                onChanged: (val) => setState(() => _searchTerm = val),
               ),
-              onChanged: (val) => setState(() => _searchTerm = val),
-            ),
-            const SizedBox(height: 12),
+              const SizedBox(height: 12),
 
-            Row(
-              children: [
-                Expanded(
-                  child: DropdownButtonFormField<String>(
-                    value: _filterCategory,
-                    decoration: const InputDecoration(labelText: 'Category', border: OutlineInputBorder(), contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8)),
-                    items: const [
-                      DropdownMenuItem(value: 'All', child: Text('All Categories')),
-                      DropdownMenuItem(value: 'TRAVEL', child: Text('Travel & Cab')),
-                      DropdownMenuItem(value: 'FOOD', child: Text('Food & Meals')),
-                      DropdownMenuItem(value: 'HOTEL', child: Text('Hotel & Stay')),
-                      DropdownMenuItem(value: 'FUEL', child: Text('Fuel & Mileage')),
-                      DropdownMenuItem(value: 'INTERNET', child: Text('Internet & WFH')),
-                    ],
-                    onChanged: (val) => setState(() => _filterCategory = val ?? 'All'),
+              Row(
+                children: [
+                  Expanded(
+                    child: DropdownButtonFormField<String>(
+                      initialValue: _filterCategory,
+                      decoration: const InputDecoration(labelText: 'Category', border: OutlineInputBorder(), contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8)),
+                      items: const [
+                        DropdownMenuItem(value: 'All', child: Text('All Categories')),
+                        DropdownMenuItem(value: 'TRAVEL', child: Text('Travel & Cab')),
+                        DropdownMenuItem(value: 'FOOD', child: Text('Food & Meals')),
+                        DropdownMenuItem(value: 'HOTEL', child: Text('Hotel & Stay')),
+                        DropdownMenuItem(value: 'FUEL', child: Text('Fuel & Mileage')),
+                        DropdownMenuItem(value: 'INTERNET', child: Text('Internet & WFH')),
+                      ],
+                      onChanged: (val) => setState(() => _filterCategory = val ?? 'All'),
+                    ),
                   ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: DropdownButtonFormField<String>(
-                    value: _filterStatus,
-                    decoration: const InputDecoration(labelText: 'Status', border: OutlineInputBorder(), contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8)),
-                    items: const [
-                      DropdownMenuItem(value: 'All', child: Text('All Status')),
-                      DropdownMenuItem(value: 'SUBMITTED', child: Text('Pending TL')),
-                      DropdownMenuItem(value: 'TL_APPROVED', child: Text('Approved')),
-                      DropdownMenuItem(value: 'TL_REJECTED', child: Text('Rejected')),
-                    ],
-                    onChanged: (val) => setState(() => _filterStatus = val ?? 'All'),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: DropdownButtonFormField<String>(
+                      initialValue: _filterStatus,
+                      decoration: const InputDecoration(labelText: 'Status', border: OutlineInputBorder(), contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8)),
+                      items: const [
+                        DropdownMenuItem(value: 'All', child: Text('All Status')),
+                        DropdownMenuItem(value: 'SUBMITTED', child: Text('Pending TL')),
+                        DropdownMenuItem(value: 'TL_APPROVED', child: Text('Approved')),
+                        DropdownMenuItem(value: 'TL_REJECTED', child: Text('Rejected')),
+                      ],
+                      onChanged: (val) => setState(() => _filterStatus = val ?? 'All'),
+                    ),
                   ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 18),
+                ],
+              ),
+              const SizedBox(height: 18),
 
-            // Claims List
-            const Text('Team Claims List', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-            const SizedBox(height: 12),
+              // Claims List
+              const Text('Team Claims List', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+              const SizedBox(height: 12),
 
-            if (filtered.isEmpty)
-              const AppCard(
-                child: Padding(
-                  padding: EdgeInsets.all(24),
-                  child: Center(child: Text('No team expense claims found matching filter.')),
-                ),
-              )
-            else
-              ListView.builder(
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                itemCount: filtered.length,
-                itemBuilder: (context, index) {
-                  const bgColors = [AppColors.lightPrimary, AppColors.successBg, AppColors.warningBg, AppColors.errorBg];
-                  const textColors = [AppColors.primary, AppColors.success, AppColors.warning, AppColors.error];
+              if (filtered.isEmpty)
+                const AppCard(
+                  child: Padding(
+                    padding: EdgeInsets.all(24),
+                    child: Center(child: Text('No team expense claims found matching filter.')),
+                  ),
+                )
+              else
+                ListView.builder(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  itemCount: filtered.length,
+                  itemBuilder: (context, index) {
+                    const bgColors = [AppColors.lightPrimary, AppColors.successBg, AppColors.warningBg, AppColors.errorBg];
+                    const textColors = [AppColors.primary, AppColors.success, AppColors.warning, AppColors.error];
 
-                  final item = filtered[index] as Map<String, dynamic>;
-                  final reqCode = item['reqCode'] ?? 'EXP-2026';
-                  final empName = item['employeeName'] ?? 'Employee';
-                  final category = item['category'] ?? 'GENERAL';
-                  final desc = item['description'] ?? '';
-                  final amount = item['amount'] ?? 0;
-                  final status = item['status'] ?? 'SUBMITTED';
-                  final isPending = status == 'SUBMITTED' || status == 'PENDING';
+                    final item = filtered[index] as Map<String, dynamic>;
+                    final reqCode = item['reqCode'] ?? 'EXP-2026';
+                    final empName = item['employeeName'] ?? 'Employee';
+                    final category = item['category'] ?? 'GENERAL';
+                    final desc = item['description'] ?? '';
+                    final amount = item['amount'] ?? 0;
+                    final status = item['status'] ?? 'SUBMITTED';
+                    final isPending = status == 'SUBMITTED' || status == 'PENDING';
 
-                  return Padding(
-                    padding: const EdgeInsets.only(bottom: 12),
-                    child: AppCard(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              Text(reqCode, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppColors.primary)),
-                              StatusChip(status: isPending ? 'PENDING TL' : status),
-                            ],
-                          ),
-                          const SizedBox(height: 8),
-                          Row(
-                            children: [
-                              CircleAvatar(
-                                backgroundColor: bgColors[index % bgColors.length],
-                                child: Text(_getInitials(empName), style: TextStyle(color: textColors[index % textColors.length], fontWeight: FontWeight.bold, fontSize: 12)),
-                              ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(empName, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
-                                    Text('$category • ₹$amount', style: const TextStyle(fontSize: 13, color: AppColors.lightSecondaryText)),
-                                  ],
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 12),
+                      child: AppCard(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Text(reqCode, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppColors.primary)),
+                                StatusChip(status: isPending ? 'PENDING TL' : status),
+                              ],
+                            ),
+                            const SizedBox(height: 8),
+                            Row(
+                              children: [
+                                CircleAvatar(
+                                  backgroundColor: bgColors[index % bgColors.length],
+                                  child: Text(_getInitials(empName), style: TextStyle(color: textColors[index % textColors.length], fontWeight: FontWeight.bold, fontSize: 12)),
                                 ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 8),
-                          Text(desc, style: const TextStyle(fontSize: 13, color: AppColors.lightSecondaryText)),
-                          const Divider(height: 20),
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.end,
-                            children: [
-                              TextButton.icon(
-                                onPressed: () => _showDetailsModal(item),
-                                icon: const Icon(Icons.visibility, size: 16),
-                                label: const Text('View'),
-                              ),
-                              if (isPending) ...[
-                                const SizedBox(width: 8),
-                                OutlinedButton.icon(
-                                  onPressed: () => _reviewExpense(item, false),
-                                  icon: const Icon(Icons.close, size: 16, color: AppColors.error),
-                                  label: const Text('Reject', style: TextStyle(color: AppColors.error)),
-                                ),
-                                const SizedBox(width: 8),
-                                ElevatedButton.icon(
-                                  onPressed: () => _reviewExpense(item, true),
-                                  icon: const Icon(Icons.check, size: 16),
-                                  label: const Text('Approve'),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(empName, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+                                      Text('$category • ₹$amount', style: const TextStyle(fontSize: 13, color: AppColors.lightSecondaryText)),
+                                    ],
+                                  ),
                                 ),
                               ],
-                            ],
-                          ),
-                        ],
+                            ),
+                            const SizedBox(height: 8),
+                            Text(desc, style: const TextStyle(fontSize: 13, color: AppColors.lightSecondaryText)),
+                            const Divider(height: 20),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.end,
+                              children: [
+                                TextButton.icon(
+                                  onPressed: () => _showDetailsModal(item),
+                                  icon: const Icon(Icons.visibility, size: 16),
+                                  label: const Text('View'),
+                                ),
+                                if (isPending) ...[
+                                  const SizedBox(width: 8),
+                                  OutlinedButton.icon(
+                                    onPressed: () => _reviewExpense(item, false),
+                                    icon: const Icon(Icons.close, size: 16, color: AppColors.error),
+                                    label: const Text('Reject', style: TextStyle(color: AppColors.error)),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  ElevatedButton.icon(
+                                    onPressed: () => _reviewExpense(item, true),
+                                    icon: const Icon(Icons.check, size: 16),
+                                    label: const Text('Approve'),
+                                  ),
+                                ],
+                              ],
+                            ),
+                          ],
+                        ),
                       ),
-                    ),
-                  );
-                },
-              ),
-          ],
+                    );
+                  },
+                ),
+            ],
+          ),
         ),
       ),
     );

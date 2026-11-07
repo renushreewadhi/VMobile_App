@@ -78,14 +78,17 @@ class GlassSurface extends ConsumerWidget {
     }
 
     if (onTap != null) {
-      return InkWell(
+      surface = InkWell(
         onTap: onTap,
         borderRadius: BorderRadius.circular(r),
         child: surface,
       );
     }
 
-    return surface;
+    return Material(
+      color: Colors.transparent,
+      child: surface,
+    );
   }
 }
 

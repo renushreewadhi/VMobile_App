@@ -510,23 +510,26 @@ class _FinanceBenefitPaymentsScreenState extends ConsumerState<FinanceBenefitPay
 
   Widget _buildTabChip(String label, String value) {
     final isActive = _selectedTab == value;
-    return ChoiceChip(
-      label: Text(
-        label,
-        style: TextStyle(
-          fontSize: 12,
-          fontWeight: FontWeight.bold,
-          color: isActive ? Colors.white : AppColors.lightSecondaryText,
+    return Material(
+      color: Colors.transparent,
+      child: ChoiceChip(
+        label: Text(
+          label,
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.bold,
+            color: isActive ? Colors.white : AppColors.lightSecondaryText,
+          ),
         ),
-      ),
-      selected: isActive,
-      selectedColor: AppColors.primary,
-      backgroundColor: AppColors.lightInputBackground,
-      onSelected: (_) => setState(() => _selectedTab = value),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(20),
-        side: BorderSide(
-          color: isActive ? AppColors.primary : Colors.grey.shade300,
+        selected: isActive,
+        selectedColor: AppColors.primary,
+        backgroundColor: AppColors.lightInputBackground,
+        onSelected: (_) => setState(() => _selectedTab = value),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+          side: BorderSide(
+            color: isActive ? AppColors.primary : Colors.grey.shade300,
+          ),
         ),
       ),
     );

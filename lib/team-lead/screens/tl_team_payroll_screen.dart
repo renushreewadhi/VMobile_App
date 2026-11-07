@@ -4,13 +4,16 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/api/api_client.dart';
 import '../../core/api/api_endpoints.dart';
 import '../../core/theme/app_colors.dart';
+import '../../core/widgets/glass_header.dart';
+import '../../core/widgets/glass_scaffold.dart';
 import '../../shared/widgets/app_card.dart';
 import '../../shared/widgets/loading_shimmer.dart';
 import '../../shared/widgets/status_chip.dart';
 import 'tl_add_payroll_input_screen.dart';
 
 class TlTeamPayrollScreen extends ConsumerStatefulWidget {
-  const TlTeamPayrollScreen({super.key});
+  final bool showAppBar;
+  const TlTeamPayrollScreen({super.key, this.showAppBar = true});
 
   @override
   ConsumerState<TlTeamPayrollScreen> createState() => _TlTeamPayrollScreenState();
@@ -20,10 +23,10 @@ class _TlTeamPayrollScreenState extends ConsumerState<TlTeamPayrollScreen> {
   bool _isLoading = true;
   String _activeTab = 'overview';
   String _searchTerm = '';
-  String _statusFilter = 'ALL';
+  final String _statusFilter = 'ALL';
 
-  String _currentMonth = 'Oct';
-  int _currentYear = 2026;
+  final String _currentMonth = 'Oct';
+  final int _currentYear = 2026;
 
   Map<String, dynamic>? _dashboard;
   List<dynamic> _records = [];
@@ -198,7 +201,11 @@ class _TlTeamPayrollScreenState extends ConsumerState<TlTeamPayrollScreen> {
 
   @override
   Widget build(BuildContext context) {
-    if (_isLoading) return const Scaffold(body: LoadingShimmer());
+    if (_isLoading) {
+      const skeleton = ListSkeleton(itemCount: 4);
+      if (!widget.showAppBar) return Material(color: Colors.transparent, child: skeleton);
+      return const GlassScaffold(title: 'Team Payroll Management', body: skeleton);
+    }
 
     final totalEmployees = _dashboard?['totalEmployees'] ?? _records.length;
     final totalGross = _dashboard?['totalEarnings'] ?? _records.fold<double>(0, (sum, r) => sum + (double.tryParse((r['grossPay'] ?? 0).toString()) ?? 0));
@@ -225,243 +232,247 @@ class _TlTeamPayrollScreenState extends ConsumerState<TlTeamPayrollScreen> {
       return matchesSearch && matchesStatus;
     }).toList();
 
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Team Payroll Management'),
-      ),
-      body: RefreshIndicator(
-        onRefresh: _loadPayrollData,
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(16),
-          physics: const AlwaysScrollableScrollPhysics(),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Summary KPI Row
-              Row(
-                children: [
-                  Expanded(child: StatCard(title: 'Team Gross', value: _formatMoney(totalGross), icon: Icons.account_balance_wallet, iconColor: AppColors.primary, iconBgColor: AppColors.lightPrimary)),
-                  const SizedBox(width: 8),
-                  Expanded(child: StatCard(title: 'Team Net Pay', value: _formatMoney(totalNet), icon: Icons.payments, iconColor: AppColors.success, iconBgColor: AppColors.successBg)),
-                  const SizedBox(width: 8),
-                  Expanded(child: StatCard(title: 'Deductions', value: _formatMoney(totalDeductions), icon: Icons.pie_chart, iconColor: AppColors.error, iconBgColor: AppColors.errorBg)),
-                ],
-              ),
-              const SizedBox(height: 20),
+    final content = RefreshIndicator(
+      onRefresh: _loadPayrollData,
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.all(16),
+        physics: const AlwaysScrollableScrollPhysics(),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Summary KPI Row
+            Row(
+              children: [
+                Expanded(child: StatCard(title: 'Team Gross', value: _formatMoney(totalGross), icon: Icons.account_balance_wallet, iconColor: AppColors.primary, iconBgColor: AppColors.lightPrimary)),
+                const SizedBox(width: 8),
+                Expanded(child: StatCard(title: 'Team Net Pay', value: _formatMoney(totalNet), icon: Icons.payments, iconColor: AppColors.success, iconBgColor: AppColors.successBg)),
+                const SizedBox(width: 8),
+                Expanded(child: StatCard(title: 'Deductions', value: _formatMoney(totalDeductions), icon: Icons.pie_chart, iconColor: AppColors.error, iconBgColor: AppColors.errorBg)),
+              ],
+            ),
+            const SizedBox(height: 20),
 
-              // Action Bar & View Tabs
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  SingleChildScrollView(
+            // Action Bar & View Tabs
+            Row(
+              children: [
+                Expanded(
+                  child: SingleChildScrollView(
                     scrollDirection: Axis.horizontal,
                     child: Row(
                       children: [
-                        ChoiceChip(label: const Text('Overview'), selected: _activeTab == 'overview', onSelected: (_) => setState(() => _activeTab = 'overview')),
+                        Material(color: Colors.transparent, child: ChoiceChip(label: const Text('Overview'), selected: _activeTab == 'overview', onSelected: (_) => setState(() => _activeTab = 'overview'))),
                         const SizedBox(width: 8),
-                        ChoiceChip(label: const Text('Payroll Inputs'), selected: _activeTab == 'inputs', onSelected: (_) => setState(() => _activeTab = 'inputs')),
+                        Material(color: Colors.transparent, child: ChoiceChip(label: const Text('Payroll Inputs'), selected: _activeTab == 'inputs', onSelected: (_) => setState(() => _activeTab = 'inputs'))),
                         const SizedBox(width: 8),
-                        ChoiceChip(label: Text('Pending (${_pendingInputs.length})'), selected: _activeTab == 'pending', onSelected: (_) => setState(() => _activeTab = 'pending')),
+                        Material(color: Colors.transparent, child: ChoiceChip(label: Text('Pending (${_pendingInputs.length})'), selected: _activeTab == 'pending', onSelected: (_) => setState(() => _activeTab = 'pending'))),
                       ],
                     ),
                   ),
-                  ElevatedButton.icon(
-                    onPressed: () async {
-                      await Navigator.push(
-                        context,
-                        MaterialPageRoute(builder: (_) => const TlAddPayrollInputScreen()),
-                      );
-                      _loadPayrollData();
-                    },
-                    icon: const Icon(Icons.add),
-                    label: const Text('Add Input'),
-                  ),
+                ),
+                const SizedBox(width: 8),
+                IconButton.filledTonal(
+                  onPressed: () async {
+                    await Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => const TlAddPayrollInputScreen()),
+                    );
+                    _loadPayrollData();
+                  },
+                  icon: const Icon(Icons.add),
+                  tooltip: 'Add Input',
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+
+            // Search Bar
+            TextField(
+              decoration: const InputDecoration(
+                labelText: 'Search employee, ID or department...',
+                prefixIcon: Icon(Icons.search),
+                border: OutlineInputBorder(),
+              ),
+              onChanged: (val) => setState(() => _searchTerm = val),
+            ),
+            const SizedBox(height: 16),
+
+            if (_activeTab == 'overview') ...[
+              // Overview Breakdown Table
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text('Team Breakdown ($_currentMonth $_currentYear)', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                  Text('$totalEmployees Employees', style: const TextStyle(fontSize: 12, color: AppColors.lightSecondaryText)),
                 ],
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: 12),
 
-              // Search Bar
-              TextField(
-                decoration: const InputDecoration(
-                  labelText: 'Search employee, ID or department...',
-                  prefixIcon: Icon(Icons.search),
-                  border: OutlineInputBorder(),
-                ),
-                onChanged: (val) => setState(() => _searchTerm = val),
-              ),
-              const SizedBox(height: 16),
-
-              if (_activeTab == 'overview') ...[
-                // Overview Breakdown Table
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text('Team Breakdown ($_currentMonth $_currentYear)', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-                    Text('$totalEmployees Employees', style: const TextStyle(fontSize: 12, color: AppColors.lightSecondaryText)),
-                  ],
-                ),
-                const SizedBox(height: 12),
-
-                if (filteredRecords.isEmpty)
-                  const AppCard(
-                    child: Padding(
-                      padding: EdgeInsets.all(24),
-                      child: Center(child: Text('No team payroll records found.')),
-                    ),
-                  )
-                else
-                  ListView.builder(
-                    shrinkWrap: true,
-                    physics: const NeverScrollableScrollPhysics(),
-                    itemCount: filteredRecords.length,
-                    itemBuilder: (context, index) {
-                      final r = filteredRecords[index] as Map<String, dynamic>;
-                      final name = r['employeeName'] ?? 'Employee';
-                      final code = r['employeeCode'] ?? 'EMP-000';
-                      final dept = r['department'] ?? 'Engineering';
-                      final gross = r['grossPay'] ?? 0;
-                      final net = r['netPay'] ?? 0;
-                      final status = r['status'] ?? 'PENDING';
-
-                      return Padding(
-                        padding: const EdgeInsets.only(bottom: 12),
-                        child: AppCard(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Row(
-                                children: [
-                                  CircleAvatar(
-                                    backgroundColor: AppColors.primary,
-                                    child: Text(_getInitial(name), style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-                                  ),
-                                  const SizedBox(width: 12),
-                                  Expanded(
-                                    child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                      children: [
-                                        Text(name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
-                                        Text('$code • $dept', style: const TextStyle(fontSize: 12, color: AppColors.lightSecondaryText)),
-                                      ],
-                                    ),
-                                  ),
-                                  StatusChip(status: status),
-                                ],
-                              ),
-                              const SizedBox(height: 12),
-                              Row(
-                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                children: [
-                                  Text('Gross: ${_formatMoney(gross)}', style: const TextStyle(fontSize: 13, color: AppColors.lightSecondaryText)),
-                                  Text('Net: ${_formatMoney(net)}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: AppColors.success)),
-                                ],
-                              ),
-                            ],
-                          ),
-                        ),
-                      );
-                    },
+              if (filteredRecords.isEmpty)
+                const AppCard(
+                  child: Padding(
+                    padding: EdgeInsets.all(24),
+                    child: Center(child: Text('No team payroll records found.')),
                   ),
-              ] else ...[
-                // Payroll Inputs List (All or Pending)
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(_activeTab == 'pending' ? 'Pending Input Requests' : 'Payroll Inputs', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-                    Text('${filteredInputs.length} Records', style: const TextStyle(fontSize: 12, color: AppColors.lightSecondaryText)),
-                  ],
-                ),
-                const SizedBox(height: 12),
+                )
+              else
+                ListView.builder(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  itemCount: filteredRecords.length,
+                  itemBuilder: (context, index) {
+                    final r = filteredRecords[index] as Map<String, dynamic>;
+                    final name = r['employeeName'] ?? 'Employee';
+                    final code = r['employeeCode'] ?? 'EMP-000';
+                    final dept = r['department'] ?? 'Engineering';
+                    final gross = r['grossPay'] ?? 0;
+                    final net = r['netPay'] ?? 0;
+                    final status = r['status'] ?? 'PENDING';
 
-                if (filteredInputs.isEmpty)
-                  const AppCard(
-                    child: Padding(
-                      padding: EdgeInsets.all(24),
-                      child: Center(child: Text('No payroll inputs found.')),
-                    ),
-                  )
-                else
-                  ListView.builder(
-                    shrinkWrap: true,
-                    physics: const NeverScrollableScrollPhysics(),
-                    itemCount: filteredInputs.length,
-                    itemBuilder: (context, index) {
-                      final i = filteredInputs[index] as Map<String, dynamic>;
-                      final name = i['employeeName'] ?? 'Employee';
-                      final type = i['inputType'] ?? 'OVERTIME';
-                      final label = i['label'] ?? '';
-                      final value = i['value'] ?? '0';
-                      final remarks = i['remarks'] ?? '';
-                      final status = i['status'] ?? 'PENDING';
-                      final isPending = status == 'PENDING' || status == 'SUBMITTED';
-
-                      return Padding(
-                        padding: const EdgeInsets.only(bottom: 12),
-                        child: AppCard(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Row(
-                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                children: [
-                                  Text(type, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: AppColors.primary)),
-                                  StatusChip(status: status),
-                                ],
-                              ),
-                              const SizedBox(height: 8),
-                              Row(
-                                children: [
-                                  CircleAvatar(
-                                    backgroundColor: AppColors.primary,
-                                    child: Text(_getInitial(name), style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-                                  ),
-                                  const SizedBox(width: 12),
-                                  Expanded(
-                                    child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                      children: [
-                                        Text(name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
-                                        Text(label, style: const TextStyle(fontSize: 13, color: AppColors.lightSecondaryText)),
-                                      ],
-                                    ),
-                                  ),
-                                  Text(value.toString(), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: AppColors.primary)),
-                                ],
-                              ),
-                              if (remarks.toString().isNotEmpty) ...[
-                                const SizedBox(height: 6),
-                                Text('Remarks: $remarks', style: const TextStyle(fontSize: 11, color: AppColors.lightMutedText)),
-                              ],
-                              if (isPending) ...[
-                                const Divider(height: 20),
-                                Row(
-                                  mainAxisAlignment: MainAxisAlignment.end,
-                                  children: [
-                                    OutlinedButton.icon(
-                                      onPressed: () => _reviewPendingInput(i, false),
-                                      icon: const Icon(Icons.close, size: 14, color: AppColors.error),
-                                      label: const Text('Reject', style: TextStyle(color: AppColors.error, fontSize: 12)),
-                                    ),
-                                    const SizedBox(width: 8),
-                                    ElevatedButton.icon(
-                                      onPressed: () => _reviewPendingInput(i, true),
-                                      icon: const Icon(Icons.check, size: 14),
-                                      label: const Text('Approve', style: TextStyle(fontSize: 12)),
-                                    ),
-                                  ],
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 12),
+                      child: AppCard(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                CircleAvatar(
+                                  backgroundColor: AppColors.primary,
+                                  child: Text(_getInitial(name), style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
                                 ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+                                      Text('$code • $dept', style: const TextStyle(fontSize: 12, color: AppColors.lightSecondaryText)),
+                                    ],
+                                  ),
+                                ),
+                                StatusChip(status: status),
                               ],
-                            ],
-                          ),
+                            ),
+                            const SizedBox(height: 12),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Text('Gross: ${_formatMoney(gross)}', style: const TextStyle(fontSize: 13, color: AppColors.lightSecondaryText)),
+                                Text('Net: ${_formatMoney(net)}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: AppColors.success)),
+                              ],
+                            ),
+                          ],
                         ),
-                      );
-                    },
+                      ),
+                    );
+                  },
+                ),
+            ] else ...[
+              // Payroll Inputs List (All or Pending)
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(_activeTab == 'pending' ? 'Pending Input Requests' : 'Payroll Inputs', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                  Text('${filteredInputs.length} Records', style: const TextStyle(fontSize: 12, color: AppColors.lightSecondaryText)),
+                ],
+              ),
+              const SizedBox(height: 12),
+
+              if (filteredInputs.isEmpty)
+                const AppCard(
+                  child: Padding(
+                    padding: EdgeInsets.all(24),
+                    child: Center(child: Text('No payroll inputs found.')),
                   ),
-              ],
+                )
+              else
+                ListView.builder(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  itemCount: filteredInputs.length,
+                  itemBuilder: (context, index) {
+                    final i = filteredInputs[index] as Map<String, dynamic>;
+                    final name = i['employeeName'] ?? 'Employee';
+                    final type = i['inputType'] ?? 'OVERTIME';
+                    final label = i['label'] ?? '';
+                    final value = i['value'] ?? '0';
+                    final remarks = i['remarks'] ?? '';
+                    final status = i['status'] ?? 'PENDING';
+                    final isPending = status == 'PENDING' || status == 'SUBMITTED';
+
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 12),
+                      child: AppCard(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Text(type, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: AppColors.primary)),
+                                StatusChip(status: status),
+                              ],
+                            ),
+                            const SizedBox(height: 8),
+                            Row(
+                              children: [
+                                CircleAvatar(
+                                  backgroundColor: AppColors.primary,
+                                  child: Text(_getInitial(name), style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+                                      Text(label, style: const TextStyle(fontSize: 13, color: AppColors.lightSecondaryText)),
+                                    ],
+                                  ),
+                                ),
+                                Text(value.toString(), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: AppColors.primary)),
+                              ],
+                            ),
+                            if (remarks.toString().isNotEmpty) ...[
+                              const SizedBox(height: 6),
+                              Text('Remarks: $remarks', style: const TextStyle(fontSize: 11, color: AppColors.lightMutedText)),
+                            ],
+                            if (isPending) ...[
+                              const Divider(height: 20),
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.end,
+                                children: [
+                                  OutlinedButton.icon(
+                                    onPressed: () => _reviewPendingInput(i, false),
+                                    icon: const Icon(Icons.close, size: 14, color: AppColors.error),
+                                    label: const Text('Reject', style: TextStyle(color: AppColors.error, fontSize: 12)),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  ElevatedButton.icon(
+                                    onPressed: () => _reviewPendingInput(i, true),
+                                    icon: const Icon(Icons.check, size: 14),
+                                    label: const Text('Approve', style: TextStyle(fontSize: 12)),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ],
+                        ),
+                      ),
+                    );
+                  },
+                ),
             ],
-          ),
+          ],
         ),
       ),
+    );
+
+    if (!widget.showAppBar) return Material(color: Colors.transparent, child: content);
+
+    return GlassScaffold(
+      appBar: const GlassHeader(title: 'Team Payroll Management'),
+      body: content,
     );
   }
 }

@@ -369,10 +369,11 @@ class _FinanceBenefitDashboardScreenState extends ConsumerState<FinanceBenefitDa
         setState(() {
           claim['paymentStatus'] = 'COMPLETED';
           _stats['totalBudgetUsed'] = ((_stats['totalBudgetUsed'] as num?) ?? 0) + (claim['amount'] as num? ?? 0);
-          if ((_stats['hrVerifiedClaims'] as int? ?? 0) > 0) {
-            _stats['hrVerifiedClaims'] = (_stats['hrVerifiedClaims'] as int) - 1;
+          final currentHrVerified = ((_stats['hrVerifiedClaims'] as num?) ?? 0).toInt();
+          if (currentHrVerified > 0) {
+            _stats['hrVerifiedClaims'] = currentHrVerified - 1;
           }
-          _stats['paidClaims'] = ((_stats['paidClaims'] as int? ?? 0) + 1);
+          _stats['paidClaims'] = ((_stats['paidClaims'] as num?) ?? 0).toInt() + 1;
           _processingId = null;
         });
 
