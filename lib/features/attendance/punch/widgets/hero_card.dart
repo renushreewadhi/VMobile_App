@@ -310,34 +310,46 @@ class HeroCard extends StatelessWidget {
           Row(
             children: [
               InfoTile(
-                label: 'Hours left',
+                label: 'Hours Left',
                 value: _duration(safeRemaining),
                 icon: Icons.hourglass_bottom_rounded,
                 iconColor: const Color(0xFFD97706),
                 bgColor: const Color(0xFFFEF3C7),
                 dark: dark, text: text, muted: muted, surface: surface, border: border,
               ),
-              const SizedBox(width: 6),
+              const SizedBox(width: 8),
               InfoTile(
-                label: 'Daily target',
+                label: 'Target 8h',
                 value: '08:00:00',
                 icon: Icons.flag_rounded,
                 iconColor: const Color(0xFF059669),
                 bgColor: const Color(0xFFD1FAE5),
                 dark: dark, text: text, muted: muted, surface: surface, border: border,
               ),
-              const SizedBox(width: 6),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
               InfoTile(
-                label: state.isWithinGeofence ? 'Inside office' : 'Outside office',
+                label: !state.hasLocationFix
+                    ? 'Location'
+                    : (state.isWithinGeofence ? 'Geofence OK' : 'Out of Range'),
                 value: state.distanceDisplay,
-                icon: Icons.location_on_rounded,
-                iconColor: const Color(0xFFDC2626),
-                bgColor: const Color(0xFFFEE2E2),
+                icon: !state.hasLocationFix
+                    ? Icons.location_searching_rounded
+                    : Icons.location_on_rounded,
+                iconColor: !state.hasLocationFix
+                    ? const Color(0xFFD97706)
+                    : (state.isWithinGeofence ? const Color(0xFF059669) : const Color(0xFFDC2626)),
+                bgColor: !state.hasLocationFix
+                    ? const Color(0xFFFEF3C7)
+                    : (state.isWithinGeofence ? const Color(0xFFD1FAE5) : const Color(0xFFFEE2E2)),
                 dark: dark, text: text, muted: muted, surface: surface, border: border,
               ),
-              const SizedBox(width: 6),
+              const SizedBox(width: 8),
               InfoTile(
-                label: 'Full day at',
+                label: 'Est. End',
                 value: _fullDayEstimate(state.checkInAt, state.completedBreak),
                 icon: Icons.access_time_filled_rounded,
                 iconColor: const Color(0xFF0D9488),

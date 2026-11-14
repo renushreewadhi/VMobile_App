@@ -250,9 +250,9 @@ class _ItReportsScreenState extends ConsumerState<ItReportsScreen> {
                             : () async {
                                 setModalState(() => isGenerating = true);
                                 await Future.delayed(const Duration(milliseconds: 800));
-                                if (context.mounted) {
+                                if (modalContext.mounted) {
                                   Navigator.pop(modalContext);
-                                  ScaffoldMessenger.of(context).showSnackBar(
+                                  ScaffoldMessenger.of(modalContext).showSnackBar(
                                     SnackBar(
                                       content: Text('Custom report "${titleController.text}" generated & downloaded successfully!'),
                                       backgroundColor: AppColors.success,

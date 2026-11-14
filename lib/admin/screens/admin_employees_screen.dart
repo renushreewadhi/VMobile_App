@@ -47,16 +47,51 @@ class EmployeeModel {
   }
 
   factory EmployeeModel.fromJson(Map<String, dynamic> json) {
+    String fName = json['firstName']?.toString() ?? '';
+    String lName = json['lastName']?.toString() ?? '';
+    if (fName.isEmpty && lName.isEmpty) {
+      final name = json['fullName']?.toString() ?? json['name']?.toString() ?? json['employeeName']?.toString() ?? '';
+      if (name.isNotEmpty) {
+        final parts = name.trim().split(' ');
+        fName = parts.first;
+        if (parts.length > 1) {
+          lName = parts.sublist(1).join(' ');
+        }
+      }
+    }
+
+    String? dept;
+    if (json['departmentName'] != null) {
+      dept = json['departmentName'].toString();
+    } else if (json['department'] != null) {
+      if (json['department'] is Map) {
+        dept = (json['department']['name'] ?? json['department']['departmentName'])?.toString();
+      } else {
+        dept = json['department'].toString();
+      }
+    }
+
+    String? desig;
+    if (json['designationTitle'] != null) {
+      desig = json['designationTitle'].toString();
+    } else if (json['designation'] != null) {
+      if (json['designation'] is Map) {
+        desig = (json['designation']['title'] ?? json['designation']['name'])?.toString();
+      } else {
+        desig = json['designation'].toString();
+      }
+    }
+
     return EmployeeModel(
-      id: json['id']?.toString() ?? json['_id']?.toString() ?? '',
-      employeeId: json['employeeId']?.toString() ?? json['code']?.toString() ?? 'EMP-000',
-      firstName: json['firstName']?.toString() ?? '',
-      lastName: json['lastName']?.toString() ?? '',
-      email: json['email']?.toString() ?? '',
-      phone: json['phone']?.toString(),
-      department: json['department']?.toString() ?? json['departmentName']?.toString(),
-      designation: json['designation']?.toString() ?? json['designationTitle']?.toString(),
-      joiningDate: json['joiningDate']?.toString() ?? json['startDate']?.toString(),
+      id: json['id']?.toString() ?? json['_id']?.toString() ?? json['userId']?.toString() ?? '',
+      employeeId: json['employeeId']?.toString() ?? json['employeeCode']?.toString() ?? json['code']?.toString() ?? 'EMP-000',
+      firstName: fName.isNotEmpty ? fName : 'Employee',
+      lastName: lName,
+      email: json['email']?.toString() ?? json['workEmail']?.toString() ?? '',
+      phone: json['phone']?.toString() ?? json['phoneNumber']?.toString() ?? json['mobile']?.toString(),
+      department: dept,
+      designation: desig,
+      joiningDate: json['joiningDate']?.toString() ?? json['startDate']?.toString() ?? json['dateOfJoining']?.toString() ?? json['createdAt']?.toString(),
       employmentStatus: json['employmentStatus']?.toString() ?? json['status']?.toString() ?? 'Active',
     );
   }
@@ -166,6 +201,21 @@ class _AdminEmployeesScreenState extends ConsumerState<AdminEmployeesScreen> {
     });
   }
 
+  List<dynamic> _extractList(dynamic res) {
+    if (res == null) return [];
+    if (res is List) return res;
+    if (res is Map) {
+      for (final key in ['data', 'result', 'items', 'employees', 'users', 'content', 'list', 'value']) {
+        if (res[key] is List) return res[key] as List;
+        if (res[key] is Map) {
+          final nested = _extractList(res[key]);
+          if (nested.isNotEmpty) return nested;
+        }
+      }
+    }
+    return [];
+  }
+
   Future<void> _loadEmployees() async {
     final currentReq = ++_requestId;
     if (!mounted) return;
@@ -177,30 +227,34 @@ class _AdminEmployeesScreenState extends ConsumerState<AdminEmployeesScreen> {
     final apiClient = ref.read(apiClientProvider);
 
     try {
-      final res = await apiClient.get(ApiEndpoints.employees);
+      dynamic res;
+      final endpoints = [
+        ApiEndpoints.employeesAll,
+        '/employees/all',
+        ApiEndpoints.employees,
+        '/employees',
+        '/management/employees',
+        '/users',
+      ];
+
+      for (final ep in endpoints) {
+        try {
+          res = await apiClient.get('$ep?limit=500').timeout(const Duration(seconds: 4));
+          if (res != null && _extractList(res).isNotEmpty) {
+            break;
+          }
+        } catch (_) {}
+      }
+
       if (!mounted || currentReq != _requestId) return;
 
-      dynamic rawData = res;
-      if (res is Map<String, dynamic> && res.containsKey('data')) {
-        rawData = res['data'];
-      } else if (res is Map<String, dynamic> && res.containsKey('items')) {
-        rawData = res['items'];
-      }
-
-      if (rawData is! List) {
-        if (!mounted || currentReq != _requestId) return;
-        setState(() {
-          _errorMessage = 'Invalid response format received from server.';
-          _isLoading = false;
-        });
-        return;
-      }
+      final rawData = _extractList(res);
 
       List<EmployeeModel> items = [];
       for (final item in rawData) {
-        if (item is Map<String, dynamic>) {
+        if (item is Map) {
           try {
-            items.add(EmployeeModel.fromJson(item));
+            items.add(EmployeeModel.fromJson(Map<String, dynamic>.from(item)));
           } catch (e) {
             debugPrint('[AdminEmployees] Skipped invalid employee item: $e');
           }
@@ -621,10 +675,25 @@ class _AdminEmployeesScreenState extends ConsumerState<AdminEmployeesScreen> {
                   label: const Text('Reset', style: TextStyle(fontSize: 12)),
                   onPressed: _resetFilters,
                 ),
+                const SizedBox(width: 8),
+                PopupMenuButton<String>(
+                  icon: const Icon(Icons.sort_rounded, size: 20),
+                  tooltip: 'Sort By',
+                  onSelected: _onSort,
+                  itemBuilder: (ctx) => const [
+                    PopupMenuItem(value: 'employeeId', child: Text('Sort by Employee ID')),
+                    PopupMenuItem(value: 'name', child: Text('Sort by Name')),
+                    PopupMenuItem(value: 'email', child: Text('Sort by Email')),
+                    PopupMenuItem(value: 'department', child: Text('Sort by Department')),
+                    PopupMenuItem(value: 'designation', child: Text('Sort by Designation')),
+                    PopupMenuItem(value: 'joiningDate', child: Text('Sort by Joining Date')),
+                    PopupMenuItem(value: 'status', child: Text('Sort by Status')),
+                  ],
+                ),
               ],
             ),
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 12),
 
           // Employees Feed List
           if (filtered.isEmpty)
@@ -642,32 +711,6 @@ class _AdminEmployeesScreenState extends ConsumerState<AdminEmployeesScreen> {
               ),
             )
           else ...[
-            // Select All Header Bar
-            Row(
-              children: [
-                Checkbox(
-                  value: _selectAllChecked,
-                  onChanged: _toggleSelectAll,
-                ),
-                Text('Select Page (${_selectedIds.length} selected)', style: TextStyle(fontSize: 12, color: glass.textSecondary, fontWeight: FontWeight.bold)),
-                const Spacer(),
-                PopupMenuButton<String>(
-                  icon: const Icon(Icons.sort_rounded, size: 20),
-                  tooltip: 'Sort By',
-                  onSelected: _onSort,
-                  itemBuilder: (ctx) => const [
-                    PopupMenuItem(value: 'employeeId', child: Text('Sort by Employee ID')),
-                    PopupMenuItem(value: 'name', child: Text('Sort by Name')),
-                    PopupMenuItem(value: 'email', child: Text('Sort by Email')),
-                    PopupMenuItem(value: 'department', child: Text('Sort by Department')),
-                    PopupMenuItem(value: 'designation', child: Text('Sort by Designation')),
-                    PopupMenuItem(value: 'joiningDate', child: Text('Sort by Joining Date')),
-                    PopupMenuItem(value: 'status', child: Text('Sort by Status')),
-                  ],
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
 
             ListView.builder(
               shrinkWrap: true,
@@ -765,11 +808,6 @@ class _AdminEmployeesScreenState extends ConsumerState<AdminEmployeesScreen> {
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Checkbox(
-                value: isSelected,
-                onChanged: (val) => _toggleSelectRow(emp.id, val),
-              ),
-              const SizedBox(width: 4),
               Container(
                 width: 46,
                 height: 46,

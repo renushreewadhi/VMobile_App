@@ -28,7 +28,7 @@ class _HrRoleShellState extends State<HrRoleShell> {
     ];
 
     final titles = [
-      'HR Dashboard',
+      '',
       'Employee Directory',
       'Company Announcements',
       'Document Management',

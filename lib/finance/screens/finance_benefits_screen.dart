@@ -4,11 +4,14 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/api/api_client.dart';
 import '../../core/api/api_endpoints.dart';
 import '../../core/theme/app_colors.dart';
+import '../../core/widgets/glass_header.dart';
+import '../../core/widgets/glass_scaffold.dart';
 import '../../shared/widgets/app_card.dart';
 import '../../shared/widgets/loading_shimmer.dart';
 
 class FinanceBenefitsScreen extends ConsumerStatefulWidget {
-  const FinanceBenefitsScreen({super.key});
+  final bool? showAppBar;
+  const FinanceBenefitsScreen({super.key, this.showAppBar = false});
 
   @override
   ConsumerState<FinanceBenefitsScreen> createState() => _FinanceBenefitsScreenState();
@@ -30,7 +33,9 @@ class _FinanceBenefitsScreenState extends ConsumerState<FinanceBenefitsScreen> {
   @override
   void initState() {
     super.initState();
-    _loadClaims();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _loadClaims();
+    });
   }
 
   @override
@@ -48,17 +53,20 @@ class _FinanceBenefitsScreenState extends ConsumerState<FinanceBenefitsScreen> {
       final res = await apiClient.get(ApiEndpoints.benefitClaimsForPayment).catchError((_) => null);
 
       if (mounted) {
-        List<dynamic> items = [];
-        if (res is List) {
-          items = res;
-        } else if (res is Map<String, dynamic> && res['data'] is List) {
-          items = res['data'];
-        }
+        if (res != null) {
+          List<dynamic> items = [];
+          if (res is List) {
+            items = res;
+          } else if (res is Map<String, dynamic>) {
+            final data = res['data'] ?? res['items'] ?? res['result'] ?? res['claims'];
+            if (data is List) {
+              items = data;
+            }
+          }
 
-        if (items.isNotEmpty) {
-          _claims = items.map((c) => Map<String, dynamic>.from(c)).toList();
+          _claims = items.map((c) => _mapBenefitClaim(c)).toList();
         } else {
-          _claims = _getMockClaims();
+          _claims = [];
         }
         _isLoading = false;
         setState(() {});
@@ -66,93 +74,49 @@ class _FinanceBenefitsScreenState extends ConsumerState<FinanceBenefitsScreen> {
     } catch (_) {
       if (mounted) {
         setState(() {
-          _claims = _getMockClaims();
+          _claims = [];
           _isLoading = false;
         });
       }
     }
   }
 
-  List<Map<String, dynamic>> _getMockClaims() {
-    return [
-      {
-        'claimId': 'CLM-2026-801',
-        'employeeName': 'Sarah Jenkins',
-        'employeeCode': 'EMP-1042',
-        'benefitName': 'Executive Health Checkup & Dental',
-        'benefitCode': 'BEN-HLT-01',
-        'amount': 25000,
-        'claimDate': '2026-10-10',
-        'hrReviewerName': 'Marcus Vance',
-        'hrVerifiedAt': '2026-10-12',
-        'paymentStatus': 'PENDING',
-      },
-      {
-        'claimId': 'CLM-2026-802',
-        'employeeName': 'Rajesh Sharma',
-        'employeeCode': 'EMP-1088',
-        'benefitName': 'Child Higher Education Allowance',
-        'benefitCode': 'BEN-EDU-03',
-        'amount': 45000,
-        'claimDate': '2026-10-08',
-        'hrReviewerName': 'Marcus Vance',
-        'hrVerifiedAt': '2026-10-11',
-        'paymentStatus': 'PENDING',
-      },
-      {
-        'claimId': 'CLM-2026-803',
-        'employeeName': 'Anita Roy',
-        'employeeCode': 'EMP-1102',
-        'benefitName': 'Gym & Wellness Membership Stipend',
-        'benefitCode': 'BEN-WLN-02',
-        'amount': 12000,
-        'claimDate': '2026-10-05',
-        'hrReviewerName': 'Helen Carter',
-        'hrVerifiedAt': '2026-10-09',
-        'paymentStatus': 'PROCESSED',
-      },
-      {
-        'claimId': 'CLM-2026-804',
-        'employeeName': 'Michael Chen',
-        'employeeCode': 'EMP-1015',
-        'benefitName': 'Home Office Ergonomic Setup',
-        'benefitCode': 'BEN-WFH-05',
-        'amount': 30000,
-        'claimDate': '2026-10-01',
-        'hrReviewerName': 'Helen Carter',
-        'hrVerifiedAt': '2026-10-04',
-        'paymentStatus': 'COMPLETED',
-      },
-      {
-        'claimId': 'CLM-2026-805',
-        'employeeName': 'David Miller',
-        'employeeCode': 'EMP-1022',
-        'benefitName': 'Professional Certification Reimbursement',
-        'benefitCode': 'BEN-LRN-04',
-        'amount': 18500,
-        'claimDate': '2026-09-28',
-        'hrReviewerName': 'Marcus Vance',
-        'hrVerifiedAt': '2026-09-30',
-        'paymentStatus': 'COMPLETED',
-      },
-    ];
+  Map<String, dynamic> _mapBenefitClaim(dynamic c) {
+    final Map<String, dynamic> map = c is Map<String, dynamic> ? c : {};
+    final claimId = map['claimId'] ?? map['id']?.toString() ?? 'CLM-101';
+    final empName = map['employeeName'] ?? map['empName'] ?? map['requestedBy'] ?? map['userName'] ?? 'Employee';
+    final rawStatus = (map['paymentStatus'] ?? map['status'] ?? 'PENDING').toString().toUpperCase();
+
+    return {
+      'claimId': claimId,
+      'rawId': map['id'] ?? claimId,
+      'employeeName': empName,
+      'employeeCode': map['employeeCode'] ?? map['empCode'] ?? map['empId'] ?? 'EMP-1001',
+      'benefitName': map['benefitName'] ?? map['benefit'] ?? map['title'] ?? 'Benefit Allowance',
+      'benefitCode': map['benefitCode'] ?? map['code'] ?? 'BEN-ALLW',
+      'amount': (map['amount'] ?? map['claimAmount'] ?? 0) as num,
+      'claimDate': map['claimDate'] ?? map['date'] ?? map['createdAt'] ?? '',
+      'hrReviewerName': map['hrReviewerName'] ?? map['verifiedBy'] ?? map['reviewedBy'] ?? '-',
+      'hrVerifiedAt': map['hrVerifiedAt'] ?? map['verifiedAt'] ?? '',
+      'paymentStatus': (rawStatus == 'PAID_SETTLED') ? 'COMPLETED' : 'PENDING',
+    };
   }
 
   int _getStatusCount(String statusLabel) {
     if (statusLabel == 'All') return _claims.length;
-    if (statusLabel == 'Pending') return _claims.where((c) => c['paymentStatus'] == 'PENDING' || c['paymentStatus'] == null).length;
+    if (statusLabel == 'Pending') return _claims.where((c) => c['paymentStatus'] == 'PENDING').length;
     if (statusLabel == 'Processed') return _claims.where((c) => c['paymentStatus'] == 'PROCESSED').length;
-    if (statusLabel == 'Paid') return _claims.where((c) => c['paymentStatus'] == 'COMPLETED').length;
+    if (statusLabel == 'Paid') return _claims.where((c) => c['paymentStatus'] == 'COMPLETED' || c['paymentStatus'] == 'PAID').length;
     return 0;
   }
 
   String _getPaymentStatusLabel(String? status) {
     if (status == null || status.isEmpty) return 'Pending';
-    if (status == 'PENDING') return 'Pending';
-    if (status == 'PROCESSED') return 'Processed';
-    if (status == 'COMPLETED') return 'Paid';
-    if (status == 'FAILED') return 'Failed';
-    return status;
+    final u = status.toUpperCase();
+    if (u == 'PENDING') return 'Pending';
+    if (u == 'PROCESSED') return 'Processed';
+    if (u == 'COMPLETED' || u == 'PAID') return 'Paid';
+    return 'Pending';
   }
 
   List<Map<String, dynamic>> get _filteredClaims {
@@ -174,6 +138,15 @@ class _FinanceBenefitsScreenState extends ConsumerState<FinanceBenefitsScreen> {
     return _claims.fold<num>(0, (sum, c) => sum + ((c['amount'] as num?) ?? 0));
   }
 
+  int get _uniqueEmployeeCount {
+    return _claims.map((c) => c['employeeCode']).toSet().length;
+  }
+
+  num get _avgClaimValue {
+    if (_claims.isEmpty) return 0;
+    return (_totalValue / _claims.length).round();
+  }
+
   String _formatCurrency(num amount) {
     final str = amount.toInt().toString();
     final RegExp reg = RegExp(r'(\d+?)(?=(\d{3})+(?!\d))');
@@ -182,7 +155,7 @@ class _FinanceBenefitsScreenState extends ConsumerState<FinanceBenefitsScreen> {
   }
 
   String _formatDate(String? dateStr) {
-    if (dateStr == null || dateStr.isEmpty) return '-';
+    if (dateStr == null || dateStr.isEmpty || dateStr.startsWith('0001')) return '-';
     try {
       final dt = DateTime.parse(dateStr);
       final months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -212,31 +185,39 @@ class _FinanceBenefitsScreenState extends ConsumerState<FinanceBenefitsScreen> {
             title: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(
-                        color: AppColors.successBg,
-                        borderRadius: BorderRadius.circular(10),
+                Expanded(
+                  child: Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: AppColors.successBg,
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: const Icon(Icons.payment, color: AppColors.success, size: 20),
                       ),
-                      child: const Icon(Icons.attach_money, color: AppColors.success, size: 20),
-                    ),
-                    const SizedBox(width: 10),
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: const [
-                        Text(
-                          'Process Claim Payment',
-                          style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: const [
+                            Text(
+                              'Process Benefit Settlement',
+                              style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            Text(
+                              'Disburse approved reimbursement to employee',
+                              style: TextStyle(fontSize: 11, color: AppColors.lightSecondaryText),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ],
                         ),
-                        Text(
-                          'Disburse funds for approved claim',
-                          style: TextStyle(fontSize: 11, color: AppColors.lightSecondaryText),
-                        ),
-                      ],
-                    ),
-                  ],
+                      ),
+                    ],
+                  ),
                 ),
                 IconButton(
                   onPressed: () => Navigator.pop(context),
@@ -262,7 +243,7 @@ class _FinanceBenefitsScreenState extends ConsumerState<FinanceBenefitsScreen> {
                           children: [
                             CircleAvatar(
                               radius: 16,
-                              backgroundColor: AppColors.success,
+                              backgroundColor: AppColors.primary,
                               child: Text(
                                 (claim['employeeName'] ?? 'E').toString().substring(0, 1).toUpperCase(),
                                 style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold),
@@ -284,45 +265,29 @@ class _FinanceBenefitsScreenState extends ConsumerState<FinanceBenefitsScreen> {
                                 ],
                               ),
                             ),
-                            Column(
-                              crossAxisAlignment: CrossAxisAlignment.end,
-                              children: [
-                                const Text(
-                                  'PAY AMOUNT',
-                                  style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: AppColors.lightMutedText),
-                                ),
-                                Text(
-                                  _formatCurrency(claim['amount'] ?? 0),
-                                  style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16, color: AppColors.success),
-                                ),
-                              ],
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(
+                              'BENEFIT PLAN: ${claim['benefitName']} (${claim['benefitCode']})',
+                              style: const TextStyle(fontSize: 10.5, fontWeight: FontWeight.bold, color: AppColors.lightSecondaryText),
                             ),
                           ],
                         ),
                         const Divider(height: 16),
                         Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                              decoration: BoxDecoration(
-                                color: AppColors.lightPrimary,
-                                borderRadius: BorderRadius.circular(6),
-                              ),
-                              child: Row(
-                                children: [
-                                  const Icon(Icons.shield_outlined, color: AppColors.primary, size: 12),
-                                  const SizedBox(width: 4),
-                                  Text(
-                                    claim['benefitName'] ?? '',
-                                    style: const TextStyle(fontSize: 11, color: AppColors.primary, fontWeight: FontWeight.bold),
-                                  ),
-                                ],
-                              ),
+                            const Text(
+                              'SETTLEMENT AMOUNT',
+                              style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: AppColors.lightMutedText),
                             ),
-                            const Spacer(),
                             Text(
-                              _formatDate(claim['claimDate']),
-                              style: const TextStyle(fontSize: 11, color: AppColors.lightMutedText),
+                              _formatCurrency(claim['amount'] ?? 0),
+                              style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 17, color: AppColors.primary),
                             ),
                           ],
                         ),
@@ -333,8 +298,8 @@ class _FinanceBenefitsScreenState extends ConsumerState<FinanceBenefitsScreen> {
 
                   // Payment Method Select
                   const Text(
-                    'Payment Method',
-                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.lightSecondaryText),
+                    'PAYMENT METHOD',
+                    style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: AppColors.lightMutedText),
                   ),
                   const SizedBox(height: 8),
 
@@ -342,9 +307,9 @@ class _FinanceBenefitsScreenState extends ConsumerState<FinanceBenefitsScreen> {
                     spacing: 8,
                     runSpacing: 8,
                     children: [
-                      _buildMethodPill('RAZORPAY', 'Razorpay', Icons.bolt, Colors.orange, setModalState),
-                      _buildMethodPill('BANK_TRANSFER', 'Bank Transfer', Icons.account_balance, AppColors.primary, setModalState),
-                      _buildMethodPill('UPI', 'UPI', Icons.mobile_friendly, Colors.teal, setModalState),
+                      _buildMethodPill('RAZORPAY', 'Razorpay Online Payout (Instant)', Icons.bolt, Colors.orange, setModalState),
+                      _buildMethodPill('BANK_TRANSFER', 'Bank Direct ACH', Icons.account_balance, AppColors.primary, setModalState),
+                      _buildMethodPill('UPI', 'UPI Payout', Icons.mobile_friendly, Colors.teal, setModalState),
                       _buildMethodPill('CHEQUE', 'Cheque', Icons.payment, Colors.blueGrey, setModalState),
                       _buildMethodPill('CASH', 'Cash', Icons.wallet, AppColors.success, setModalState),
                     ],
@@ -369,10 +334,10 @@ class _FinanceBenefitsScreenState extends ConsumerState<FinanceBenefitsScreen> {
                               children: [
                                 Text(
                                   'Razorpay Secure Gateway',
-                                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppColors.lightPrimaryText),
+                                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: AppColors.lightPrimaryText),
                                 ),
                                 Text(
-                                  'Instant disbursement via UPI, Cards, NetBanking',
+                                  'Pay instantly via UPI, NetBanking, Debit/Credit Cards.',
                                   style: TextStyle(fontSize: 11, color: AppColors.lightSecondaryText),
                                 ),
                               ],
@@ -400,15 +365,15 @@ class _FinanceBenefitsScreenState extends ConsumerState<FinanceBenefitsScreen> {
 
                   const SizedBox(height: 10),
                   const Text(
-                    'Payment Remarks (Optional)',
-                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.lightSecondaryText),
+                    'PAYMENT REMARKS / NOTES',
+                    style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: AppColors.lightMutedText),
                   ),
                   const SizedBox(height: 6),
                   TextField(
                     controller: _paymentNotesController,
                     maxLines: 2,
                     decoration: InputDecoration(
-                      hintText: 'Add payment remarks or reference...',
+                      hintText: 'Optional settlement notes...',
                       contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                       border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
                     ),
@@ -431,9 +396,9 @@ class _FinanceBenefitsScreenState extends ConsumerState<FinanceBenefitsScreen> {
                 icon: isProcessing
                     ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
                     : const Icon(Icons.check, size: 16),
-                label: Text(_paymentMethod == 'RAZORPAY' ? 'Pay via Razorpay' : 'Confirm Payment'),
+                label: Text(_paymentMethod == 'RAZORPAY' ? 'Pay via Razorpay' : 'Confirm Settlement'),
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.success,
+                  backgroundColor: AppColors.primary,
                   foregroundColor: Colors.white,
                 ),
               ),
@@ -452,24 +417,24 @@ class _FinanceBenefitsScreenState extends ConsumerState<FinanceBenefitsScreen> {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
         decoration: BoxDecoration(
-          color: isActive ? AppColors.successBg : AppColors.lightInputBackground,
+          color: isActive ? AppColors.lightPrimary : AppColors.lightInputBackground,
           borderRadius: BorderRadius.circular(10),
           border: Border.all(
-            color: isActive ? AppColors.success : Colors.grey.shade300,
+            color: isActive ? AppColors.primary : Colors.grey.shade300,
             width: isActive ? 1.5 : 1,
           ),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon, color: isActive ? AppColors.success : color, size: 14),
+            Icon(icon, color: isActive ? AppColors.primary : color, size: 14),
             const SizedBox(width: 6),
             Text(
               label,
               style: TextStyle(
                 fontSize: 11,
                 fontWeight: isActive ? FontWeight.bold : FontWeight.w600,
-                color: isActive ? AppColors.success : AppColors.lightPrimaryText,
+                color: isActive ? AppColors.primary : AppColors.lightPrimaryText,
               ),
             ),
           ],
@@ -485,8 +450,7 @@ class _FinanceBenefitsScreenState extends ConsumerState<FinanceBenefitsScreen> {
     final apiClient = ref.read(apiClientProvider);
 
     try {
-      await apiClient.post(ApiEndpoints.benefitProcessPayment, data: {
-        'claimId': claimId,
+      await apiClient.post('/benefits/finance/claims/$claimId/pay', data: {
         'paymentMethod': _paymentMethod,
         'transactionId': _transactionIdController.text,
         'notes': _paymentNotesController.text,
@@ -500,7 +464,7 @@ class _FinanceBenefitsScreenState extends ConsumerState<FinanceBenefitsScreen> {
 
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Payment processed successfully for claim ${claim['claimId']}!'),
+            content: Text('Payment processed successfully for claim ${claim['employeeName']}!'),
             backgroundColor: AppColors.success,
           ),
         );
@@ -508,226 +472,6 @@ class _FinanceBenefitsScreenState extends ConsumerState<FinanceBenefitsScreen> {
     } catch (_) {
       if (mounted) setState(() => _processingId = null);
     }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    if (_isLoading) return const DashboardSkeleton();
-
-    final pendingCount = _getStatusCount('Pending');
-    final processedCount = _getStatusCount('Processed');
-    final paidCount = _getStatusCount('Paid');
-    final filteredList = _filteredClaims;
-
-    return RefreshIndicator(
-      onRefresh: _loadClaims,
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        physics: const AlwaysScrollableScrollPhysics(),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Top Header Card
-            AppCard(
-              backgroundColor: AppColors.darkPrimary,
-              child: Row(
-                children: [
-                  const CircleAvatar(
-                    radius: 24,
-                    backgroundColor: Colors.white24,
-                    child: Icon(Icons.payment, color: Colors.white, size: 26),
-                  ),
-                  const SizedBox(width: 14),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: const [
-                        Text(
-                          'Benefit Claims & Payments',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        SizedBox(height: 4),
-                        Text(
-                          'Process payments for HR-verified benefit claims & disbursements',
-                          style: TextStyle(color: Colors.white70, fontSize: 12),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 16),
-
-            // Stat Cards Grid
-            GridView.count(
-              crossAxisCount: 2,
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              crossAxisSpacing: 12,
-              mainAxisSpacing: 12,
-              childAspectRatio: 1.5,
-              children: [
-                _buildStatCard(
-                  label: 'Pending Payment',
-                  value: '$pendingCount',
-                  sub: 'HR verified claims',
-                  icon: Icons.hourglass_empty,
-                  bgColor: const Color(0xFFFFF7ED),
-                  iconColor: const Color(0xFFEA580C),
-                ),
-                _buildStatCard(
-                  label: 'Processed',
-                  value: '$processedCount',
-                  sub: 'Payment created',
-                  icon: Icons.settings,
-                  bgColor: const Color(0xFFEFF6FF),
-                  iconColor: const Color(0xFF2563EB),
-                ),
-                _buildStatCard(
-                  label: 'Paid',
-                  value: '$paidCount',
-                  sub: 'Completed payments',
-                  icon: Icons.check_circle_outline,
-                  bgColor: const Color(0xFFF0FDF4),
-                  iconColor: const Color(0xFF16A34A),
-                ),
-                _buildStatCard(
-                  label: 'Total Value',
-                  value: _formatCurrency(_totalValue),
-                  sub: 'All benefit claims',
-                  icon: Icons.monetization_on_outlined,
-                  bgColor: const Color(0xFFFEFCE8),
-                  iconColor: const Color(0xFFCA8A04),
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-
-            // Search & Tab Filter Bar
-            AppCard(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  TextField(
-                    onChanged: (val) => setState(() => _searchTerm = val),
-                    decoration: InputDecoration(
-                      hintText: 'Search by employee or benefit...',
-                      hintStyle: const TextStyle(fontSize: 13, color: AppColors.lightMutedText),
-                      prefixIcon: const Icon(Icons.search, size: 20, color: AppColors.lightSecondaryText),
-                      filled: true,
-                      fillColor: AppColors.lightInputBackground,
-                      contentPadding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide(color: Colors.grey.shade300),
-                      ),
-                      enabledBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide(color: Colors.grey.shade300),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-
-                  SingleChildScrollView(
-                    scrollDirection: Axis.horizontal,
-                    child: Row(
-                      children: [
-                        _buildTabChip('All Claims', 'All', _getStatusCount('All')),
-                        const SizedBox(width: 8),
-                        _buildTabChip('Pending', 'Pending', pendingCount),
-                        const SizedBox(width: 8),
-                        _buildTabChip('Processed', 'Processed', processedCount),
-                        const SizedBox(width: 8),
-                        _buildTabChip('Paid', 'Paid', paidCount),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 16),
-
-            // Claims Table List Header & Cards
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Row(
-                  children: const [
-                    Icon(Icons.list_alt, color: AppColors.primary, size: 20),
-                    SizedBox(width: 8),
-                    Text(
-                      'Benefit Claims Queue',
-                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
-                    ),
-                  ],
-                ),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: AppColors.lightPrimary,
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Text(
-                    '${filteredList.length} Claims',
-                    style: const TextStyle(
-                      color: AppColors.primary,
-                      fontSize: 12,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 10),
-
-            if (filteredList.isEmpty)
-              AppCard(
-                child: Padding(
-                  padding: const EdgeInsets.all(32),
-                  child: Column(
-                    children: const [
-                      CircleAvatar(
-                        radius: 26,
-                        backgroundColor: AppColors.lightSecondarySurface,
-                        child: Icon(Icons.receipt_long_outlined, size: 28, color: AppColors.lightSecondaryText),
-                      ),
-                      SizedBox(height: 12),
-                      Text(
-                        'No claims found',
-                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
-                      ),
-                      SizedBox(height: 4),
-                      Text(
-                        'Try clearing or modifying your search and status filter.',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(fontSize: 12, color: AppColors.lightSecondaryText),
-                      ),
-                    ],
-                  ),
-                ),
-              )
-            else
-              ListView.builder(
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                itemCount: filteredList.length,
-                itemBuilder: (context, index) {
-                  final claim = filteredList[index];
-                  return _buildClaimCard(claim);
-                },
-              ),
-
-            const SizedBox(height: 20),
-          ],
-        ),
-      ),
-    );
   }
 
   Widget _buildStatCard({
@@ -785,6 +529,8 @@ class _FinanceBenefitsScreenState extends ConsumerState<FinanceBenefitsScreen> {
           Text(
             sub,
             style: const TextStyle(fontSize: 10, color: AppColors.lightMutedText),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
           ),
         ],
       ),
@@ -834,7 +580,7 @@ class _FinanceBenefitsScreenState extends ConsumerState<FinanceBenefitsScreen> {
 
   Widget _buildClaimCard(Map<String, dynamic> claim) {
     final status = claim['paymentStatus']?.toString() ?? 'PENDING';
-    final isCompleted = status == 'COMPLETED';
+    final isCompleted = status == 'COMPLETED' || status == 'PAID';
     final isProcessed = status == 'PROCESSED';
     final isProcessingThis = _processingId == claim['claimId'];
 
@@ -897,7 +643,7 @@ class _FinanceBenefitsScreenState extends ConsumerState<FinanceBenefitsScreen> {
             const SizedBox(height: 10),
 
             Text(
-              claim['benefitName'] ?? '',
+              '${claim['benefitName']} (${claim['benefitCode']})',
               style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
             ),
             const SizedBox(height: 2),
@@ -948,12 +694,12 @@ class _FinanceBenefitsScreenState extends ConsumerState<FinanceBenefitsScreen> {
                             height: 12,
                             child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
                           )
-                        : const Icon(Icons.attach_money, size: 16),
-                    label: Text(isProcessingThis ? 'Paying...' : 'Pay'),
+                        : const Icon(Icons.payment, size: 14),
+                    label: const Text('Pay'),
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.success,
+                      backgroundColor: AppColors.primary,
                       foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                       textStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                     ),
@@ -962,6 +708,301 @@ class _FinanceBenefitsScreenState extends ConsumerState<FinanceBenefitsScreen> {
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_isLoading) return const DashboardSkeleton();
+
+    final pendingCount = _getStatusCount('Pending');
+    final processedCount = _getStatusCount('Processed');
+    final paidCount = _getStatusCount('Paid');
+    final filteredList = _filteredClaims;
+    final bool showHeader = widget.showAppBar ?? false;
+
+    return DefaultTabController(
+      length: 2,
+      child: showHeader
+          ? GlassScaffold(
+              appBar: const GlassHeader(title: 'Benefit Claims'),
+              showBottomBar: false,
+              body: Column(
+                children: [
+                  Container(
+                    margin: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+                    decoration: BoxDecoration(
+                      color: AppColors.lightSecondarySurface,
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    child: TabBar(
+                      labelColor: Colors.white,
+                      unselectedLabelColor: AppColors.lightSecondaryText,
+                      indicator: BoxDecoration(
+                        color: AppColors.primary,
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      indicatorSize: TabBarIndicatorSize.tab,
+                      dividerColor: Colors.transparent,
+                      padding: const EdgeInsets.all(4),
+                      tabs: const [
+                        Tab(text: 'Overview'),
+                        Tab(text: 'Claims Queue'),
+                      ],
+                    ),
+                  ),
+                  Expanded(
+                    child: TabBarView(
+                      children: [
+                        _buildOverviewTab(pendingCount),
+                        _buildClaimsQueueTab(filteredList, pendingCount, processedCount, paidCount),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            )
+          : Column(
+              children: [
+                Container(
+                  margin: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+                  decoration: BoxDecoration(
+                    color: AppColors.lightSecondarySurface,
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: TabBar(
+                    labelColor: Colors.white,
+                    unselectedLabelColor: AppColors.lightSecondaryText,
+                    indicator: BoxDecoration(
+                      color: AppColors.primary,
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    indicatorSize: TabBarIndicatorSize.tab,
+                    dividerColor: Colors.transparent,
+                    padding: const EdgeInsets.all(4),
+                    tabs: const [
+                      Tab(text: 'Overview'),
+                      Tab(text: 'Claims Queue'),
+                    ],
+                  ),
+                ),
+                Expanded(
+                  child: TabBarView(
+                    children: [
+                      _buildOverviewTab(pendingCount),
+                      _buildClaimsQueueTab(filteredList, pendingCount, processedCount, paidCount),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+    );
+  }
+
+  Widget _buildOverviewTab(int pendingCount) {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          AppCard(
+            backgroundColor: AppColors.darkPrimary,
+            child: Row(
+              children: const [
+                CircleAvatar(
+                  radius: 24,
+                  backgroundColor: Colors.white24,
+                  child: Icon(Icons.receipt_long, color: Colors.white, size: 26),
+                ),
+                SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Benefit Claims Overview',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      SizedBox(height: 4),
+                      Text(
+                        'Track and review all HR-verified benefit claims across departments.',
+                        style: TextStyle(color: Colors.white70, fontSize: 12),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
+          GridView.count(
+            crossAxisCount: 2,
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            crossAxisSpacing: 12,
+            mainAxisSpacing: 12,
+            childAspectRatio: 1.5,
+            children: [
+              _buildStatCard(
+                label: 'Pending Claims',
+                value: '$pendingCount',
+                sub: 'Awaiting payment',
+                icon: Icons.hourglass_empty,
+                bgColor: const Color(0xFFFFF7ED),
+                iconColor: const Color(0xFFEA580C),
+              ),
+              _buildStatCard(
+                label: 'Total Amount',
+                value: _formatCurrency(_totalValue),
+                sub: 'To be disbursed',
+                icon: Icons.monetization_on_outlined,
+                bgColor: const Color(0xFFFEFCE8),
+                iconColor: const Color(0xFFCA8A04),
+              ),
+              _buildStatCard(
+                label: 'Employee Count',
+                value: '$_uniqueEmployeeCount',
+                sub: 'Unique employees',
+                icon: Icons.people_outline,
+                bgColor: const Color(0xFFEFF6FF),
+                iconColor: const Color(0xFF2563EB),
+              ),
+              _buildStatCard(
+                label: 'Avg Claim',
+                value: _formatCurrency(_avgClaimValue),
+                sub: 'Average per claim',
+                icon: Icons.trending_up,
+                bgColor: const Color(0xFFF0FDF4),
+                iconColor: const Color(0xFF16A34A),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildClaimsQueueTab(List<Map<String, dynamic>> filteredList, int pendingCount, int processedCount, int paidCount) {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          AppCard(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                TextField(
+                  onChanged: (val) => setState(() => _searchTerm = val),
+                  decoration: InputDecoration(
+                    hintText: 'Search by employee, code, or benefit...',
+                    hintStyle: const TextStyle(fontSize: 13, color: AppColors.lightMutedText),
+                    prefixIcon: const Icon(Icons.search, size: 20, color: AppColors.lightSecondaryText),
+                    filled: true,
+                    fillColor: AppColors.lightInputBackground,
+                    contentPadding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide(color: Colors.grey.shade300),
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide(color: Colors.grey.shade300),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: Row(
+                    children: [
+                      _buildTabChip('All Claims', 'All', _getStatusCount('All')),
+                      const SizedBox(width: 8),
+                      _buildTabChip('Pending', 'Pending', pendingCount),
+                      const SizedBox(width: 8),
+                      _buildTabChip('Processed', 'Processed', processedCount),
+                      const SizedBox(width: 8),
+                      _buildTabChip('Paid', 'Paid', paidCount),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                children: const [
+                  Icon(Icons.list_alt, color: AppColors.primary, size: 20),
+                  SizedBox(width: 8),
+                  Text(
+                    'Benefit Claims Queue',
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+                  ),
+                ],
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: AppColors.lightPrimary,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Text(
+                  'Total Pending: ${_formatCurrency(_totalValue)}',
+                  style: const TextStyle(
+                    color: AppColors.primary,
+                    fontSize: 11,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          if (filteredList.isEmpty)
+            AppCard(
+              child: Padding(
+                padding: const EdgeInsets.all(32),
+                child: Column(
+                  children: const [
+                    CircleAvatar(
+                      radius: 26,
+                      backgroundColor: AppColors.lightSecondarySurface,
+                      child: Icon(Icons.receipt_long_outlined, size: 28, color: AppColors.lightSecondaryText),
+                    ),
+                    SizedBox(height: 12),
+                    Text(
+                      'No claims found',
+                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+                    ),
+                    SizedBox(height: 4),
+                    Text(
+                      'Try clearing or modifying your search and status filter.',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(fontSize: 12, color: AppColors.lightSecondaryText),
+                    ),
+                  ],
+                ),
+              ),
+            )
+          else
+            ListView.builder(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: filteredList.length,
+              itemBuilder: (context, index) {
+                final claim = filteredList[index];
+                return _buildClaimCard(claim);
+              },
+            ),
+        ],
       ),
     );
   }

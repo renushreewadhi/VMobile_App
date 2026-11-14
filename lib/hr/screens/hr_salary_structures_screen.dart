@@ -3,11 +3,14 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import '../../core/api/api_client.dart';
 import '../../core/api/api_endpoints.dart';
+import '../../core/api/payroll_service.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/widgets/glass_header.dart';
 import '../../core/widgets/glass_scaffold.dart';
 import '../../core/widgets/glass_search_bar.dart';
 import '../../shared/widgets/app_card.dart';
+import '../../shared/widgets/empty_state_widget.dart';
+import '../../shared/widgets/error_state_widget.dart';
 
 class HrSalaryStructuresScreen extends ConsumerStatefulWidget {
   final bool showAppBar;
@@ -19,6 +22,7 @@ class HrSalaryStructuresScreen extends ConsumerStatefulWidget {
 
 class _HrSalaryStructuresScreenState extends ConsumerState<HrSalaryStructuresScreen> {
   bool _isLoading = true;
+  String? _errorMessage;
   List<Map<String, dynamic>> _structures = [];
   String _searchTerm = '';
   String _selectedDepartment = 'All';
@@ -75,11 +79,14 @@ class _HrSalaryStructuresScreenState extends ConsumerState<HrSalaryStructuresScr
   }
 
   Future<void> _loadStructures() async {
-    setState(() => _isLoading = true);
-    final apiClient = ref.read(apiClientProvider);
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
+    final payrollService = ref.read(payrollServiceProvider);
 
     try {
-      final res = await apiClient.get(ApiEndpoints.salaryStructures).catchError((_) => null);
+      final res = await payrollService.getSalaryStructures();
       List<dynamic> items = [];
       if (res is List) {
         items = res;
@@ -88,22 +95,21 @@ class _HrSalaryStructuresScreenState extends ConsumerState<HrSalaryStructuresScr
       }
 
       if (items.isEmpty) {
-        final salRes = await apiClient.get(ApiEndpoints.salaryEmployees).catchError((_) => null);
+        final salRes = await payrollService.getEmployeeSalaries();
         if (salRes is List) items = salRes;
       }
 
       if (mounted) {
         setState(() {
-          _structures = items.isNotEmpty
-              ? items.map((i) => _mapStructure(i)).toList()
-              : _getMockStructures();
+          _structures = items.map((i) => _mapStructure(i)).toList();
           _isLoading = false;
         });
       }
-    } catch (_) {
+    } catch (e) {
       if (mounted) {
         setState(() {
-          _structures = _getMockStructures();
+          _structures = [];
+          _errorMessage = e.toString().replaceFirst('Exception: ', '').replaceFirst('ApiException: ', '');
           _isLoading = false;
         });
       }
@@ -149,99 +155,6 @@ class _HrSalaryStructuresScreenState extends ConsumerState<HrSalaryStructuresScr
       'effectiveTo': map['effectiveTo'] ?? '',
       'status': map['status'] ?? 'Active',
     };
-  }
-
-  List<Map<String, dynamic>> _getMockStructures() {
-    return [
-      {
-        'id': 'SS-01',
-        'code': 'EMP-26-0013',
-        'employeeId': 'EMP-26-0013',
-        'employeeName': 'Amit Prajapati',
-        'designation': 'Specialist',
-        'department': 'Engineering',
-        'basicSalary': 8000.0,
-        'hra': 3200.0,
-        'conveyance': 1600.0,
-        'medicalAllowance': 1250.0,
-        'specialAllowance': 0.0,
-        'pfPercent': 12.0,
-        'esiPercent': 0.75,
-        'tdsPercent': 5.0,
-        'professionalTax': 200.0,
-        'grossEarnings': 14050.0,
-        'totalDeductions': 1968.0,
-        'netPay': 12082.0,
-        'effectiveFrom': '2026-10-27',
-        'status': 'Active',
-      },
-      {
-        'id': 'SS-02',
-        'code': 'EMP-26-0009',
-        'employeeId': 'EMP-26-0009',
-        'employeeName': 'Mansi Borase',
-        'designation': 'Specialist',
-        'department': 'Engineering',
-        'basicSalary': 8000.0,
-        'hra': 3200.0,
-        'conveyance': 1600.0,
-        'medicalAllowance': 1250.0,
-        'specialAllowance': 0.0,
-        'pfPercent': 12.0,
-        'esiPercent': 0.75,
-        'tdsPercent': 5.0,
-        'professionalTax': 200.0,
-        'grossEarnings': 14050.0,
-        'totalDeductions': 1968.0,
-        'netPay': 12082.0,
-        'effectiveFrom': '2026-10-26',
-        'status': 'Active',
-      },
-      {
-        'id': 'SS-03',
-        'code': 'EMP-24-0002',
-        'employeeId': 'EMP-24-0002',
-        'employeeName': 'Prachi Natali',
-        'designation': 'Specialist',
-        'department': 'Human Resources',
-        'basicSalary': 25000.0,
-        'hra': 10000.0,
-        'conveyance': 1600.0,
-        'medicalAllowance': 1250.0,
-        'specialAllowance': 12150.0,
-        'pfPercent': 12.0,
-        'esiPercent': 0.75,
-        'tdsPercent': 5.0,
-        'professionalTax': 200.0,
-        'grossEarnings': 50000.0,
-        'totalDeductions': 4638.0,
-        'netPay': 45363.0,
-        'effectiveFrom': '2026-10-26',
-        'status': 'Active',
-      },
-      {
-        'id': 'SS-04',
-        'code': 'EMP-24-0003',
-        'employeeId': 'EMP-24-0003',
-        'employeeName': 'Praveen Singh',
-        'designation': 'Specialist',
-        'department': 'Engineering',
-        'basicSalary': 14500.0,
-        'hra': 5800.0,
-        'conveyance': 1600.0,
-        'medicalAllowance': 1250.0,
-        'specialAllowance': 6016.0,
-        'pfPercent': 12.0,
-        'esiPercent': 0.75,
-        'tdsPercent': 5.0,
-        'professionalTax': 200.0,
-        'grossEarnings': 29166.0,
-        'totalDeductions': 2049.0,
-        'netPay': 27117.0,
-        'effectiveFrom': '2026-10-26',
-        'status': 'Active',
-      },
-    ];
   }
 
   String _formatMoney(dynamic amount) {
@@ -346,6 +259,15 @@ class _HrSalaryStructuresScreenState extends ConsumerState<HrSalaryStructuresScr
       final skeleton = const Center(child: CircularProgressIndicator());
       if (!widget.showAppBar) return Material(color: Colors.transparent, child: skeleton);
       return GlassScaffold(title: 'Salary Structures & Pay Grades', body: skeleton);
+    }
+
+    if (_errorMessage != null) {
+      final errBody = ErrorStateWidget(
+        errorMessage: _errorMessage!,
+        onRetry: _loadStructures,
+      );
+      if (!widget.showAppBar) return Material(color: Colors.transparent, child: errBody);
+      return GlassScaffold(title: 'Salary Structures & Pay Grades', body: errBody);
     }
 
     final filtered = _filteredStructures;

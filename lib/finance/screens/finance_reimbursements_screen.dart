@@ -1,14 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:intl/intl.dart';
 
 import '../../core/api/api_client.dart';
 import '../../core/api/api_endpoints.dart';
 import '../../core/theme/app_colors.dart';
+import '../../core/widgets/glass_header.dart';
+import '../../core/widgets/glass_scaffold.dart';
 import '../../shared/widgets/app_card.dart';
 import '../../shared/widgets/loading_shimmer.dart';
 
 class FinanceReimbursementsScreen extends ConsumerStatefulWidget {
-  const FinanceReimbursementsScreen({super.key});
+  final bool showAppBar;
+  const FinanceReimbursementsScreen({super.key, this.showAppBar = false});
 
   @override
   ConsumerState<FinanceReimbursementsScreen> createState() => _FinanceReimbursementsScreenState();
@@ -37,7 +41,9 @@ class _FinanceReimbursementsScreenState extends ConsumerState<FinanceReimburseme
   @override
   void initState() {
     super.initState();
-    _loadReimbursements();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _loadReimbursements();
+    });
   }
 
   Future<void> _loadReimbursements() async {
@@ -48,17 +54,30 @@ class _FinanceReimbursementsScreenState extends ConsumerState<FinanceReimburseme
       final res = await apiClient.get(ApiEndpoints.financeReimbursements).catchError((_) => null);
 
       if (mounted) {
-        List<dynamic> items = [];
-        if (res is List) {
-          items = res;
-        } else if (res is Map<String, dynamic> && res['data'] is List) {
-          items = res['data'];
-        }
+        if (res != null) {
+          List<dynamic> items = [];
+          if (res is List) {
+            items = res;
+          } else if (res is Map<String, dynamic>) {
+            final data = res['data'] ?? res['items'] ?? res['result'] ?? res['reimbursements'] ?? res['claims'];
+            if (data is List) {
+              items = data;
+            }
+          }
 
-        if (items.isNotEmpty) {
-          _claims = items.map((r) => _mapClaimItem(r)).toList();
+          final seen = <String>{};
+          final List<Map<String, dynamic>> mapped = [];
+          for (final item in items) {
+            final m = _mapClaimItem(item);
+            final key = '${m['id']}_${m['claimId']}';
+            if (!seen.contains(key)) {
+              seen.add(key);
+              mapped.add(m);
+            }
+          }
+          _claims = mapped;
         } else {
-          _claims = _getMockClaims();
+          _claims = [];
         }
         _isLoading = false;
         setState(() {});
@@ -66,7 +85,7 @@ class _FinanceReimbursementsScreenState extends ConsumerState<FinanceReimburseme
     } catch (_) {
       if (mounted) {
         setState(() {
-          _claims = _getMockClaims();
+          _claims = [];
           _isLoading = false;
         });
       }
@@ -75,99 +94,36 @@ class _FinanceReimbursementsScreenState extends ConsumerState<FinanceReimburseme
 
   Map<String, dynamic> _mapClaimItem(dynamic r) {
     final Map<String, dynamic> item = r is Map<String, dynamic> ? r : {};
-    final empName = item['employeeName'] ?? item['empName'] ?? 'Employee';
-    final id = item['id']?.toString() ?? '1';
-    final rawAmt = (item['amount'] ?? 0) as num;
+    final empName = item['employeeName'] ?? item['empName'] ?? item['requestedBy'] ?? item['userName'] ?? item['name'] ?? 'Employee';
+    final id = item['id']?.toString() ?? item['reqId']?.toString() ?? '1';
+    final rawAmt = (item['amount'] ?? item['totalAmount'] ?? item['claimAmount'] ?? 0) as num;
+    final code = item['claimId'] ?? item['claimCode'] ?? item['reqCode'] ?? item['expenseNumber'] ?? (id.length >= 8 ? id.substring(0, 8).toUpperCase() : 'CLM-901');
+    final rawStatus = (item['status'] ?? 'PENDING').toString().toUpperCase();
 
     return {
       'id': id,
-      'claimId': item['claimId'] ?? (id.length >= 8 ? id.substring(0, 8).toUpperCase() : 'CLM-901'),
+      'claimId': code,
       'empName': empName,
-      'department': item['department'] ?? 'General',
-      'category': (item['category'] ?? 'OTHER').toString().toUpperCase(),
+      'department': item['department'] ?? item['dept'] ?? 'General',
+      'category': (item['category'] ?? item['expenseCategory'] ?? 'OTHER').toString().toUpperCase(),
       'amount': rawAmt,
-      'date': item['date'] ?? '15 Oct 2026',
-      'status': (item['status'] ?? 'PENDING').toString().toUpperCase(),
+      'date': _formatDateStr(item['date'] ?? item['expenseDate'] ?? item['createdAt']),
+      'status': rawStatus,
       'avatar': _getInitials(empName),
-      'description': item['description'] ?? 'Client expense reimbursement claim',
-      'receiptUrl': item['receiptUrl'] ?? '',
-      'paymentMethod': item['paymentMethod'] ?? 'Bank Transfer',
+      'description': item['description'] ?? item['title'] ?? item['reason'] ?? 'Client expense reimbursement claim',
+      'receiptUrl': item['receiptUrl'] ?? item['receipt'] ?? item['attachmentUrl'] ?? '',
+      'paymentMethod': item['paymentMethod'] ?? item['paymentMode'] ?? 'Bank Transfer',
     };
   }
 
-  List<Map<String, dynamic>> _getMockClaims() {
-    return [
-      {
-        'id': '1',
-        'claimId': 'CLM-2026-901',
-        'empName': 'Sarah Jenkins',
-        'department': 'Product Design',
-        'category': 'TRAVEL',
-        'amount': 24500,
-        'date': '14 Oct 2026',
-        'status': 'PENDING',
-        'avatar': 'SJ',
-        'description': 'Client presentation travel & taxi fare reimbursement',
-        'receiptUrl': 'receipt_901.pdf',
-        'paymentMethod': 'Bank Direct ACH',
-      },
-      {
-        'id': '2',
-        'claimId': 'CLM-2026-902',
-        'empName': 'David Miller',
-        'department': 'Engineering',
-        'category': 'FOOD',
-        'amount': 3800,
-        'date': '12 Oct 2026',
-        'status': 'PENDING',
-        'avatar': 'DM',
-        'description': 'Team dinner during sprint release milestone',
-        'receiptUrl': 'receipt_902.pdf',
-        'paymentMethod': 'Bank Direct ACH',
-      },
-      {
-        'id': '3',
-        'claimId': 'CLM-2026-903',
-        'empName': 'Emily Watson',
-        'department': 'Human Resources',
-        'category': 'HOTEL',
-        'amount': 18500,
-        'date': '10 Oct 2026',
-        'status': 'APPROVED',
-        'avatar': 'EW',
-        'description': 'HR Annual Leadership Conference hotel stay',
-        'receiptUrl': 'receipt_903.pdf',
-        'paymentMethod': 'Corporate Card',
-      },
-      {
-        'id': '4',
-        'claimId': 'CLM-2026-904',
-        'empName': 'Alex Rivera',
-        'department': 'Sales Operations',
-        'category': 'FUEL',
-        'amount': 4200,
-        'date': '08 Oct 2026',
-        'status': 'APPROVED',
-        'avatar': 'AR',
-        'description': 'Client site visit fuel & toll charges',
-        'receiptUrl': 'receipt_904.pdf',
-        'paymentMethod': 'Bank Direct ACH',
-      },
-      {
-        'id': '5',
-        'claimId': 'CLM-2026-905',
-        'empName': 'Michael Chen',
-        'department': 'IT Operations',
-        'category': 'INTERNET',
-        'amount': 2500,
-        'date': '05 Oct 2026',
-        'status': 'REJECTED',
-        'avatar': 'MC',
-        'description': 'Monthly home broadband Internet allowance claim',
-        'receiptUrl': 'receipt_905.pdf',
-        'paymentMethod': 'Bank Direct ACH',
-      },
-    ];
+  String _formatDateStr(dynamic value) {
+    if (value == null || value.toString().isEmpty) return '—';
+    try {
+      final d = DateTime.parse(value.toString());
+      return DateFormat('dd MMM yyyy').format(d);
+    } catch (_) {
+      return value.toString();
+    }
   }
 
   String _getInitials(String name) {
@@ -371,258 +327,6 @@ class _FinanceReimbursementsScreenState extends ConsumerState<FinanceReimburseme
     );
   }
 
-  @override
-  Widget build(BuildContext context) {
-    if (_isLoading) return const DashboardSkeleton();
-
-    final filteredList = _filteredClaims;
-
-    return RefreshIndicator(
-      onRefresh: _loadReimbursements,
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        physics: const AlwaysScrollableScrollPhysics(),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Top Header Card
-            AppCard(
-              backgroundColor: AppColors.darkPrimary,
-              child: Row(
-                children: const [
-                  CircleAvatar(
-                    radius: 24,
-                    backgroundColor: Colors.white24,
-                    child: Icon(Icons.receipt_long, color: Colors.white, size: 26),
-                  ),
-                  SizedBox(width: 14),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Reimbursements & Expense Claims',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        SizedBox(height: 4),
-                        Text(
-                          'Review and approve travel, meals, internet, & office claims',
-                          style: TextStyle(color: Colors.white70, fontSize: 12),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 16),
-
-            // Stat Cards Grid
-            GridView.count(
-              crossAxisCount: 2,
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              crossAxisSpacing: 12,
-              mainAxisSpacing: 12,
-              childAspectRatio: 1.5,
-              children: [
-                _buildStatCard(
-                  label: 'Total Claims',
-                  value: '${_claims.length}',
-                  sub: _formatCurrency(_totalAmount),
-                  icon: Icons.receipt_long,
-                  bgColor: const Color(0xFFEFF6FF),
-                  iconColor: const Color(0xFF2563EB),
-                ),
-                _buildStatCard(
-                  label: 'Pending Approval',
-                  value: '${_getStatusCount("Pending")}',
-                  sub: _formatCurrency(_pendingAmount),
-                  icon: Icons.schedule,
-                  bgColor: const Color(0xFFFFF7ED),
-                  iconColor: const Color(0xFFEA580C),
-                ),
-                _buildStatCard(
-                  label: 'Approved Claims',
-                  value: '${_getStatusCount("Approved")}',
-                  sub: _formatCurrency(_approvedAmount),
-                  icon: Icons.check_circle_outline,
-                  bgColor: const Color(0xFFF0FDF4),
-                  iconColor: const Color(0xFF16A34A),
-                ),
-                _buildStatCard(
-                  label: 'Rejected Claims',
-                  value: '${_getStatusCount("Rejected")}',
-                  sub: _formatCurrency(_rejectedAmount),
-                  icon: Icons.highlight_off,
-                  bgColor: const Color(0xFFFEF2F2),
-                  iconColor: const Color(0xFFDC2626),
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-
-            // Search & Filter Card
-            AppCard(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  TextField(
-                    onChanged: (val) => setState(() => _searchTerm = val),
-                    decoration: InputDecoration(
-                      hintText: 'Search by claim ID, employee...',
-                      hintStyle: const TextStyle(fontSize: 13, color: AppColors.lightMutedText),
-                      prefixIcon: const Icon(Icons.search, size: 20, color: AppColors.lightSecondaryText),
-                      filled: true,
-                      fillColor: AppColors.lightInputBackground,
-                      contentPadding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide(color: Colors.grey.shade300),
-                      ),
-                      enabledBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide(color: Colors.grey.shade300),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-
-                  Row(
-                    children: [
-                      const Icon(Icons.filter_list, size: 18, color: AppColors.lightSecondaryText),
-                      const SizedBox(width: 6),
-                      Expanded(
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 10),
-                          decoration: BoxDecoration(
-                            border: Border.all(color: Colors.grey.shade300),
-                            borderRadius: BorderRadius.circular(10),
-                            color: Colors.white,
-                          ),
-                          child: DropdownButtonHideUnderline(
-                            child: DropdownButton<String>(
-                              value: _selectedCategory,
-                              isExpanded: true,
-                              icon: const Icon(Icons.arrow_drop_down, color: AppColors.primary),
-                              style: const TextStyle(fontSize: 12, color: AppColors.lightPrimaryText, fontWeight: FontWeight.w500),
-                              items: _categories.map((cat) {
-                                return DropdownMenuItem<String>(
-                                  value: cat['value'],
-                                  child: Text(cat['label']!),
-                                );
-                              }).toList(),
-                              onChanged: (val) {
-                                if (val != null) setState(() => _selectedCategory = val);
-                              },
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-
-                  SingleChildScrollView(
-                    scrollDirection: Axis.horizontal,
-                    child: Row(
-                      children: [
-                        _buildTabChip('All Claims', 'All', _getStatusCount('All')),
-                        const SizedBox(width: 8),
-                        _buildTabChip('Pending', 'Pending', _getStatusCount('Pending')),
-                        const SizedBox(width: 8),
-                        _buildTabChip('Approved', 'Approved', _getStatusCount('Approved')),
-                        const SizedBox(width: 8),
-                        _buildTabChip('Rejected', 'Rejected', _getStatusCount('Rejected')),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 16),
-
-            // Claims Register Header & Cards
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Row(
-                  children: const [
-                    Icon(Icons.receipt_long, color: AppColors.primary, size: 20),
-                    SizedBox(width: 8),
-                    Text(
-                      'Reimbursement Claims Ledger',
-                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
-                    ),
-                  ],
-                ),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: AppColors.lightPrimary,
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Text(
-                    '${filteredList.length} Claims',
-                    style: const TextStyle(
-                      color: AppColors.primary,
-                      fontSize: 12,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 10),
-
-            if (filteredList.isEmpty)
-              AppCard(
-                child: Padding(
-                  padding: const EdgeInsets.all(32),
-                  child: Column(
-                    children: const [
-                      CircleAvatar(
-                        radius: 26,
-                        backgroundColor: AppColors.lightSecondarySurface,
-                        child: Icon(Icons.folder_open, size: 28, color: AppColors.lightSecondaryText),
-                      ),
-                      SizedBox(height: 12),
-                      Text(
-                        'No reimbursement claims match your filter',
-                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
-                      ),
-                      SizedBox(height: 4),
-                      Text(
-                        'Try adjusting your search query or category filter.',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(fontSize: 12, color: AppColors.lightSecondaryText),
-                      ),
-                    ],
-                  ),
-                ),
-              )
-            else
-              ListView.builder(
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                itemCount: filteredList.length,
-                itemBuilder: (context, index) {
-                  final claim = filteredList[index];
-                  return _buildClaimCard(claim);
-                },
-              ),
-
-            const SizedBox(height: 20),
-          ],
-        ),
-      ),
-    );
-  }
-
   Widget _buildStatCard({
     required String label,
     required String value,
@@ -651,40 +355,35 @@ class _FinanceReimbursementsScreenState extends ConsumerState<FinanceReimburseme
         children: [
           Row(
             children: [
-              Container(
-                padding: const EdgeInsets.all(6),
-                decoration: BoxDecoration(
-                  color: bgColor,
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Icon(icon, color: iconColor, size: 18),
+              CircleAvatar(
+                radius: 12,
+                backgroundColor: bgColor,
+                child: Icon(icon, size: 14, color: iconColor),
               ),
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
                   label,
+                  style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: AppColors.lightPrimaryText),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.lightSecondaryText),
                 ),
               ),
             ],
           ),
           const SizedBox(height: 6),
           Row(
+            crossAxisAlignment: CrossAxisAlignment.baseline,
+            textBaseline: TextBaseline.alphabetic,
             children: [
               Text(
                 value,
-                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: AppColors.lightPrimaryText),
+                style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w800),
               ),
-              const SizedBox(width: 6),
-              Expanded(
-                child: Text(
-                  '($sub)',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(fontSize: 10, color: AppColors.lightMutedText, fontWeight: FontWeight.w600),
-                ),
+              const SizedBox(width: 4),
+              Text(
+                '($sub)',
+                style: const TextStyle(fontSize: 11, color: AppColors.lightSecondaryText),
               ),
             ],
           ),
@@ -695,232 +394,445 @@ class _FinanceReimbursementsScreenState extends ConsumerState<FinanceReimburseme
 
   Widget _buildTabChip(String label, String value, int count) {
     final isActive = _selectedStatus == value;
-    return Material(
-      color: Colors.transparent,
-      child: ChoiceChip(
-        label: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              label,
-              style: TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.bold,
-                color: isActive ? Colors.white : AppColors.lightSecondaryText,
-              ),
-            ),
-            const SizedBox(width: 4),
-            Text(
-              '($count)',
-              style: TextStyle(
-                fontSize: 11,
-                fontWeight: FontWeight.w600,
-                color: isActive ? Colors.white70 : AppColors.lightMutedText,
-              ),
-            ),
-          ],
+    return ChoiceChip(
+      label: Text(
+        '$label ($count)',
+        style: TextStyle(
+          fontSize: 11,
+          fontWeight: FontWeight.bold,
+          color: isActive ? Colors.white : AppColors.lightSecondaryText,
         ),
-        selected: isActive,
-        selectedColor: AppColors.primary,
-        backgroundColor: AppColors.lightInputBackground,
-        onSelected: (_) => setState(() => _selectedStatus = value),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(20),
-          side: BorderSide(
-            color: isActive ? AppColors.primary : Colors.grey.shade300,
-          ),
-        ),
+      ),
+      selected: isActive,
+      selectedColor: AppColors.primary,
+      backgroundColor: AppColors.lightInputBackground,
+      onSelected: (_) => setState(() => _selectedStatus = value),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(20),
+        side: BorderSide(color: isActive ? AppColors.primary : Colors.grey.shade300),
       ),
     );
   }
 
-  Widget _buildClaimCard(Map<String, dynamic> item) {
-    final rawStatus = (item['status'] ?? 'PENDING').toString();
-    final statusNorm = _normalizeStatus(rawStatus);
-    final isPending = statusNorm == 'Pending';
-    final isApproved = statusNorm == 'Approved';
-    final isProcessingThis = _processingId == item['id'];
+  Widget _buildClaimCard(Map<String, dynamic> claim) {
+    final isPending = claim['status'] == 'PENDING';
+    final isApproved = claim['status'] == 'APPROVED';
 
-    Color statusBg = AppColors.warningBg;
-    Color statusFg = AppColors.warning;
-
+    Color statusBg = Colors.orange.shade50;
+    Color statusFg = Colors.orange.shade700;
     if (isApproved) {
-      statusBg = AppColors.successBg;
-      statusFg = AppColors.success;
-    } else if (statusNorm == 'Rejected') {
-      statusBg = AppColors.errorBg;
-      statusFg = AppColors.error;
+      statusBg = Colors.green.shade50;
+      statusFg = Colors.green.shade700;
+    } else if (claim['status'] == 'REJECTED') {
+      statusBg = Colors.red.shade50;
+      statusFg = Colors.red.shade700;
     }
 
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
-      child: AppCard(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Claim ID & Status Row
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                  decoration: BoxDecoration(
-                    color: AppColors.lightInputBackground,
-                    borderRadius: BorderRadius.circular(6),
-                    border: Border.all(color: Colors.grey.shade300),
-                  ),
-                  child: Text(
-                    item['claimId'] ?? '',
-                    style: const TextStyle(
-                      fontFamily: 'monospace',
-                      fontWeight: FontWeight.bold,
-                      fontSize: 12,
-                      color: AppColors.primary,
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: Colors.grey.shade200),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                claim['claimId'] ?? '',
+                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppColors.primary),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(
+                  color: statusBg,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Text(
+                  _normalizeStatus(claim['status']),
+                  style: TextStyle(color: statusFg, fontSize: 10, fontWeight: FontWeight.bold),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Row(
+            children: [
+              CircleAvatar(
+                radius: 14,
+                backgroundColor: AppColors.lightPrimary,
+                child: Text(
+                  claim['avatar'] as String,
+                  style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: AppColors.primary),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  '${claim['empName']} • ${claim['department']}',
+                  style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+                ),
+              ),
+              Text(
+                _formatCurrency(claim['amount']),
+                style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: AppColors.lightPrimaryText),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Text(
+            claim['description'] ?? '',
+            style: const TextStyle(fontSize: 11, color: AppColors.lightSecondaryText),
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+          ),
+          const SizedBox(height: 8),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                claim['date'] ?? '',
+                style: const TextStyle(fontSize: 11, color: AppColors.lightMutedText),
+              ),
+              Row(
+                children: [
+                  if (isPending) ...[
+                    OutlinedButton(
+                      onPressed: _processingId == claim['id'] ? null : () => _rejectClaim(claim),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: AppColors.error,
+                        side: const BorderSide(color: AppColors.error),
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                        minimumSize: Size.zero,
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      ),
+                      child: const Text('Reject', style: TextStyle(fontSize: 11)),
+                    ),
+                    const SizedBox(width: 6),
+                    ElevatedButton(
+                      onPressed: _processingId == claim['id'] ? null : () => _approveClaim(claim),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.success,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                        minimumSize: Size.zero,
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      ),
+                      child: const Text('Approve', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+                    ),
+                    const SizedBox(width: 6),
+                  ],
+                  InkWell(
+                    onTap: () => _viewClaimDetails(claim),
+                    child: const Padding(
+                      padding: EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+                      child: Text('Details', style: TextStyle(fontSize: 11, color: AppColors.primary, fontWeight: FontWeight.bold)),
                     ),
                   ),
-                ),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
-                  decoration: BoxDecoration(
-                    color: statusBg,
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Text(
-                    statusNorm,
-                    style: TextStyle(
-                      color: statusFg,
-                      fontSize: 11,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
+                ],
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_isLoading) return const DashboardSkeleton();
+
+    final filteredList = _filteredClaims;
+
+    final content = DefaultTabController(
+      length: 2,
+      child: Column(
+        children: [
+          // Tab Bar Header
+          Container(
+            margin: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+            decoration: BoxDecoration(
+              color: AppColors.lightSecondarySurface,
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: TabBar(
+              labelColor: Colors.white,
+              unselectedLabelColor: AppColors.lightSecondaryText,
+              indicator: BoxDecoration(
+                color: AppColors.primary,
+                borderRadius: BorderRadius.circular(10),
+              ),
+              indicatorSize: TabBarIndicatorSize.tab,
+              dividerColor: Colors.transparent,
+              padding: const EdgeInsets.all(4),
+              tabs: const [
+                Tab(text: 'Overview'),
+                Tab(text: 'Claims Ledger'),
               ],
             ),
-            const SizedBox(height: 10),
+          ),
 
-            // Employee Avatar & Name
-            Row(
+          // Tab Views
+          Expanded(
+            child: TabBarView(
               children: [
-                CircleAvatar(
-                  radius: 18,
-                  backgroundColor: AppColors.darkPrimary,
-                  child: Text(
-                    item['avatar'] ?? 'E',
-                    style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold),
-                  ),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
+                // Tab 1: Overview
+                SingleChildScrollView(
+                  padding: const EdgeInsets.all(16),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        item['empName'] ?? '',
-                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                      AppCard(
+                        backgroundColor: AppColors.darkPrimary,
+                        child: Row(
+                          children: const [
+                            CircleAvatar(
+                              radius: 24,
+                              backgroundColor: Colors.white24,
+                              child: Icon(Icons.receipt_long, color: Colors.white, size: 26),
+                            ),
+                            SizedBox(width: 14),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'Reimbursements & Expense Claims',
+                                    style: TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 18,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                  SizedBox(height: 4),
+                                  Text(
+                                    'Track, review, and approve employee travel, meals, internet, and office expense claims.',
+                                    style: TextStyle(color: Colors.white70, fontSize: 12),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
-                      Row(
+                      const SizedBox(height: 16),
+                      GridView.count(
+                        crossAxisCount: 2,
+                        shrinkWrap: true,
+                        physics: const NeverScrollableScrollPhysics(),
+                        crossAxisSpacing: 12,
+                        mainAxisSpacing: 12,
+                        childAspectRatio: 1.6,
                         children: [
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
-                            decoration: BoxDecoration(
-                              color: AppColors.lightInputBackground,
-                              borderRadius: BorderRadius.circular(4),
-                            ),
-                            child: Text(
-                              item['category'] ?? '',
-                              style: const TextStyle(fontSize: 10, color: AppColors.lightSecondaryText, fontWeight: FontWeight.bold),
-                            ),
+                          _buildStatCard(
+                            label: 'Total Claims',
+                            value: '${_claims.length}',
+                            sub: _formatCurrency(_totalAmount),
+                            icon: Icons.receipt_long,
+                            bgColor: const Color(0xFFEFF6FF),
+                            iconColor: const Color(0xFF2563EB),
                           ),
-                          const SizedBox(width: 6),
-                          Text(
-                            item['department'] ?? '',
-                            style: const TextStyle(fontSize: 11, color: AppColors.lightMutedText),
+                          _buildStatCard(
+                            label: 'Pending Approval',
+                            value: '${_getStatusCount("Pending")}',
+                            sub: _formatCurrency(_pendingAmount),
+                            icon: Icons.schedule,
+                            bgColor: const Color(0xFFFFF7ED),
+                            iconColor: const Color(0xFFEA580C),
+                          ),
+                          _buildStatCard(
+                            label: 'Approved Claims',
+                            value: '${_getStatusCount("Approved")}',
+                            sub: _formatCurrency(_approvedAmount),
+                            icon: Icons.check_circle_outline,
+                            bgColor: const Color(0xFFF0FDF4),
+                            iconColor: const Color(0xFF16A34A),
+                          ),
+                          _buildStatCard(
+                            label: 'Rejected Claims',
+                            value: '${_getStatusCount("Rejected")}',
+                            sub: _formatCurrency(_rejectedAmount),
+                            icon: Icons.highlight_off,
+                            bgColor: const Color(0xFFFEF2F2),
+                            iconColor: const Color(0xFFDC2626),
                           ),
                         ],
                       ),
                     ],
                   ),
                 ),
-                Text(
-                  _formatCurrency(item['amount'] ?? 0),
-                  style: const TextStyle(
-                    fontWeight: FontWeight.w800,
-                    fontSize: 15,
-                    color: AppColors.primary,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
 
-            Text(
-              item['description'] ?? '',
-              style: const TextStyle(fontSize: 12, color: AppColors.lightSecondaryText),
-            ),
-            const Divider(height: 18),
-
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Row(
-                  children: [
-                    const Icon(Icons.calendar_today, size: 12, color: AppColors.lightMutedText),
-                    const SizedBox(width: 4),
-                    Text(
-                      item['date'] ?? '',
-                      style: const TextStyle(fontSize: 11, color: AppColors.lightSecondaryText),
-                    ),
-                  ],
-                ),
-                if (isPending)
-                  Row(
+                // Tab 2: Claims Ledger
+                SingleChildScrollView(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      ElevatedButton.icon(
-                        onPressed: isProcessingThis ? null : () => _approveClaim(item),
-                        icon: isProcessingThis
-                            ? const SizedBox(width: 12, height: 12, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                            : const Icon(Icons.check, size: 14),
-                        label: const Text('Approve'),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: AppColors.success,
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                          textStyle: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                      AppCard(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            TextField(
+                              onChanged: (val) => setState(() => _searchTerm = val),
+                              decoration: InputDecoration(
+                                hintText: 'Search by claim ID, employee...',
+                                hintStyle: const TextStyle(fontSize: 13, color: AppColors.lightMutedText),
+                                prefixIcon: const Icon(Icons.search, size: 20, color: AppColors.lightSecondaryText),
+                                filled: true,
+                                fillColor: AppColors.lightInputBackground,
+                                contentPadding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                  borderSide: BorderSide(color: Colors.grey.shade300),
+                                ),
+                                enabledBorder: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                  borderSide: BorderSide(color: Colors.grey.shade300),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 12),
+                            Row(
+                              children: [
+                                const Icon(Icons.filter_list, size: 18, color: AppColors.lightSecondaryText),
+                                const SizedBox(width: 6),
+                                Expanded(
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 10),
+                                    decoration: BoxDecoration(
+                                      border: Border.all(color: Colors.grey.shade300),
+                                      borderRadius: BorderRadius.circular(10),
+                                      color: Colors.white,
+                                    ),
+                                    child: DropdownButtonHideUnderline(
+                                      child: DropdownButton<String>(
+                                        value: _selectedCategory,
+                                        isExpanded: true,
+                                        icon: const Icon(Icons.arrow_drop_down, color: AppColors.primary),
+                                        style: const TextStyle(fontSize: 12, color: AppColors.lightPrimaryText, fontWeight: FontWeight.w500),
+                                        items: _categories.map((cat) {
+                                          return DropdownMenuItem<String>(
+                                            value: cat['value'],
+                                            child: Text(cat['label']!),
+                                          );
+                                        }).toList(),
+                                        onChanged: (val) {
+                                          if (val != null) setState(() => _selectedCategory = val);
+                                        },
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 12),
+                            SingleChildScrollView(
+                              scrollDirection: Axis.horizontal,
+                              child: Row(
+                                children: [
+                                  _buildTabChip('All Claims', 'All', _getStatusCount('All')),
+                                  const SizedBox(width: 8),
+                                  _buildTabChip('Pending', 'Pending', _getStatusCount('Pending')),
+                                  const SizedBox(width: 8),
+                                  _buildTabChip('Approved', 'Approved', _getStatusCount('Approved')),
+                                  const SizedBox(width: 8),
+                                  _buildTabChip('Rejected', 'Rejected', _getStatusCount('Rejected')),
+                                ],
+                              ),
+                            ),
+                          ],
                         ),
                       ),
-                      const SizedBox(width: 6),
-                      OutlinedButton.icon(
-                        onPressed: isProcessingThis ? null : () => _rejectClaim(item),
-                        icon: const Icon(Icons.close, size: 14),
-                        label: const Text('Reject'),
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: AppColors.error,
-                          side: const BorderSide(color: AppColors.error),
-                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                          textStyle: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                        ),
+                      const SizedBox(height: 16),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Row(
+                            children: const [
+                              Icon(Icons.receipt_long, color: AppColors.primary, size: 20),
+                              SizedBox(width: 8),
+                              Text(
+                                'Reimbursement Claims Ledger',
+                                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+                              ),
+                            ],
+                          ),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: AppColors.lightPrimary,
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Text(
+                              '${filteredList.length} Claims',
+                              style: const TextStyle(
+                                color: AppColors.primary,
+                                fontSize: 12,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
+                      const SizedBox(height: 10),
+                      if (filteredList.isEmpty)
+                        AppCard(
+                          child: Padding(
+                            padding: const EdgeInsets.all(32),
+                            child: Column(
+                              children: const [
+                                CircleAvatar(
+                                  radius: 26,
+                                  backgroundColor: AppColors.lightSecondarySurface,
+                                  child: Icon(Icons.folder_open, size: 28, color: AppColors.lightSecondaryText),
+                                ),
+                                SizedBox(height: 12),
+                                Text(
+                                  'No reimbursement claims match your filter.',
+                                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+                                ),
+                                SizedBox(height: 4),
+                                Text(
+                                  'Try adjusting your search query or category filter.',
+                                  textAlign: TextAlign.center,
+                                  style: TextStyle(fontSize: 12, color: AppColors.lightSecondaryText),
+                                ),
+                              ],
+                            ),
+                          ),
+                        )
+                      else
+                        ListView.builder(
+                          shrinkWrap: true,
+                          physics: const NeverScrollableScrollPhysics(),
+                          itemCount: filteredList.length,
+                          itemBuilder: (context, index) {
+                            final claim = filteredList[index];
+                            return _buildClaimCard(claim);
+                          },
+                        ),
                     ],
-                  )
-                else
-                  OutlinedButton.icon(
-                    onPressed: () => _viewClaimDetails(item),
-                    icon: const Icon(Icons.visibility, size: 14),
-                    label: const Text('View'),
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: AppColors.primary,
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                      textStyle: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                    ),
                   ),
+                ),
               ],
             ),
-          ],
-        ),
+          ),
+        ],
       ),
+    );
+
+    if (!widget.showAppBar) {
+      return Material(color: Colors.transparent, child: content);
+    }
+
+    return GlassScaffold(
+      appBar: const GlassHeader(title: 'Reimbursements'),
+      showBottomBar: false,
+      body: content,
     );
   }
 }

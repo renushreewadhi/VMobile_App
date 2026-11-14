@@ -110,6 +110,7 @@ class _MyDocumentsScreenState extends ConsumerState<MyDocumentsScreen> {
   String _searchTerm = '';
   String _filterCategory = '';
   bool _showUploadModal = false;
+  String _activeTab = 'documents'; // 'documents' or 'upload'
 
   final _titleController = TextEditingController();
   final _descController = TextEditingController();
@@ -241,7 +242,7 @@ class _MyDocumentsScreenState extends ConsumerState<MyDocumentsScreen> {
 
       if (!mounted) return;
       setState(() {
-        _showUploadModal = false;
+        _activeTab = 'documents';
         _isUploading = false;
         _titleController.clear();
         _descController.clear();
@@ -254,7 +255,7 @@ class _MyDocumentsScreenState extends ConsumerState<MyDocumentsScreen> {
     } catch (_) {
       if (!mounted) return;
       setState(() {
-        _showUploadModal = false;
+        _activeTab = 'documents';
         _isUploading = false;
         _titleController.clear();
         _descController.clear();
@@ -419,38 +420,44 @@ class _MyDocumentsScreenState extends ConsumerState<MyDocumentsScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                // 1. TOP STATS SUMMARY CARDS (4 Cards Grid)
-                _buildStatsGrid(isDark),
+                _buildTabBar(isDark),
                 const SizedBox(height: 16),
+                if (_activeTab == 'documents') ...[
+                  // 1. TOP STATS SUMMARY CARDS (4 Cards Grid)
+                  _buildStatsGrid(isDark),
+                  const SizedBox(height: 16),
 
-                // 2. SEARCH & TOOLBAR CARD
-                _buildToolbarCard(isDark),
-                const SizedBox(height: 16),
+                  // 2. SEARCH & TOOLBAR CARD
+                  _buildToolbarCard(isDark),
+                  const SizedBox(height: 16),
 
-                // Error State / Documents List
-                if (_error != null)
-                  AppCard(
-                    child: Padding(
-                      padding: const EdgeInsets.all(24),
-                      child: Column(
-                        children: [
-                          const Icon(Icons.error_outline, size: 36, color: Colors.redAccent),
-                          const SizedBox(height: 8),
-                          Text('Failed to load documents', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: isDark ? AppColors.darkPrimaryText : AppColors.lightPrimaryText)),
-                          const SizedBox(height: 4),
-                          Text(_error!, style: const TextStyle(fontSize: 12, color: Colors.grey), textAlign: TextAlign.center),
-                          const SizedBox(height: 12),
-                          ElevatedButton.icon(
-                            onPressed: _fetchDocuments,
-                            icon: const Icon(Icons.refresh, size: 16),
-                            label: const Text('Retry'),
-                          ),
-                        ],
+                  // Error State / Documents List
+                  if (_error != null)
+                    AppCard(
+                      child: Padding(
+                        padding: const EdgeInsets.all(24),
+                        child: Column(
+                          children: [
+                            const Icon(Icons.error_outline, size: 36, color: Colors.redAccent),
+                            const SizedBox(height: 8),
+                            Text('Failed to load documents', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: isDark ? AppColors.darkPrimaryText : AppColors.lightPrimaryText)),
+                            const SizedBox(height: 4),
+                            Text(_error!, style: const TextStyle(fontSize: 12, color: Colors.grey), textAlign: TextAlign.center),
+                            const SizedBox(height: 12),
+                            ElevatedButton.icon(
+                              onPressed: _fetchDocuments,
+                              icon: const Icon(Icons.refresh, size: 16),
+                              label: const Text('Retry'),
+                            ),
+                          ],
+                        ),
                       ),
-                    ),
-                  )
-                else
-                  _buildDocumentsListCard(isDark),
+                    )
+                  else
+                    _buildDocumentsListCard(isDark),
+                ] else ...[
+                  _buildUploadFormCard(isDark),
+                ],
               ],
             ),
           ),
@@ -532,31 +539,17 @@ class _MyDocumentsScreenState extends ConsumerState<MyDocumentsScreen> {
             ),
           ),
           const SizedBox(height: 12),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Expanded(
-                child: DropdownButtonFormField<String>(
-                  value: _filterCategory.isEmpty ? null : _filterCategory,
-                  decoration: const InputDecoration(labelText: 'Category', border: OutlineInputBorder(), isDense: true),
-                  items: const [
-                    DropdownMenuItem(value: '', child: Text('All Categories')),
-                    DropdownMenuItem(value: 'Identity', child: Text('Identity')),
-                    DropdownMenuItem(value: 'Employment', child: Text('Employment')),
-                    DropdownMenuItem(value: 'Education', child: Text('Education')),
-                    DropdownMenuItem(value: 'Other', child: Text('Other')),
-                  ],
-                  onChanged: (val) => setState(() => _filterCategory = val ?? ''),
-                ),
-              ),
-              const SizedBox(width: 10),
-              ElevatedButton.icon(
-                onPressed: () => setState(() => _showUploadModal = true),
-                icon: const Icon(Icons.upload, size: 16),
-                label: const Text('Upload Document', style: TextStyle(fontSize: 12)),
-                style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary, foregroundColor: Colors.white),
-              ),
+          DropdownButtonFormField<String>(
+            value: _filterCategory.isEmpty ? null : _filterCategory,
+            decoration: const InputDecoration(labelText: 'Category', border: OutlineInputBorder(), isDense: true),
+            items: const [
+              DropdownMenuItem(value: '', child: Text('All Categories')),
+              DropdownMenuItem(value: 'Identity', child: Text('Identity')),
+              DropdownMenuItem(value: 'Employment', child: Text('Employment')),
+              DropdownMenuItem(value: 'Education', child: Text('Education')),
+              DropdownMenuItem(value: 'Other', child: Text('Other')),
             ],
+            onChanged: (val) => setState(() => _filterCategory = val ?? ''),
           ),
         ],
       ),
@@ -695,6 +688,177 @@ class _MyDocumentsScreenState extends ConsumerState<MyDocumentsScreen> {
                   },
                 ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildTabBar(bool isDark) {
+    return Container(
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF131E29) : const Color(0xFFEEF2F8),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: isDark ? AppColors.darkBordersAndDividers : const Color(0xFFDCE8E7)),
+      ),
+      padding: const EdgeInsets.all(4),
+      child: Row(
+        children: [
+          Expanded(
+            child: GestureDetector(
+              onTap: () => setState(() => _activeTab = 'documents'),
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 200),
+                padding: const EdgeInsets.symmetric(vertical: 10),
+                decoration: BoxDecoration(
+                  color: _activeTab == 'documents' ? AppColors.primary : Colors.transparent,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                alignment: Alignment.center,
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      Icons.folder_open_rounded,
+                      size: 16,
+                      color: _activeTab == 'documents' ? Colors.white : (isDark ? AppColors.darkSecondaryText : AppColors.lightSecondaryText),
+                    ),
+                    const SizedBox(width: 6),
+                    Text(
+                      'My Documents (${_documents.length})',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 12.5,
+                        color: _activeTab == 'documents' ? Colors.white : (isDark ? AppColors.darkSecondaryText : AppColors.lightSecondaryText),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          Expanded(
+            child: GestureDetector(
+              onTap: () => setState(() => _activeTab = 'upload'),
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 200),
+                padding: const EdgeInsets.symmetric(vertical: 10),
+                decoration: BoxDecoration(
+                  color: _activeTab == 'upload' ? AppColors.primary : Colors.transparent,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                alignment: Alignment.center,
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      Icons.cloud_upload_rounded,
+                      size: 16,
+                      color: _activeTab == 'upload' ? Colors.white : (isDark ? AppColors.darkSecondaryText : AppColors.lightSecondaryText),
+                    ),
+                    const SizedBox(width: 6),
+                    Text(
+                      'Upload Document',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 12.5,
+                        color: _activeTab == 'upload' ? Colors.white : (isDark ? AppColors.darkSecondaryText : AppColors.lightSecondaryText),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildUploadFormCard(bool isDark) {
+    return AppCard(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Icon(Icons.cloud_upload_outlined, size: 20, color: AppColors.primary),
+                const SizedBox(width: 8),
+                Text('Upload New Document', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: isDark ? AppColors.darkPrimaryText : AppColors.lightPrimaryText)),
+              ],
+            ),
+            const Divider(height: 24),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(24),
+              decoration: BoxDecoration(
+                color: isDark ? const Color(0xFF1A2632) : const Color(0xFFF8FAFC),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: AppColors.primary.withOpacity(0.4)),
+              ),
+              child: Column(
+                children: const [
+                  Icon(Icons.cloud_upload_outlined, size: 36, color: AppColors.primary),
+                  SizedBox(height: 8),
+                  Text('Click or Drag File Here', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13.5)),
+                  SizedBox(height: 2),
+                  Text('Supports PDF, DOC, DOCX, PNG, JPG up to 15MB', style: TextStyle(fontSize: 11, color: Colors.grey)),
+                ],
+              ),
+            ),
+            const SizedBox(height: 16),
+            TextFormField(
+              controller: _titleController,
+              decoration: const InputDecoration(labelText: 'Document Title *', border: OutlineInputBorder()),
+            ),
+            const SizedBox(height: 14),
+            Row(
+              children: [
+                Expanded(
+                  child: DropdownButtonFormField<String>(
+                    value: _uploadCategory,
+                    decoration: const InputDecoration(labelText: 'Category', border: OutlineInputBorder(), isDense: true),
+                    items: const [
+                      DropdownMenuItem(value: 'Identity', child: Text('Identity')),
+                      DropdownMenuItem(value: 'Employment', child: Text('Employment')),
+                      DropdownMenuItem(value: 'Education', child: Text('Education')),
+                      DropdownMenuItem(value: 'Other', child: Text('Other')),
+                    ],
+                    onChanged: (val) {
+                      if (val != null) setState(() => _uploadCategory = val);
+                    },
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: TextFormField(
+                    controller: _expiryController,
+                    decoration: const InputDecoration(labelText: 'Expiry Date (YYYY-MM-DD)', border: OutlineInputBorder(), isDense: true),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 14),
+            TextFormField(
+              controller: _descController,
+              decoration: const InputDecoration(labelText: 'Description', border: OutlineInputBorder()),
+            ),
+            const SizedBox(height: 24),
+            SizedBox(
+              width: double.infinity,
+              height: 48,
+              child: ElevatedButton.icon(
+                onPressed: _isUploading ? null : _uploadDocument,
+                icon: const Icon(Icons.send, color: Colors.white),
+                label: Text(_isUploading ? 'Uploading...' : 'Upload Document', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.primary,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

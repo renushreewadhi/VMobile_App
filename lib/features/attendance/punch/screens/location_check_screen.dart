@@ -50,12 +50,31 @@ class _LocationCheckScreenState extends ConsumerState<LocationCheckScreen> {
     }
   }
 
+  void _fitCamera(PunchState state) {
+    if (_googleMapController == null) return;
+    final officeLatLng = LatLng(state.officeLat, state.officeLng);
+    if (!state.hasLocationFix || state.distanceFromOfficeMeters > 5000) {
+      _googleMapController?.animateCamera(CameraUpdate.newLatLngZoom(officeLatLng, 16.0));
+    } else if (state.currentPosition != null) {
+      final userLatLng = LatLng(state.currentPosition!.latitude, state.currentPosition!.longitude);
+      final southWest = LatLng(
+        mathMin(state.officeLat, userLatLng.latitude),
+        mathMin(state.officeLng, userLatLng.longitude),
+      );
+      final northEast = LatLng(
+        mathMax(state.officeLat, userLatLng.latitude),
+        mathMax(state.officeLng, userLatLng.longitude),
+      );
+      _googleMapController?.animateCamera(CameraUpdate.newLatLngBounds(LatLngBounds(southwest: southWest, northeast: northEast), 80.0));
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final state = ref.watch(punchControllerProvider);
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final officeLatLng = LatLng(state.officeLat, state.officeLng);
-    final userLatLng = state.currentPosition != null
+    final userLatLng = state.hasLocationFix && state.currentPosition != null
         ? LatLng(state.currentPosition!.latitude, state.currentPosition!.longitude)
         : officeLatLng;
 
@@ -65,19 +84,9 @@ class _LocationCheckScreenState extends ConsumerState<LocationCheckScreen> {
           GoogleMap(
             onMapCreated: (controller) {
               _googleMapController = controller;
-              if (state.currentPosition != null) {
-                final southWest = LatLng(
-                  mathMin(state.officeLat, state.currentPosition!.latitude),
-                  mathMin(state.officeLng, state.currentPosition!.longitude),
-                );
-                final northEast = LatLng(
-                  mathMax(state.officeLat, state.currentPosition!.latitude),
-                  mathMax(state.officeLng, state.currentPosition!.longitude),
-                );
-                _googleMapController?.animateCamera(CameraUpdate.newLatLngBounds(LatLngBounds(southwest: southWest, northeast: northEast), 80.0));
-              }
+              _fitCamera(state);
             },
-            initialCameraPosition: CameraPosition(target: officeLatLng, zoom: 15.0),
+            initialCameraPosition: CameraPosition(target: officeLatLng, zoom: 16.0),
             mapType: state.selectedTileType == 'Satellite' ? MapType.satellite : MapType.normal,
             zoomControlsEnabled: false,
             myLocationButtonEnabled: false,
@@ -99,7 +108,7 @@ class _LocationCheckScreenState extends ConsumerState<LocationCheckScreen> {
                 infoWindow: InfoWindow(title: '🏢 ${state.officeName}', snippet: state.officeAddress),
                 icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueViolet),
               ),
-              if (state.currentPosition != null)
+              if (state.hasLocationFix)
                 Marker(
                   markerId: const MarkerId('user_position'),
                   position: userLatLng,
@@ -182,19 +191,7 @@ class _LocationCheckScreenState extends ConsumerState<LocationCheckScreen> {
                 _mapFloatingButton(
                   icon: Icons.fit_screen_rounded,
                   tooltip: 'Fit Both',
-                  onTap: () {
-                    if (state.currentPosition != null) {
-                      final southWest = LatLng(
-                        mathMin(state.officeLat, state.currentPosition!.latitude),
-                        mathMin(state.officeLng, state.currentPosition!.longitude),
-                      );
-                      final northEast = LatLng(
-                        mathMax(state.officeLat, state.currentPosition!.latitude),
-                        mathMax(state.officeLng, state.currentPosition!.longitude),
-                      );
-                      _googleMapController?.animateCamera(CameraUpdate.newLatLngBounds(LatLngBounds(southwest: southWest, northeast: northEast), 80.0));
-                    }
-                  },
+                  onTap: () => _fitCamera(state),
                 ),
               ],
             ),
@@ -392,27 +389,31 @@ class _LocationCheckScreenState extends ConsumerState<LocationCheckScreen> {
                       Expanded(
                         flex: 2,
                         child: ElevatedButton(
-                          onPressed: (state.workMode == 'OFFICE' && !state.isWithinGeofence) ||
-                                  (state.workMode == 'WFH' && (state.wfhReason == null || state.wfhReason!.trim().isEmpty))
-                              ? null
-                              : () {
-                                  Navigator.of(context).push(
-                                    MaterialPageRoute(builder: (_) => const SelfieVerifyScreen()),
-                                  );
-                                },
+                          onPressed: (state.workMode == 'OFFICE' && !state.hasLocationFix)
+                              ? () => ref.read(punchControllerProvider.notifier).refreshGps()
+                              : (state.workMode == 'OFFICE' && !state.isWithinGeofence) ||
+                                      (state.workMode == 'WFH' && (state.wfhReason == null || state.wfhReason!.trim().isEmpty))
+                                  ? null
+                                  : () {
+                                      Navigator.of(context).push(
+                                        MaterialPageRoute(builder: (_) => const SelfieVerifyScreen()),
+                                      );
+                                    },
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: AppColors.primary,
+                            backgroundColor: state.workMode == 'OFFICE' && !state.hasLocationFix ? Colors.amber.shade800 : AppColors.primary,
                             disabledBackgroundColor: Colors.grey.withOpacity(0.3),
                             foregroundColor: Colors.white,
                             padding: const EdgeInsets.symmetric(vertical: 14),
                             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                           ),
                           child: Text(
-                            state.workMode == 'OFFICE' && !state.isWithinGeofence
-                                ? 'Move closer to office'
-                                : state.workMode == 'WFH' && (state.wfhReason == null || state.wfhReason!.trim().isEmpty)
-                                    ? 'Enter WFH reason'
-                                    : 'Continue to selfie →',
+                            state.workMode == 'OFFICE' && !state.hasLocationFix
+                                ? (state.isLocating ? 'Locating...' : 'Retry location')
+                                : state.workMode == 'OFFICE' && !state.isWithinGeofence
+                                    ? 'Move closer to office'
+                                    : state.workMode == 'WFH' && (state.wfhReason == null || state.wfhReason!.trim().isEmpty)
+                                        ? 'Enter WFH reason'
+                                        : 'Continue to selfie →',
                             style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 13),
                           ),
                         ),

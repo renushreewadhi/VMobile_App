@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import '../../core/api/api_client.dart';
 import '../../core/api/api_endpoints.dart';
+import '../../core/api/payroll_service.dart';
 import '../../core/auth/auth_service.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/widgets/glass_header.dart';
@@ -128,7 +129,7 @@ class _HrPayrollScreenState extends ConsumerState<HrPayrollScreen> {
       _errorMessage = null;
     });
 
-    final apiClient = ref.read(apiClientProvider);
+    final payrollService = ref.read(payrollServiceProvider);
     try {
       final queryParams = <String, String>{
         'page': _page.toString(),
@@ -139,8 +140,7 @@ class _HrPayrollScreenState extends ConsumerState<HrPayrollScreen> {
         'year': _selectedYear.toString(),
       };
 
-      final queryString = queryParams.entries.map((e) => '${e.key}=${Uri.encodeComponent(e.value)}').join('&');
-      final res = await apiClient.get('${ApiEndpoints.payroll}?$queryString').catchError((_) => null);
+      final res = await payrollService.getPayrollRecords(queryParams: queryParams).catchError((_) => null);
 
       if (!mounted || currentReq != _requestId) return;
 
@@ -154,7 +154,7 @@ class _HrPayrollScreenState extends ConsumerState<HrPayrollScreen> {
 
       if (items.isEmpty) {
         // Fallback to salary employees endpoint if main payroll list is empty
-        final salRes = await apiClient.get(ApiEndpoints.salaryEmployees).catchError((_) => null);
+        final salRes = await payrollService.getEmployeeSalaries().catchError((_) => null);
         if (salRes is List) {
           items = salRes;
         } else if (salRes is Map<String, dynamic>) {
@@ -163,142 +163,18 @@ class _HrPayrollScreenState extends ConsumerState<HrPayrollScreen> {
       }
 
       setState(() {
-        _payrollList = items.isNotEmpty ? items : _getMockPayrollData();
+        _payrollList = items;
         _isLoading = false;
         _selectedIds.clear();
       });
     } catch (e) {
       if (!mounted || currentReq != _requestId) return;
       setState(() {
-        _payrollList = _getMockPayrollData();
+        _payrollList = [];
+        _errorMessage = e.toString().replaceFirst('Exception: ', '').replaceFirst('ApiException: ', '');
         _isLoading = false;
       });
     }
-  }
-
-  List<dynamic> _getMockPayrollData() {
-    return [
-      {
-        'id': 'PR-101',
-        'employeeId': 'EMP-26-0013',
-        'employeeCode': 'EMP-26-0013',
-        'employeeName': 'Amit Prajapati',
-        'designation': 'Developer',
-        'department': 'Engineering',
-        'basicSalary': 8000,
-        'hra': 3200,
-        'allowances': 3200,
-        'pfDeduction': 0,
-        'taxDeduction': 0,
-        'otherDeductions': 0,
-        'totalDeductions': 0,
-        'netPay': 8000,
-        'status': 'Pending',
-        'paymentDate': 'Pending',
-        'bankName': 'State Bank of India (SBI)',
-        'bankAccount': '****5399',
-      },
-      {
-        'id': 'PR-102',
-        'employeeId': 'EMP-26-0009',
-        'employeeCode': 'EMP-26-0009',
-        'employeeName': 'Mansi Borase',
-        'designation': 'Developer',
-        'department': 'Engineering',
-        'basicSalary': 8000,
-        'hra': 3200,
-        'allowances': 3200,
-        'pfDeduction': 0,
-        'taxDeduction': 0,
-        'otherDeductions': 0,
-        'totalDeductions': 0,
-        'netPay': 8000,
-        'status': 'Pending',
-        'paymentDate': 'Pending',
-        'bankName': 'HDFC Bank',
-        'bankAccount': '****3822',
-      },
-      {
-        'id': 'PR-103',
-        'employeeId': 'EMP-24-0002',
-        'employeeCode': 'EMP-24-0002',
-        'employeeName': 'Prachi Natali',
-        'designation': 'HR Manager',
-        'department': 'Human Resources',
-        'basicSalary': 25000,
-        'hra': 10000,
-        'allowances': 25000,
-        'pfDeduction': 3000,
-        'taxDeduction': 1250,
-        'otherDeductions': 388,
-        'totalDeductions': 4638,
-        'netPay': 45363,
-        'status': 'Pending',
-        'paymentDate': 'Pending',
-        'bankName': 'Direct Deposit',
-        'bankAccount': '****1024',
-      },
-      {
-        'id': 'PR-104',
-        'employeeId': 'EMP-24-0003',
-        'employeeCode': 'EMP-24-0003',
-        'employeeName': 'Praveen Singh',
-        'designation': 'Team Lead',
-        'department': 'Engineering',
-        'basicSalary': 14500,
-        'hra': 5800,
-        'allowances': 14666,
-        'pfDeduction': 1740,
-        'taxDeduction': 309,
-        'otherDeductions': 0,
-        'totalDeductions': 2049,
-        'netPay': 27117,
-        'status': 'Pending',
-        'paymentDate': 'Pending',
-        'bankName': 'Direct Deposit',
-        'bankAccount': '****9901',
-      },
-      {
-        'id': 'PR-105',
-        'employeeId': 'EMP-24-0007',
-        'employeeCode': 'EMP-24-0007',
-        'employeeName': 'HRMS Finance',
-        'designation': 'Finance Executive',
-        'department': 'Finance',
-        'basicSalary': 14500,
-        'hra': 5800,
-        'allowances': 14666,
-        'pfDeduction': 1740,
-        'taxDeduction': 309,
-        'otherDeductions': 0,
-        'totalDeductions': 2049,
-        'netPay': 27117,
-        'status': 'Pending',
-        'paymentDate': 'Pending',
-        'bankName': 'Direct Deposit',
-        'bankAccount': '****8811',
-      },
-      {
-        'id': 'PR-106',
-        'employeeId': 'EMP-26-0008',
-        'employeeCode': 'EMP-26-0008',
-        'employeeName': 'Ajay Raja',
-        'designation': 'Developer',
-        'department': 'Engineering',
-        'basicSalary': 8000,
-        'hra': 3200,
-        'allowances': 3200,
-        'pfDeduction': 0,
-        'taxDeduction': 0,
-        'otherDeductions': 0,
-        'totalDeductions': 0,
-        'netPay': 8000,
-        'status': 'Pending',
-        'paymentDate': 'Pending',
-        'bankName': 'Bank Of Baroda',
-        'bankAccount': '****4400',
-      },
-    ];
   }
 
   String _formatMoney(dynamic amount) {
@@ -362,10 +238,10 @@ class _HrPayrollScreenState extends ConsumerState<HrPayrollScreen> {
       _payslipLoading = true;
       _selectedPayslip = null;
     });
-    final apiClient = ref.read(apiClientProvider);
+    final payrollService = ref.read(payrollServiceProvider);
 
     try {
-      final res = await apiClient.get(ApiEndpoints.payslipDetail(payrollId)).catchError((_) => null);
+      final res = await payrollService.getPayslipDetail(payrollId).catchError((_) => null);
       if (!mounted || currentPayslipReq != _payslipRequestId) return;
       if (res is Map<String, dynamic> && (res['data'] != null || res['employeeName'] != null)) {
         setState(() {
@@ -698,59 +574,7 @@ class _HrPayrollScreenState extends ConsumerState<HrPayrollScreen> {
               ),
               const SizedBox(height: 14),
 
-              // Batch Operations Selection Bar
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                decoration: BoxDecoration(color: AppColors.primary.withAlpha(20), borderRadius: BorderRadius.circular(10)),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Row(
-                      children: [
-                        Checkbox(
-                          value: _isAllSelected,
-                          onChanged: (_) => _toggleSelectAll(),
-                          visualDensity: VisualDensity.compact,
-                        ),
-                        Text('${_selectedIds.length} selected', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
-                      ],
-                    ),
-                    Row(
-                      children: [
-                        TextButton.icon(
-                          icon: const Icon(Icons.file_download, size: 16),
-                          label: const Text('Export Excel', style: TextStyle(fontSize: 12)),
-                          onPressed: _exportExcel,
-                        ),
-                        TextButton(
-                          onPressed: _selectedIds.isEmpty
-                              ? null
-                              : () {
-                                  setState(() {
-                                    for (final id in _selectedIds) {
-                                      final idx = _payrollList.indexWhere((r) => r['id']?.toString() == id);
-                                      if (idx != -1) {
-                                        _payrollList[idx]['status'] = 'Paid';
-                                        _payrollList[idx]['paymentDate'] = DateFormat('yyyy-MM-dd').format(DateTime.now());
-                                      }
-                                    }
-                                    _selectedIds.clear();
-                                  });
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(content: Text('Marked selected employees as Paid!'), backgroundColor: AppColors.success),
-                                  );
-                                },
-                          child: Text(
-                            'Mark Paid (${_selectedIds.length})',
-                            style: TextStyle(fontSize: 12, color: _selectedIds.isEmpty ? Colors.grey : Colors.green, fontWeight: FontWeight.bold),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 12),
+              // Batch Operations removed
 
               // Employee Payroll Directory Table List
               filtered.isEmpty
@@ -782,19 +606,10 @@ class _HrPayrollScreenState extends ConsumerState<HrPayrollScreen> {
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                           child: Padding(
                             padding: const EdgeInsets.all(14),
-                            child: Row(
+                            child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Checkbox(
-                                  value: isSelected,
-                                  onChanged: (_) => _toggleRowSelection(id),
-                                ),
-                                const SizedBox(width: 8),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      Row(
+                                Row(
                                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                         children: [
                                           Expanded(
@@ -879,9 +694,6 @@ class _HrPayrollScreenState extends ConsumerState<HrPayrollScreen> {
                                       ),
                                     ],
                                   ),
-                                ),
-                              ],
-                            ),
                           ),
                         );
                       },
@@ -929,16 +741,26 @@ class _HrPayrollScreenState extends ConsumerState<HrPayrollScreen> {
                             Row(
                               mainAxisAlignment: MainAxisAlignment.spaceBetween,
                               children: [
-                                Text('Employee Code: ${_selectedPayslip!['employeeCode'] ?? _selectedPayslip!['employeeId']}', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
-                                Text('Employee Name: ${_selectedPayslip!['employeeName'] ?? _selectedPayslip!['name']}', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                                Expanded(
+                                  child: Text('Employee Code: ${_selectedPayslip!['employeeCode'] ?? _selectedPayslip!['employeeId']}', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold), overflow: TextOverflow.ellipsis),
+                                ),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Text('Employee Name: ${_selectedPayslip!['employeeName'] ?? _selectedPayslip!['name']}', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold), overflow: TextOverflow.ellipsis, textAlign: TextAlign.right),
+                                ),
                               ],
                             ),
                             const SizedBox(height: 4),
                             Row(
                               mainAxisAlignment: MainAxisAlignment.spaceBetween,
                               children: [
-                                Text('Designation: ${_selectedPayslip!['designation'] ?? 'Specialist'}', style: TextStyle(fontSize: 11, color: Colors.grey[700])),
-                                Text('Department: ${_selectedPayslip!['department'] ?? 'Engineering'}', style: TextStyle(fontSize: 11, color: Colors.grey[700])),
+                                Expanded(
+                                  child: Text('Designation: ${_selectedPayslip!['designation'] ?? 'Specialist'}', style: TextStyle(fontSize: 11, color: Colors.grey[700]), overflow: TextOverflow.ellipsis),
+                                ),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Text('Department: ${_selectedPayslip!['department'] ?? 'Engineering'}', style: TextStyle(fontSize: 11, color: Colors.grey[700]), overflow: TextOverflow.ellipsis, textAlign: TextAlign.right),
+                                ),
                               ],
                             ),
                             const SizedBox(height: 4),

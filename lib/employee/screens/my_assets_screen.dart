@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 
 import '../../core/api/api_client.dart';
 import '../../core/api/api_endpoints.dart';
+import '../../core/api/asset_service.dart';
 import '../../core/theme/app_colors.dart';
 import '../../shared/widgets/app_card.dart';
 import '../../shared/widgets/loading_shimmer.dart';
@@ -80,31 +81,36 @@ class _MyAssetsScreenState extends ConsumerState<MyAssetsScreen> {
       _isLoading = true;
       _error = null;
     });
-    final apiClient = ref.read(apiClientProvider);
+    final assetService = ref.read(assetServiceProvider);
 
     try {
-      final results = await Future.wait([
-        apiClient.get(ApiEndpoints.myAssets).catchError((_) => apiClient.get('/assets').catchError((_) => null)),
-        apiClient.get(ApiEndpoints.itSoftwareMyAssignments).catchError((_) => apiClient.get('/it/software').catchError((_) => null)),
-        apiClient.get(ApiEndpoints.assetMyRequests).catchError((_) => apiClient.get(ApiEndpoints.assetRequests).catchError((_) => null)),
-        apiClient.get('/assets/stats').catchError((_) => null),
-      ]);
+      final assetsRes = await assetService.getMyAssets().timeout(const Duration(seconds: 10));
+
+      // Secondary sections: a failure here must not hide the main asset list.
+      dynamic softwareRes;
+      try {
+        softwareRes = await assetService.rawGet(ApiEndpoints.itSoftwareMyAssignments).timeout(const Duration(seconds: 10));
+      } catch (e) {
+        debugPrint('[MyAssets] software load failed: $e');
+      }
+
+      dynamic requestsRes;
+      try {
+        requestsRes = await assetService.getMyAssetRequests().timeout(const Duration(seconds: 10));
+      } catch (e) {
+        debugPrint('[MyAssets] requests load failed: $e');
+      }
 
       if (!mounted) return;
 
-      final assetsRes = results[0];
-      final softwareRes = results[1];
-      final requestsRes = results[2];
-      final statsRes = results[3];
+      List<dynamic> assetList = _extractList(assetsRes);
+      List<dynamic> softwareList = _extractList(softwareRes);
+      List<dynamic> requestList = _extractList(requestsRes);
 
-      final assetList = _extractList(assetsRes);
-      final softwareList = _extractList(softwareRes);
-      final requestList = _extractList(requestsRes);
-
-      Map<String, dynamic> statsMap = {};
-      if (statsRes is Map<String, dynamic>) {
-        statsMap = statsRes['data'] is Map<String, dynamic> ? statsRes['data'] : statsRes;
-      }
+      final Map<String, dynamic> statsMap = {
+        'total': assetList.length,
+        'assigned': assetList.where((a) => a['acknowledgedAt'] != null).length,
+      };
 
       setState(() {
         _assets = assetList;
@@ -130,10 +136,10 @@ class _MyAssetsScreenState extends ConsumerState<MyAssetsScreen> {
 
   Future<void> _acknowledge(String assetId, String assetName) async {
     setState(() => _acknowledgingId = assetId);
-    final apiClient = ref.read(apiClientProvider);
+    final assetService = ref.read(assetServiceProvider);
     try {
-      await apiClient.post(ApiEndpoints.assetAcknowledge(assetId), body: {}).catchError((_) async {
-        return await apiClient.post('/assets/assignments/$assetId/acknowledge', body: {});
+      await assetService.acknowledgeAsset(assetId).catchError((_) async {
+        return await assetService.rawPost('/assets/assignments/$assetId/acknowledge', body: {});
       });
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -159,13 +165,13 @@ class _MyAssetsScreenState extends ConsumerState<MyAssetsScreen> {
     }
 
     setState(() => _requesting = true);
-    final apiClient = ref.read(apiClientProvider);
+    final assetService = ref.read(assetServiceProvider);
     try {
-      await apiClient.post(ApiEndpoints.assetRequests, body: {
+      await assetService.createAssetRequest({
         'category': _requestCategory,
         'reason': _reasonController.text.trim(),
       }).catchError((_) async {
-        return await apiClient.post('/assets/request', body: {
+        return await assetService.rawPost('/assets/request', body: {
           'category': _requestCategory,
           'reason': _reasonController.text.trim(),
         });
@@ -217,7 +223,7 @@ class _MyAssetsScreenState extends ConsumerState<MyAssetsScreen> {
     }
 
     final totalAssets = _stats['total'] ?? _assets.length;
-    final availableAssets = _stats['available'] ?? 1;
+    final availableAssets = _stats['available'] ?? 0;
     final assignedAssets = _stats['assigned'] ?? _assets.where((a) => a['acknowledgedAt'] != null).length;
     final underRepair = _stats['underRepair'] ?? 0;
     final pendingAckCount = _assets.where((a) => a['acknowledgedAt'] == null).length;
@@ -316,21 +322,22 @@ class _MyAssetsScreenState extends ConsumerState<MyAssetsScreen> {
                   // 7 Stat Cards Row matching web reference
                   SingleChildScrollView(
                     scrollDirection: Axis.horizontal,
+                    physics: const BouncingScrollPhysics(),
                     child: Row(
                       children: [
-                        SizedBox(width: 130, child: _buildStatTile(cardBgColor, label: 'Total Assets', value: '$totalAssets', icon: Icons.inventory_2_rounded, color: const Color(0xFF2563EB))),
-                        const SizedBox(width: 8),
-                        SizedBox(width: 130, child: _buildStatTile(cardBgColor, label: 'Available', value: '$availableAssets', icon: Icons.check_circle_outline_rounded, color: const Color(0xFF10B981))),
-                        const SizedBox(width: 8),
-                        SizedBox(width: 130, child: _buildStatTile(cardBgColor, label: 'Assigned', value: '$assignedAssets', icon: Icons.assignment_ind_rounded, color: const Color(0xFF0284C7))),
-                        const SizedBox(width: 8),
-                        SizedBox(width: 130, child: _buildStatTile(cardBgColor, label: 'Under Repair', value: '$underRepair', icon: Icons.build_rounded, color: const Color(0xFFF59E0B))),
-                        const SizedBox(width: 8),
-                        SizedBox(width: 130, child: _buildStatTile(cardBgColor, label: 'Returned', value: '0', icon: Icons.assignment_return_rounded, color: const Color(0xFF8B5CF6))),
-                        const SizedBox(width: 8),
-                        SizedBox(width: 130, child: _buildStatTile(cardBgColor, label: 'Lost', value: '0', icon: Icons.warning_amber_rounded, color: const Color(0xFFEF4444))),
-                        const SizedBox(width: 8),
-                        SizedBox(width: 130, child: _buildStatTile(cardBgColor, label: 'Pending Ack', value: '$pendingAckCount', icon: Icons.hourglass_empty_rounded, color: const Color(0xFFD97706))),
+                        SizedBox(width: 110, child: _buildStatTile(cardBgColor, label: 'Total', value: '$totalAssets', icon: Icons.inventory_2_rounded, color: const Color(0xFF2563EB))),
+                        const SizedBox(width: 6),
+                        SizedBox(width: 110, child: _buildStatTile(cardBgColor, label: 'Available', value: '$availableAssets', icon: Icons.check_circle_outline_rounded, color: const Color(0xFF10B981))),
+                        const SizedBox(width: 6),
+                        SizedBox(width: 110, child: _buildStatTile(cardBgColor, label: 'Assigned', value: '$assignedAssets', icon: Icons.assignment_ind_rounded, color: const Color(0xFF0284C7))),
+                        const SizedBox(width: 6),
+                        SizedBox(width: 110, child: _buildStatTile(cardBgColor, label: 'Repair', value: '$underRepair', icon: Icons.build_rounded, color: const Color(0xFFF59E0B))),
+                        const SizedBox(width: 6),
+                        SizedBox(width: 110, child: _buildStatTile(cardBgColor, label: 'Returned', value: '0', icon: Icons.assignment_return_rounded, color: const Color(0xFF8B5CF6))),
+                        const SizedBox(width: 6),
+                        SizedBox(width: 110, child: _buildStatTile(cardBgColor, label: 'Lost', value: '0', icon: Icons.warning_amber_rounded, color: const Color(0xFFEF4444))),
+                        const SizedBox(width: 6),
+                        SizedBox(width: 110, child: _buildStatTile(cardBgColor, label: 'Pending', value: '$pendingAckCount', icon: Icons.hourglass_empty_rounded, color: const Color(0xFFD97706))),
                       ],
                     ),
                   ),
@@ -346,94 +353,94 @@ class _MyAssetsScreenState extends ConsumerState<MyAssetsScreen> {
                   const SizedBox(height: 10),
                   _assets.isEmpty
                       ? AppCard(
-                          backgroundColor: cardBgColor,
-                          child: Padding(
-                            padding: const EdgeInsets.all(28),
-                            child: Center(
-                              child: Column(
-                                children: const [
-                                  Icon(Icons.laptop_outlined, size: 36, color: Colors.grey),
-                                  SizedBox(height: 8),
-                                  Text('No hardware assets are currently assigned to you.', style: TextStyle(fontSize: 12.5, color: Colors.grey), textAlign: TextAlign.center),
-                                ],
-                              ),
-                            ),
-                          ),
-                        )
+                    backgroundColor: cardBgColor,
+                    child: Padding(
+                      padding: const EdgeInsets.all(28),
+                      child: Center(
+                        child: Column(
+                          children: const [
+                            Icon(Icons.laptop_outlined, size: 36, color: Colors.grey),
+                            SizedBox(height: 8),
+                            Text('No hardware assets are currently assigned to you.', style: TextStyle(fontSize: 12.5, color: Colors.grey), textAlign: TextAlign.center),
+                          ],
+                        ),
+                      ),
+                    ),
+                  )
                       : ListView.separated(
-                          shrinkWrap: true,
-                          physics: const NeverScrollableScrollPhysics(),
-                          itemCount: _assets.length,
-                          separatorBuilder: (_, __) => const SizedBox(height: 12),
-                          itemBuilder: (context, index) {
-                            final a = _assets[index];
-                            final assetName = a['assetName']?.toString() ?? a['name']?.toString() ?? 'Hardware Asset';
-                            final assetCode = a['assetCode']?.toString() ?? a['assetTag']?.toString() ?? 'AST-001';
-                            final acknowledged = a['acknowledgedAt'] != null;
-                            final id = a['id']?.toString() ?? '';
-                            final issued = _formatDate(a['issuedAt']?.toString());
-                            final condition = a['condition']?.toString() ?? 'Good';
-                            final notes = a['notes']?.toString();
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    itemCount: _assets.length,
+                    separatorBuilder: (_, __) => const SizedBox(height: 12),
+                    itemBuilder: (context, index) {
+                      final a = _assets[index];
+                      final assetName = a['assetName']?.toString() ?? a['name']?.toString() ?? 'Hardware Asset';
+                      final assetCode = a['assetCode']?.toString() ?? a['assetTag']?.toString() ?? 'AST-001';
+                      final acknowledged = a['acknowledgedAt'] != null;
+                      final id = a['id']?.toString() ?? '';
+                      final issued = _formatDate(a['issuedAt']?.toString());
+                      final condition = a['condition']?.toString() ?? 'Good';
+                      final notes = a['notes']?.toString();
 
-                            return AppCard(
-                              backgroundColor: cardBgColor,
-                              padding: const EdgeInsets.all(14),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Row(
-                                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                    children: [
-                                      Row(
-                                        children: [
-                                          Container(
-                                            padding: const EdgeInsets.all(10),
-                                            decoration: BoxDecoration(color: const Color(0xFF0F6B66).withAlpha(30), borderRadius: BorderRadius.circular(10)),
-                                            child: const Icon(Icons.laptop, color: Color(0xFF0F6B66), size: 20),
-                                          ),
-                                          const SizedBox(width: 12),
-                                          Column(
-                                            crossAxisAlignment: CrossAxisAlignment.start,
-                                            children: [
-                                              Text(assetCode, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Color(0xFF0F6B66))),
-                                              const SizedBox(height: 2),
-                                              Text(assetName, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: isDark ? AppColors.darkPrimaryText : AppColors.lightPrimaryText)),
-                                            ],
-                                          ),
-                                        ],
-                                      ),
-                                      StatusChip(status: acknowledged ? 'IN USE' : 'PENDING ACK'),
-                                    ],
-                                  ),
-                                  const SizedBox(height: 10),
-                                  Row(
-                                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                    children: [
-                                      Text('Issued: $issued', style: TextStyle(fontSize: 11.5, color: isDark ? AppColors.darkSecondaryText : AppColors.lightSecondaryText)),
-                                      Text('Condition: $condition', style: TextStyle(fontSize: 11.5, color: isDark ? AppColors.darkSecondaryText : AppColors.lightSecondaryText)),
-                                    ],
-                                  ),
-                                  if (notes != null && notes.isNotEmpty) ...[
-                                    const SizedBox(height: 6),
-                                    Text('Note: $notes', style: TextStyle(fontSize: 11.5, fontStyle: FontStyle.italic, color: isDark ? AppColors.darkMutedText : Colors.grey)),
-                                  ],
-                                  if (!acknowledged) ...[
-                                    const SizedBox(height: 12),
-                                    SizedBox(
-                                      width: double.infinity,
-                                      child: ElevatedButton.icon(
-                                        onPressed: _acknowledgingId == id ? null : () => _acknowledge(id, assetName),
-                                        icon: const Icon(Icons.check, size: 16),
-                                        label: Text(_acknowledgingId == id ? 'Confirming...' : 'Acknowledge Receipt'),
-                                        style: ElevatedButton.styleFrom(backgroundColor: AppColors.success, foregroundColor: Colors.white),
-                                      ),
+                      return AppCard(
+                        backgroundColor: cardBgColor,
+                        padding: const EdgeInsets.all(14),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Row(
+                                  children: [
+                                    Container(
+                                      padding: const EdgeInsets.all(10),
+                                      decoration: BoxDecoration(color: const Color(0xFF0F6B66).withAlpha(30), borderRadius: BorderRadius.circular(10)),
+                                      child: const Icon(Icons.laptop, color: Color(0xFF0F6B66), size: 20),
+                                    ),
+                                    const SizedBox(width: 12),
+                                    Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text(assetCode, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Color(0xFF0F6B66))),
+                                        const SizedBox(height: 2),
+                                        Text(assetName, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: isDark ? AppColors.darkPrimaryText : AppColors.lightPrimaryText)),
+                                      ],
                                     ),
                                   ],
-                                ],
+                                ),
+                                StatusChip(status: acknowledged ? 'IN USE' : 'PENDING ACK'),
+                              ],
+                            ),
+                            const SizedBox(height: 10),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Text('Issued: $issued', style: TextStyle(fontSize: 11.5, color: isDark ? AppColors.darkSecondaryText : AppColors.lightSecondaryText)),
+                                Text('Condition: $condition', style: TextStyle(fontSize: 11.5, color: isDark ? AppColors.darkSecondaryText : AppColors.lightSecondaryText)),
+                              ],
+                            ),
+                            if (notes != null && notes.isNotEmpty) ...[
+                              const SizedBox(height: 6),
+                              Text('Note: $notes', style: TextStyle(fontSize: 11.5, fontStyle: FontStyle.italic, color: isDark ? AppColors.darkMutedText : Colors.grey)),
+                            ],
+                            if (!acknowledged) ...[
+                              const SizedBox(height: 12),
+                              SizedBox(
+                                width: double.infinity,
+                                child: ElevatedButton.icon(
+                                  onPressed: _acknowledgingId == id ? null : () => _acknowledge(id, assetName),
+                                  icon: const Icon(Icons.check, size: 16),
+                                  label: Text(_acknowledgingId == id ? 'Confirming...' : 'Acknowledge Receipt'),
+                                  style: ElevatedButton.styleFrom(backgroundColor: AppColors.success, foregroundColor: Colors.white),
+                                ),
                               ),
-                            );
-                          },
+                            ],
+                          ],
                         ),
+                      );
+                    },
+                  ),
                   const SizedBox(height: 20),
 
                   // 2. ASSIGNED SOFTWARE & SUBSCRIPTIONS
@@ -446,75 +453,75 @@ class _MyAssetsScreenState extends ConsumerState<MyAssetsScreen> {
                   const SizedBox(height: 10),
                   _softwareLicenses.isEmpty
                       ? AppCard(
-                          backgroundColor: cardBgColor,
-                          child: Padding(
-                            padding: const EdgeInsets.all(28),
-                            child: Center(
-                              child: Column(
-                                children: const [
-                                  Icon(Icons.key_outlined, size: 36, color: Colors.grey),
-                                  SizedBox(height: 8),
-                                  Text('No software licenses currently assigned to you.', style: TextStyle(fontSize: 12.5, color: Colors.grey), textAlign: TextAlign.center),
-                                ],
-                              ),
-                            ),
-                          ),
-                        )
-                      : ListView.separated(
-                          shrinkWrap: true,
-                          physics: const NeverScrollableScrollPhysics(),
-                          itemCount: _softwareLicenses.length,
-                          separatorBuilder: (_, __) => const SizedBox(height: 12),
-                          itemBuilder: (context, index) {
-                            final s = _softwareLicenses[index];
-                            final swName = s['licenseName']?.toString() ?? s['name']?.toString() ?? 'Software License';
-                            final vendor = s['vendor']?.toString() ?? 'IT Subscription';
-                            final assigned = _formatDate(s['assignedAt']?.toString());
-                            final expiry = s['expiryDate'] != null ? _formatDate(s['expiryDate'].toString()) : 'Never';
-
-                            return AppCard(
-                              backgroundColor: cardBgColor,
-                              padding: const EdgeInsets.all(14),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Row(
-                                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                    children: [
-                                      Row(
-                                        children: [
-                                          Container(
-                                            padding: const EdgeInsets.all(10),
-                                            decoration: BoxDecoration(color: Colors.green.withAlpha(30), borderRadius: BorderRadius.circular(10)),
-                                            child: const Icon(Icons.code, color: Colors.green, size: 20),
-                                          ),
-                                          const SizedBox(width: 12),
-                                          Column(
-                                            crossAxisAlignment: CrossAxisAlignment.start,
-                                            children: [
-                                              Text(vendor, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.green)),
-                                              const SizedBox(height: 2),
-                                              Text(swName, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: isDark ? AppColors.darkPrimaryText : AppColors.lightPrimaryText)),
-                                            ],
-                                          ),
-                                        ],
-                                      ),
-                                      const StatusChip(status: 'ACTIVE SEAT'),
-                                    ],
-                                  ),
-                                  const SizedBox(height: 10),
-                                  Row(
-                                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                    children: [
-                                      Text('Assigned On: $assigned', style: TextStyle(fontSize: 11.5, color: isDark ? AppColors.darkSecondaryText : AppColors.lightSecondaryText)),
-                                      Text('Expires: $expiry', style: TextStyle(fontSize: 11.5, color: isDark ? AppColors.darkSecondaryText : AppColors.lightSecondaryText)),
-                                    ],
-                                  ),
-                                ],
-                              ),
-                            );
-                          },
+                    backgroundColor: cardBgColor,
+                    child: Padding(
+                      padding: const EdgeInsets.all(28),
+                      child: Center(
+                        child: Column(
+                          children: const [
+                            Icon(Icons.key_outlined, size: 36, color: Colors.grey),
+                            SizedBox(height: 8),
+                            Text('No software licenses currently assigned to you.', style: TextStyle(fontSize: 12.5, color: Colors.grey), textAlign: TextAlign.center),
+                          ],
                         ),
+                      ),
+                    ),
+                  )
+                      : ListView.separated(
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    itemCount: _softwareLicenses.length,
+                    separatorBuilder: (_, __) => const SizedBox(height: 12),
+                    itemBuilder: (context, index) {
+                      final s = _softwareLicenses[index];
+                      final swName = s['licenseName']?.toString() ?? s['name']?.toString() ?? 'Software License';
+                      final vendor = s['vendor']?.toString() ?? 'IT Subscription';
+                      final assigned = _formatDate(s['assignedAt']?.toString());
+                      final expiry = s['expiryDate'] != null ? _formatDate(s['expiryDate'].toString()) : 'Never';
+
+                      return AppCard(
+                        backgroundColor: cardBgColor,
+                        padding: const EdgeInsets.all(14),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Row(
+                                  children: [
+                                    Container(
+                                      padding: const EdgeInsets.all(10),
+                                      decoration: BoxDecoration(color: Colors.green.withAlpha(30), borderRadius: BorderRadius.circular(10)),
+                                      child: const Icon(Icons.code, color: Colors.green, size: 20),
+                                    ),
+                                    const SizedBox(width: 12),
+                                    Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text(vendor, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.green)),
+                                        const SizedBox(height: 2),
+                                        Text(swName, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: isDark ? AppColors.darkPrimaryText : AppColors.lightPrimaryText)),
+                                      ],
+                                    ),
+                                  ],
+                                ),
+                                const StatusChip(status: 'ACTIVE SEAT'),
+                              ],
+                            ),
+                            const SizedBox(height: 10),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Text('Assigned On: $assigned', style: TextStyle(fontSize: 11.5, color: isDark ? AppColors.darkSecondaryText : AppColors.lightSecondaryText)),
+                                Text('Expires: $expiry', style: TextStyle(fontSize: 11.5, color: isDark ? AppColors.darkSecondaryText : AppColors.lightSecondaryText)),
+                              ],
+                            ),
+                          ],
+                        ),
+                      );
+                    },
+                  ),
                 ] else ...[
                   // ASSET REQUESTS TAB
                   Row(
@@ -526,49 +533,49 @@ class _MyAssetsScreenState extends ConsumerState<MyAssetsScreen> {
                   const SizedBox(height: 10),
                   _requests.isEmpty
                       ? AppCard(
-                          backgroundColor: cardBgColor,
-                          child: Padding(
-                            padding: const EdgeInsets.all(28),
-                            child: Center(
-                              child: Text('You have not requested any assets.', style: TextStyle(fontSize: 12.5, color: isDark ? AppColors.darkSecondaryText : AppColors.lightSecondaryText)),
-                            ),
-                          ),
-                        )
+                    backgroundColor: cardBgColor,
+                    child: Padding(
+                      padding: const EdgeInsets.all(28),
+                      child: Center(
+                        child: Text('You have not requested any assets.', style: TextStyle(fontSize: 12.5, color: isDark ? AppColors.darkSecondaryText : AppColors.lightSecondaryText)),
+                      ),
+                    ),
+                  )
                       : ListView.separated(
-                          shrinkWrap: true,
-                          physics: const NeverScrollableScrollPhysics(),
-                          itemCount: _requests.length,
-                          separatorBuilder: (_, __) => const SizedBox(height: 10),
-                          itemBuilder: (context, index) {
-                            final r = _requests[index];
-                            final cat = _categoryLabel(r['category']?.toString() ?? 'LAPTOP');
-                            final reqDate = _formatDate(r['requestedAt']?.toString() ?? r['createdAt']?.toString());
-                            final reason = r['reason']?.toString() ?? '';
-                            final status = r['status']?.toString() ?? 'PENDING';
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    itemCount: _requests.length,
+                    separatorBuilder: (_, __) => const SizedBox(height: 10),
+                    itemBuilder: (context, index) {
+                      final r = _requests[index];
+                      final cat = _categoryLabel(r['category']?.toString() ?? 'LAPTOP');
+                      final reqDate = _formatDate(r['requestedAt']?.toString() ?? r['createdAt']?.toString());
+                      final reason = r['reason']?.toString() ?? '';
+                      final status = r['status']?.toString() ?? 'PENDING';
 
-                            return AppCard(
-                              backgroundColor: cardBgColor,
-                              padding: const EdgeInsets.all(12),
-                              child: Row(
-                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      return AppCard(
+                        backgroundColor: cardBgColor,
+                        padding: const EdgeInsets.all(12),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  Expanded(
-                                    child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                      children: [
-                                        Text(cat, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: isDark ? AppColors.darkPrimaryText : AppColors.lightPrimaryText)),
-                                        const SizedBox(height: 2),
-                                        Text('Requested on $reqDate${reason.isNotEmpty ? " • $reason" : ""}', style: TextStyle(fontSize: 11.5, color: isDark ? AppColors.darkSecondaryText : AppColors.lightSecondaryText)),
-                                      ],
-                                    ),
-                                  ),
-                                  const SizedBox(width: 8),
-                                  StatusChip(status: status),
+                                  Text(cat, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: isDark ? AppColors.darkPrimaryText : AppColors.lightPrimaryText)),
+                                  const SizedBox(height: 2),
+                                  Text('Requested on $reqDate${reason.isNotEmpty ? " • $reason" : ""}', style: TextStyle(fontSize: 11.5, color: isDark ? AppColors.darkSecondaryText : AppColors.lightSecondaryText)),
                                 ],
                               ),
-                            );
-                          },
+                            ),
+                            const SizedBox(width: 8),
+                            StatusChip(status: status),
+                          ],
                         ),
+                      );
+                    },
+                  ),
                 ],
               ],
             ),

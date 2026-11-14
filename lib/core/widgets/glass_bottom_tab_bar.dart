@@ -74,70 +74,69 @@ class GlassBottomTabBar extends StatelessWidget {
                 selected: tab.isSelected,
                 button: true,
                 label: tab.label,
-                child: GestureDetector(
-                  onTap: tab.onTap,
-                  child: AnimatedContainer(
-                    duration: const Duration(milliseconds: 200),
-                    curve: Curves.easeInOut,
-                    padding: EdgeInsets.symmetric(
-                      horizontal: tab.isSelected ? 12 : 8,
-                      vertical: 8,
-                    ),
-                    decoration: BoxDecoration(
-                      color: tab.isSelected ? glass.activeTabFill : Colors.transparent,
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Stack(
-                          clipBehavior: Clip.none,
-                          children: [
-                            Icon(
-                              tab.icon,
-                              size: 22,
-                              color: tab.isSelected ? glass.activeTabContent : glass.inactiveTab,
-                            ),
-                            if (tab.badgeCount != null && tab.badgeCount! > 0)
-                              Positioned(
-                                right: -6,
-                                top: -4,
-                                child: Container(
-                                  padding: const EdgeInsets.all(4),
-                                  decoration: BoxDecoration(
-                                    color: glass.error,
-                                    shape: BoxShape.circle,
-                                  ),
-                                  constraints: const BoxConstraints(
-                                    minWidth: 14,
-                                    minHeight: 14,
-                                  ),
-                                  child: Center(
-                                    child: Text(
-                                      '${tab.badgeCount}',
-                                      style: const TextStyle(
-                                        fontSize: 9,
-                                        fontWeight: FontWeight.bold,
-                                        color: Colors.white,
+                child: Material(
+                  color: tab.isSelected ? glass.activeTabFill : Colors.transparent,
+                  borderRadius: BorderRadius.circular(16),
+                  child: InkWell(
+                    onTap: tab.onTap,
+                    borderRadius: BorderRadius.circular(16),
+                    child: Container(
+                      constraints: const BoxConstraints(minWidth: 48, minHeight: 48),
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                      alignment: Alignment.center,
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Stack(
+                            clipBehavior: Clip.none,
+                            children: [
+                              Icon(
+                                tab.icon,
+                                size: 20,
+                                color: tab.isSelected ? glass.activeTabContent : glass.inactiveTab,
+                              ),
+                              if (tab.badgeCount != null && tab.badgeCount! > 0)
+                                Positioned(
+                                  right: -6,
+                                  top: -4,
+                                  child: Container(
+                                    padding: const EdgeInsets.all(4),
+                                    decoration: BoxDecoration(
+                                      color: glass.error,
+                                      shape: BoxShape.circle,
+                                    ),
+                                    constraints: const BoxConstraints(
+                                      minWidth: 14,
+                                      minHeight: 14,
+                                    ),
+                                    child: Center(
+                                      child: Text(
+                                        '${tab.badgeCount}',
+                                        style: const TextStyle(
+                                          fontSize: 9,
+                                          fontWeight: FontWeight.bold,
+                                          color: Colors.white,
+                                        ),
                                       ),
                                     ),
                                   ),
                                 ),
-                              ),
-                          ],
-                        ),
-                        if (tab.isSelected) ...[
-                          const SizedBox(width: 5),
+                            ],
+                          ),
+                          const SizedBox(height: 3),
                           Text(
                             tab.label,
                             style: TextStyle(
-                              fontSize: 10,
-                              fontWeight: FontWeight.w700,
-                              color: glass.activeTabContent,
+                              fontSize: 11,
+                              fontWeight: tab.isSelected ? FontWeight.w800 : FontWeight.w600,
+                              color: tab.isSelected ? glass.activeTabContent : glass.inactiveTab,
                             ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
                           ),
                         ],
-                      ],
+                      ),
                     ),
                   ),
                 ),

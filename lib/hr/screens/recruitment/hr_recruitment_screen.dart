@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/api/api_client.dart';
+import '../../../core/api/recruitment_service.dart';
 import '../../../core/auth/auth_service.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/widgets/glass_header.dart';
@@ -79,17 +80,12 @@ class _HrRecruitmentScreenState extends ConsumerState<HrRecruitmentScreen> {
       _errorMessage = null;
     });
 
-    final apiClient = ref.read(apiClientProvider);
-    final storageService = ref.read(storageServiceProvider);
-    final token = await storageService.getToken();
-    if (token != null && token.isNotEmpty) {
-      apiClient.setAuthToken(token);
-    }
+    final recruitmentService = ref.read(recruitmentServiceProvider);
 
     try {
-      final jobRes = await apiClient.get('/recruitment/jobs').catchError((_) => null);
-      final candRes = await apiClient.get('/recruitment/candidates').catchError((_) => null);
-      final intRes = await apiClient.get('/recruitment/interviews').catchError((_) => null);
+      final jobRes = await recruitmentService.getJobs().catchError((_) => null);
+      final candRes = await recruitmentService.getCandidates().catchError((_) => null);
+      final intRes = await recruitmentService.getInterviews().catchError((_) => null);
 
       if (!mounted || currentReq != _requestId) return;
 

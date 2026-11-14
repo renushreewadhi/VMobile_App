@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/api/api_client.dart';
+import '../../../core/api/training_service.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/widgets/glass_scaffold.dart';
 import '../../../shared/widgets/app_card.dart';
@@ -80,10 +81,10 @@ class _HrTrainingDashboardScreenState extends ConsumerState<HrTrainingDashboardS
 
   Future<void> _loadTrainingData() async {
     setState(() => _isLoading = true);
-    final apiClient = ref.read(apiClientProvider);
+    final trainingService = ref.read(trainingServiceProvider);
     try {
-      final asgnRes = await apiClient.get('/training/assignments').catchError((_) => null);
-      final courseRes = await apiClient.get('/training/courses').catchError((_) => null);
+      final asgnRes = await trainingService.rawGet('/training/assignments').catchError((_) => null);
+      final courseRes = await trainingService.getCourses().catchError((_) => null);
 
       List<dynamic> assignments = asgnRes is List ? asgnRes : (asgnRes is Map ? (asgnRes['items'] ?? asgnRes['data'] ?? []) : []);
       List<dynamic> courses = courseRes is List ? courseRes : (courseRes is Map ? (courseRes['items'] ?? courseRes['data'] ?? []) : []);

@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/api/api_client.dart';
 import '../../core/api/api_endpoints.dart';
+import '../../core/api/leave_service.dart';
 import '../../core/auth/auth_service.dart';
 import '../../core/theme/app_colors.dart';
 import '../../shared/widgets/app_card.dart';
@@ -38,10 +39,11 @@ class _TlDashboardScreenState extends ConsumerState<TlDashboardScreen> {
   Future<void> _fetchTlDashboard() async {
     setState(() => _isLoading = true);
     final apiClient = ref.read(apiClientProvider);
+    final leaveService = ref.read(leaveServiceProvider);
 
     try {
       final teamAtt = await apiClient.get(ApiEndpoints.attendanceTeam).catchError((_) => null);
-      final pendingLeaves = await apiClient.get(ApiEndpoints.leavePending).catchError((_) => null);
+      final pendingLeaves = await leaveService.getPendingLeaves().catchError((_) => null);
 
       if (mounted) {
         setState(() {
@@ -70,7 +72,7 @@ class _TlDashboardScreenState extends ConsumerState<TlDashboardScreen> {
 
     if (_isLoading) return const DashboardSkeleton();
 
-    final teamSize = _teamAttendance.isNotEmpty ? _teamAttendance.length : 8;
+    final teamSize = _teamAttendance.length;
     final pendingCount = _pendingLeaves.length;
 
     return RefreshIndicator(

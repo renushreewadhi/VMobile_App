@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:image_picker/image_picker.dart';
 
 import '../../core/api/api_client.dart';
 import '../../core/api/api_endpoints.dart';
@@ -39,6 +40,55 @@ class _DailyWorkUpdateScreenState extends ConsumerState<DailyWorkUpdateScreen> {
   bool _loading = true;
   bool _submitting = false;
   String? _error;
+
+  List<XFile> _selectedScreenshots = [];
+  XFile? _selectedVideo;
+
+  Future<void> _pickScreenshots() async {
+    try {
+      final picker = ImagePicker();
+      final images = await picker.pickMultiImage(imageQuality: 80);
+      if (images.isNotEmpty) {
+        setState(() {
+          _selectedScreenshots.addAll(images);
+        });
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('${images.length} screenshot(s) attached successfully'), backgroundColor: AppColors.success),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to pick screenshots: $e'), backgroundColor: AppColors.error),
+        );
+      }
+    }
+  }
+
+  Future<void> _pickVideo() async {
+    try {
+      final picker = ImagePicker();
+      final video = await picker.pickVideo(source: ImageSource.gallery);
+      if (video != null) {
+        setState(() {
+          _selectedVideo = video;
+        });
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Video demo attached successfully'), backgroundColor: AppColors.success),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to pick video: $e'), backgroundColor: AppColors.error),
+        );
+      }
+    }
+  }
 
   String _activeTab = 'my'; // 'my' or 'team'
   int _mainTab = 0; // 0 = Submit Report, 1 = Work Logs
@@ -146,41 +196,6 @@ class _DailyWorkUpdateScreenState extends ConsumerState<DailyWorkUpdateScreen> {
         rawMine = mineRes['data'] ?? mineRes['items'] ?? mineRes['result'] ?? [];
       }
 
-      if (rawMine.isEmpty) {
-        rawMine = [
-          {
-            'id': 'EOD-201',
-            'employeeName': 'Employee One',
-            'date': '2026-10-17',
-            'projectName': 'EOD Work Summary & Module Progress',
-            'hoursWorked': 8.0,
-            'status': 'Approved',
-            'workDescription': 'Completed UI enhancement for EOD updates tab and validated backend API response.',
-            'taskTitle': 'EOD Work Summary & Module Progress',
-            'blockerIssue': 'None',
-            'tomorrowPlan': 'Review pending tasks and implement notification triggers.',
-            'reviewedByName': 'Sarah Jenkins',
-            'reviewedAt': '2026-10-17',
-            'reviewComments': 'Great progress and thorough implementation.'
-          },
-          {
-            'id': 'EOD-202',
-            'employeeName': 'Employee One',
-            'date': '2026-10-16',
-            'projectName': 'Database Migration & Query Optimization',
-            'hoursWorked': 7.5,
-            'status': 'Approved',
-            'workDescription': 'Optimized SQL queries and migration scripts for user profiles.',
-            'taskTitle': 'Database Migration & Query Optimization',
-            'blockerIssue': 'None',
-            'tomorrowPlan': 'Continue API testing.',
-            'reviewedByName': 'Sarah Jenkins',
-            'reviewedAt': '2026-10-16',
-            'reviewComments': 'Approved.'
-          }
-        ];
-      }
-
       _pastUpdates = rawMine.map((u) => _mapToItem(u)).toList();
 
       if (_isReviewer) {
@@ -255,16 +270,16 @@ class _DailyWorkUpdateScreenState extends ConsumerState<DailyWorkUpdateScreen> {
 
     return {
       'id': map['id']?.toString() ?? '',
-      'employeeName': map['employeeName']?.toString() ?? 'Employee',
+      'employeeName': map['employeeName']?.toString() ?? map['user']?['name']?.toString() ?? map['userName']?.toString() ?? 'Employee',
       'date': map['date']?.toString().split('T')[0] ?? 'Today',
-      'project': map['projectName']?.toString() ?? map['project']?.toString() ?? 'General Work',
-      'accomplishments': map['workDescription']?.toString() ?? map['tasksCompleted']?.toString() ?? '',
-      'inProgress': map['taskTitle']?.toString() ?? map['summary']?.toString() ?? '',
+      'project': map['projectName']?.toString() ?? map['project']?['name']?.toString() ?? map['project']?.toString() ?? 'General Work',
+      'accomplishments': map['workDescription']?.toString() ?? map['accomplishments']?.toString() ?? map['tasksCompleted']?.toString() ?? '',
+      'inProgress': map['taskTitle']?.toString() ?? map['inProgress']?.toString() ?? map['summary']?.toString() ?? '',
       'blockers': map['blockerIssue']?.toString() ?? map['blockers']?.toString() ?? 'None',
-      'tomorrowPlan': map['tomorrowPlan']?.toString() ?? '—',
-      'hours': map['hoursWorked'] ?? 8,
+      'tomorrowPlan': map['tomorrowPlan']?.toString() ?? map['nextDayPlan']?.toString() ?? '—',
+      'hours': map['hoursWorked'] ?? map['hours'] ?? 8,
       'status': formattedStatus,
-      'reviewComments': map['reviewComments']?.toString() ?? '',
+      'reviewComments': map['reviewComments']?.toString() ?? map['comments']?.toString() ?? '',
       'reviewedByName': map['reviewedByName']?.toString() ?? '',
       'reviewedAt': map['reviewedAt']?.toString().split('T')[0] ?? '',
     };
@@ -285,10 +300,11 @@ class _DailyWorkUpdateScreenState extends ConsumerState<DailyWorkUpdateScreen> {
 
     final payload = <String, dynamic>{
       'date': _date,
-      'projectId': selectedProj['id'],
+      if (selectedProj['id'] != null) 'projectId': selectedProj['id'],
       'taskTitle': _inProgressController.text.trim().isNotEmpty ? _inProgressController.text.trim() : _project,
-      'workDescription': _accomplishmentsController.text.trim() + (_tomorrowPlanController.text.trim().isNotEmpty ? '\n\nTomorrow Plan:\n${_tomorrowPlanController.text.trim()}' : ''),
+      'workDescription': _accomplishmentsController.text.trim(),
       'blockerIssue': _blockersController.text.trim().isNotEmpty ? _blockersController.text.trim() : 'None',
+      'tomorrowPlan': _tomorrowPlanController.text.trim().isNotEmpty ? _tomorrowPlanController.text.trim() : '—',
       'hoursWorked': _hoursSpent,
     };
 
@@ -304,6 +320,8 @@ class _DailyWorkUpdateScreenState extends ConsumerState<DailyWorkUpdateScreen> {
         _inProgressController.clear();
         _blockersController.clear();
         _tomorrowPlanController.clear();
+        _selectedScreenshots.clear();
+        _selectedVideo = null;
         _hoursSpent = 8.0;
         _submitting = false;
       });
@@ -387,13 +405,8 @@ class _DailyWorkUpdateScreenState extends ConsumerState<DailyWorkUpdateScreen> {
       }
 
       if (!success) {
-        for (final p in payloads) {
-          try {
-            await apiClient.put('${ApiEndpoints.workUpdates}/$id', body: p);
-            success = true;
-            break;
-          } catch (_) {}
-        }
+        // Fallback to post on review endpoint with first payload
+        await apiClient.post(ApiEndpoints.workUpdatesReview(id), body: payloads.first);
       }
 
       if (!mounted) return;
@@ -581,21 +594,31 @@ class _DailyWorkUpdateScreenState extends ConsumerState<DailyWorkUpdateScreen> {
 
   Widget _statCard(String label, String val, IconData icon, Color color, bool isDark) {
     return AppCard(
-      padding: const EdgeInsets.all(14),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
       child: Row(
         children: [
           Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(color: color.withOpacity(0.15), borderRadius: BorderRadius.circular(10)),
-            child: Icon(icon, color: color, size: 20),
+            padding: const EdgeInsets.all(6),
+            decoration: BoxDecoration(color: color.withOpacity(0.15), borderRadius: BorderRadius.circular(8)),
+            child: Icon(icon, color: color, size: 18),
           ),
-          const SizedBox(width: 10),
+          const SizedBox(width: 6),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(val, style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: isDark ? AppColors.darkPrimaryText : AppColors.lightPrimaryText)),
-                Text(label, style: TextStyle(fontSize: 11, color: isDark ? AppColors.darkSecondaryText : AppColors.lightSecondaryText)),
+                Text(
+                  val,
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: isDark ? AppColors.darkPrimaryText : AppColors.lightPrimaryText),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                Text(
+                  label,
+                  style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: isDark ? AppColors.darkSecondaryText : AppColors.lightSecondaryText),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
               ],
             ),
           ),
@@ -663,7 +686,9 @@ class _DailyWorkUpdateScreenState extends ConsumerState<DailyWorkUpdateScreen> {
               children: [
                 const Icon(Icons.edit_note, color: AppColors.primary, size: 20),
                 const SizedBox(width: 8),
-                Text('Submit Today\'s Work Report', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: isDark ? AppColors.darkPrimaryText : AppColors.lightPrimaryText)),
+                Expanded(
+                  child: Text('Submit Today\'s Work Report', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: isDark ? AppColors.darkPrimaryText : AppColors.lightPrimaryText), overflow: TextOverflow.ellipsis),
+                ),
               ],
             ),
             const Divider(height: 24),
@@ -756,7 +781,9 @@ class _DailyWorkUpdateScreenState extends ConsumerState<DailyWorkUpdateScreen> {
                     children: const [
                       Icon(Icons.attachment_rounded, size: 16, color: AppColors.primary),
                       SizedBox(width: 6),
-                      Text('Attach Work Proof (Screenshots & Video Demo)', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                      Expanded(
+                        child: Text('Attach Work Proof (Screenshots & Video Demo)', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold), overflow: TextOverflow.ellipsis),
+                      ),
                     ],
                   ),
                   const SizedBox(height: 10),
@@ -764,23 +791,69 @@ class _DailyWorkUpdateScreenState extends ConsumerState<DailyWorkUpdateScreen> {
                     children: [
                       Expanded(
                         child: OutlinedButton.icon(
-                          onPressed: () => ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Screenshot attached successfully'))),
+                          onPressed: _pickScreenshots,
                           icon: const Icon(Icons.camera_alt_outlined, size: 16),
-                          label: const Text('Upload Screenshots', style: TextStyle(fontSize: 11)),
+                          label: const Text('Screenshots', style: TextStyle(fontSize: 11), overflow: TextOverflow.ellipsis),
                           style: OutlinedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 8)),
                         ),
                       ),
                       const SizedBox(width: 8),
                       Expanded(
                         child: OutlinedButton.icon(
-                          onPressed: () => ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Video demo attached successfully'))),
+                          onPressed: _pickVideo,
                           icon: const Icon(Icons.videocam_outlined, size: 16),
-                          label: const Text('Upload Video Demo', style: TextStyle(fontSize: 11)),
+                          label: const Text('Video Demo', style: TextStyle(fontSize: 11), overflow: TextOverflow.ellipsis),
                           style: OutlinedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 8)),
                         ),
                       ),
                     ],
                   ),
+                  if (_selectedScreenshots.isNotEmpty || _selectedVideo != null) ...[
+                    const SizedBox(height: 12),
+                    const Divider(height: 1),
+                    const SizedBox(height: 10),
+                    if (_selectedScreenshots.isNotEmpty) ...[
+                      const Text('Attached Screenshots:', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+                      const SizedBox(height: 6),
+                      Wrap(
+                        spacing: 6,
+                        runSpacing: 6,
+                        children: _selectedScreenshots.asMap().entries.map((entry) {
+                          final idx = entry.key;
+                          final file = entry.value;
+                          return Chip(
+                            avatar: const Icon(Icons.image, size: 14, color: AppColors.primary),
+                            label: Text(file.name, style: const TextStyle(fontSize: 10)),
+                            deleteIcon: const Icon(Icons.close, size: 14),
+                            onDeleted: () {
+                              setState(() {
+                                _selectedScreenshots.removeAt(idx);
+                              });
+                            },
+                            materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                            padding: EdgeInsets.zero,
+                          );
+                        }).toList(),
+                      ),
+                      const SizedBox(height: 8),
+                    ],
+                    if (_selectedVideo != null) ...[
+                      const Text('Attached Video Demo:', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+                      const SizedBox(height: 6),
+                      Chip(
+                        avatar: const Icon(Icons.videocam, size: 14, color: AppColors.primary),
+                        label: Text(_selectedVideo!.name, style: const TextStyle(fontSize: 10)),
+                        deleteIcon: const Icon(Icons.close, size: 14),
+                        onDeleted: () {
+                          setState(() {
+                            _selectedVideo = null;
+                          });
+                        },
+                        materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        padding: EdgeInsets.zero,
+                      ),
+                    ],
+                  ],
                 ],
               ),
             ),
@@ -894,24 +967,18 @@ class _DailyWorkUpdateScreenState extends ConsumerState<DailyWorkUpdateScreen> {
                       children: [
                         const Icon(Icons.calendar_month_rounded, size: 15, color: AppColors.primary),
                         const SizedBox(width: 6),
-                        Text(
-                          date,
-                          style: TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.bold,
-                            color: isDark ? AppColors.darkPrimaryText : AppColors.lightPrimaryText,
+                        Expanded(
+                          child: Text(
+                            isTeam && employeeName.isNotEmpty ? '$date • $employeeName' : date,
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.bold,
+                              color: isDark ? AppColors.darkPrimaryText : AppColors.lightPrimaryText,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
                           ),
                         ),
-                        if (isTeam && employeeName.isNotEmpty) ...[
-                          Text(
-                            ' • $employeeName',
-                            style: TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600,
-                              color: isDark ? AppColors.darkSecondaryText : AppColors.lightSecondaryText,
-                            ),
-                          ),
-                        ],
                       ],
                     ),
                     const SizedBox(height: 6),
@@ -941,8 +1008,10 @@ class _DailyWorkUpdateScreenState extends ConsumerState<DailyWorkUpdateScreen> {
               Column(
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
-                  Row(
-                    mainAxisSize: MainAxisSize.min,
+                  Wrap(
+                    spacing: 6,
+                    runSpacing: 4,
+                    alignment: WrapAlignment.end,
                     children: [
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
@@ -963,7 +1032,6 @@ class _DailyWorkUpdateScreenState extends ConsumerState<DailyWorkUpdateScreen> {
                           ],
                         ),
                       ),
-                      const SizedBox(width: 6),
                       StatusChip(status: status),
                     ],
                   ),

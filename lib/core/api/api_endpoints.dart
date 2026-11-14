@@ -50,24 +50,27 @@ class ApiEndpoints {
   static const String goalSelfReview = '/performance/goals/self-review';
 
   // Employee & Management
-  static const String employees = '/management/employees';
+  static const String employees = '/employees';
   static const String employeesAll = '/employees/all';
+  static const String managementEmployees = '/management/employees';
   static const String hrList = '/management/hr';
   static const String teamLeads = '/management/team-leads';
-  static const String assignRole = '/management/assign-role';
-  static String employeeDetail(String id) => '/management/employees/$id';
-  static String employeeStatus(String id) => '/management/employees/$id/status';
-  static String employeeDelete(String id) => '/management/employees/$id';
+  static const String assignRole = '/management/role';
+  static String employeeDetail(String id) => '/employees/$id';
+  static String employeeStatus(String id) => '/employees/$id/status';
+  static String employeeDelete(String id) => '/employees/$id';
+  static const String uploadAvatar = '/employees/upload-avatar';
   static const String users = '/users';
   static String userDetail(String id) => '/users/$id';
-  static String userResetPassword(String id) => '/users/$id/reset-password';
+  static String userResetPassword(String id) => '/users/$id/change-password';
   static String userToggleMfa(String id) => '/users/$id/toggle-mfa';
   static const String departments = '/departments';
   static const String departmentsUploadImage = '/departments/upload-image';
   static const String designations = '/designations';
-  static const String teams = '/departments/teams';
-  static String teamDetail(String id) => '/departments/teams/$id';
-  static String teamAssignEmployees(String id) => '/departments/teams/$id/assign-employees';
+  static const String teams = '/teams';
+  static String teamDetail(String id) => '/teams/$id';
+  static String teamAssignMembers(String id) => '/teams/$id/assign-members';
+  static String teamAssignEmployees(String id) => teamAssignMembers(id);
   static const String branches = '/branches';
   static const String branchUploadImage = '/branches/upload-image';
 
@@ -82,24 +85,24 @@ class ApiEndpoints {
   static const String mySalaryHistory = '/salary/my/history';
   static const String teamSalary = '/salary/team';
   static const String salaryEmployees = '/salary/employees';
-  static const String payrollInputs = '/payroll/inputs';
+  static const String payrollInputs = '/salary/inputs';
   static const String employeeSalaries = '/salary/employees';
   static const String salaryComponents = '/salary/components';
   static String salaryComponentDelete(String id) => '/salary/components/$id';
   static const String payCycles = '/salary/cycles';
   static String payCycleStatus(String id) => '/salary/cycles/$id/status';
   static const String salaryRevisions = '/salary/revisions';
-  static const String payrollReports = '/payroll/reports';
-  static const String payrollDashboard = '/payroll/dashboard';
-  static const String payrollWorkflow = '/payroll/workflow';
-  static const String payrollPrepare = '/payroll/prepare';
-  static const String payrollPay = '/payroll/pay';
+  static const String payrollReports = '/payroll/report';
+  static const String payrollDashboard = '/salary/dashboard';
+  static const String payrollWorkflow = '/salary/workflow';
+  static const String payrollPrepare = '/salary/prepare';
+  static const String payrollPay = '/salary/pay';
   static const String financeDashboard = '/finance/dashboard';
   static const String financeApprovals = '/finance/approvals';
   static const String financePayments = '/finance/payments';
   static const String financeLoans = '/finance/loans';
   static const String financeReimbursements = '/finance/reimbursements';
-  static const String financeReports = '/finance/reports';
+  static const String financeReports = '/finance/reports/loans';
   static const String financeTax = '/finance/tax';
 
   // IT & Assets
@@ -107,7 +110,7 @@ class ApiEndpoints {
   static const String assetRequests = '/assets/requests';
   static const String assetMyRequests = '/assets/my/requests';
   static const String itDashboard = '/it/dashboard';
-  static const String itAssets = '/it/assets';
+  static const String itAssets = '/assets';
   static const String itTickets = '/it/tickets';
   static const String itSoftware = '/it/software';
   static const String itSoftwareMyAssignments = '/it/software/my-assignments';
@@ -122,26 +125,30 @@ class ApiEndpoints {
   // Benefits & Expenses
   static const String myBenefits = '/benefits';
   static const String benefitStats = '/benefits/stats';
-  static const String benefitPendingClaims = '/benefits/claims/pending-payment';
-  static const String benefitClaimsForPayment = '/benefits/claims/for-payment';
-  static const String benefitProcessPayment = '/benefits/process-payment';
-  static const String benefitPaymentHistory = '/benefits/payments/history';
+  static const String benefitPendingClaims = '/benefits/finance/claims';
+  static const String benefitClaimsForPayment = '/benefits/finance/claims';
+  static const String benefitProcessPayment = '/benefits/finance/claims';
+  static const String benefitPaymentHistory = '/benefits/payments';
   static const String benefitUtilization = '/benefits/utilization';
   static const String benefitInvoicesAll = '/benefits/invoices/all';
   // Expenses
-  static const String myExpenses = '/expenses/my';
-  static const String expenses = '/expenses';
-  static const String expenseAll = '/expenses/all';
-  static const String expenseInvoicesAll = '/expenses/invoices/all';
-  static const String expenseCategories = '/expenses/categories';
-  static const String expensePolicies = '/expenses/policies';
-  static const String expenseReportsCategory = '/expenses/reports/category';
-  static const String expenseReportsStatus = '/expenses/reports/status';
-  static const String expenseReportsEmployee = '/expenses/reports/employee';
+  static const String myExpenses = '/Expense/my';
+  static const String expenses = '/Expense';
+  static const String expenseAll = '/Expense/all';
+  static const String expenseInvoicesAll = '/Expense/invoices/all';
+  static const String expenseCategories = '/Expense/categories';
+  static const String expensePolicies = '/Expense/policies';
+  static const String expenseReportsCategory = '/Expense/reports/category';
+  static const String expenseReportsStatus = '/Expense/reports/status';
+  static const String expenseReportsEmployee = '/Expense/reports/employee';
 
-  // Helpdesk
+  // Helpdesk & AI
   static const String helpdeskTickets = '/helpdesk/tickets';
-  static const String helpdeskChatbot = '/helpdesk/chatbot';
+  static const String helpdeskChatbot = '/Ai/ask';
+  static const String aiAsk = '/Ai/ask';
+  static const String aiHistory = '/Ai/history';
+  static const String aiStt = '/Ai/stt';
+  static const String aiTts = '/Ai/tts';
   static const String helpdeskCategories = '/helpdesk/categories';
 
   // Announcements
@@ -149,7 +156,7 @@ class ApiEndpoints {
 
   // Notifications
   static const String notifications = '/notifications';
-  static const String notificationsMarkAllRead = '/notifications/mark-all-read';
+  static const String notificationsMarkAllRead = '/notifications/read-all';
   static String notificationRead(String id) => '/notifications/$id/read';
 
   // Recruitment & Candidates
@@ -182,7 +189,7 @@ class ApiEndpoints {
   static String projectDetail(String id) => '/projects/$id';
   static String projectMembers(String id) => '/projects/$id/members';
   static String projectMemberDelete(String projectId, String memberId) => '/projects/$projectId/members/$memberId';
-  static String projectTeamLead(String id) => '/projects/$id/team-lead';
+  static String projectTeamLead(String id) => '/projects/$id/assign-team-lead';
   static const String myTasks = '/tasks/my';
   static const String myProjects = '/projects/my';
   static const String workUpdates = '/work-updates';
@@ -196,7 +203,7 @@ class ApiEndpoints {
   static const String systemSettings = '/system-settings';
   static const String companyProfile = '/system-settings/company-profile';
   static const String emailSmsConfig = '/system-settings/email-sms-config';
-  static const String notificationSettings = '/system-settings/notification-preferences';
+  static const String notificationSettings = '/settings/notification-preferences';
   static String notificationSettingDetail(String id) => '/system-settings/notification-preferences/$id';
   static const String auditLog = '/AuditLog';
   static const String reportsAuditLogs = '/reports/audit-logs';

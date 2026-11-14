@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/api/api_client.dart';
+import '../../core/api/training_service.dart';
 import '../../core/theme/app_colors.dart';
 import '../../shared/widgets/app_card.dart';
 import '../../shared/widgets/loading_shimmer.dart';
@@ -75,9 +76,9 @@ class _TrainingDashboardScreenState extends ConsumerState<TrainingDashboardScree
       _isLoading = true;
       _error = null;
     });
-    final apiClient = ref.read(apiClientProvider);
+    final trainingService = ref.read(trainingServiceProvider);
     try {
-      final res = await apiClient.get('/training/my-courses').catchError((_) => null);
+      final res = await trainingService.rawGet('/training/my-courses').catchError((_) => null);
       if (!mounted) return;
       final rawList = res is List
           ? res
@@ -624,9 +625,9 @@ class _MyCoursesScreenState extends ConsumerState<MyCoursesScreen> {
 
   Future<void> _loadCourses() async {
     setState(() => _isLoading = true);
-    final apiClient = ref.read(apiClientProvider);
+    final trainingService = ref.read(trainingServiceProvider);
     try {
-      final res = await apiClient.get('/training/my-courses').catchError((_) => null);
+      final res = await trainingService.getMyCourses().catchError((_) => null);
       if (mounted) {
         final list = res is List ? res : (res is Map && res['data'] is List ? res['data'] as List : []);
 
@@ -1172,9 +1173,9 @@ class _MyCertificatesScreenState extends ConsumerState<MyCertificatesScreen> {
 
   Future<void> _loadCertificates() async {
     setState(() => _isLoading = true);
-    final apiClient = ref.read(apiClientProvider);
+    final trainingService = ref.read(trainingServiceProvider);
     try {
-      final res = await apiClient.get('/training/certificates').catchError((_) => null);
+      final res = await trainingService.getCertificates().catchError((_) => null);
       if (mounted) {
         final list = res is List ? res : (res is Map && res['data'] is List ? res['data'] as List : []);
 

@@ -116,19 +116,21 @@ class _MySettingsScreenState extends ConsumerState<MySettingsScreen> {
     final apiClient = ref.read(apiClientProvider);
     try {
       final res = await apiClient.get('/settings/summary').catchError((_) => null);
-      if (res != null && res.statusCode == 200) {
-        final data = jsonDecode(res.body);
-        setState(() {
-          _mfaEnabled = data['mfaEnabled'] ?? false;
-          _accountStatus = data['accountStatus'] ?? 'Active';
-          if (data['lastLogin'] != null) {
-            final date = DateTime.tryParse(data['lastLogin']['timestamp'] ?? '');
-            if (date != null) {
-              _lastLoginFormatted = DateFormat('MMM d, yyyy - hh:mm a').format(date);
+      if (res != null) {
+        final data = res is Map<String, dynamic> && res.containsKey('data') ? res['data'] : res;
+        if (data is Map<String, dynamic>) {
+          setState(() {
+            _mfaEnabled = data['mfaEnabled'] ?? false;
+            _accountStatus = data['accountStatus'] ?? 'Active';
+            if (data['lastLogin'] != null) {
+              final date = DateTime.tryParse(data['lastLogin']['timestamp'] ?? '');
+              if (date != null) {
+                _lastLoginFormatted = DateFormat('MMM d, yyyy - hh:mm a').format(date);
+              }
+              _lastLoginMeta = '${data['lastLogin']['device'] ?? 'Mobile'} • ${data['lastLogin']['ip'] ?? 'Unknown'}';
             }
-            _lastLoginMeta = '${data['lastLogin']['device'] ?? 'Mobile'} • ${data['lastLogin']['ip'] ?? 'Unknown'}';
-          }
-        });
+          });
+        }
       }
     } catch (_) {}
   }
@@ -166,14 +168,14 @@ class _MySettingsScreenState extends ConsumerState<MySettingsScreen> {
     final apiClient = ref.read(apiClientProvider);
     try {
       final res = await apiClient.post('/settings/mfa/toggle', body: {'enable': val}).catchError((_) => null);
-      if (res != null && res.statusCode == 200) {
+      if (res != null && mounted) {
         setState(() => _mfaEnabled = val);
         _toast(val ? 'MFA Enabled' : 'MFA Disabled');
-      } else {
+      } else if (mounted) {
         _toast('Failed to update MFA status');
       }
     } catch (_) {
-      _toast('Network error');
+      if (mounted) _toast('Network error');
     }
   }
 
@@ -199,16 +201,16 @@ class _MySettingsScreenState extends ConsumerState<MySettingsScreen> {
         'newPassword': newP,
       }).catchError((_) => null);
 
-      if (res != null && res.statusCode == 200) {
+      if (res != null && mounted) {
         _toast('Password updated successfully');
         setState(() => _showPasswordModal = false);
-      } else {
+      } else if (mounted) {
         _toast('Failed to update password');
       }
     } catch (_) {
-      _toast('Network error');
+      if (mounted) _toast('Network error');
     } finally {
-      setState(() => _savingPassword = false);
+      if (mounted) setState(() => _savingPassword = false);
     }
   }
 
@@ -221,14 +223,14 @@ class _MySettingsScreenState extends ConsumerState<MySettingsScreen> {
     final apiClient = ref.read(apiClientProvider);
     try {
       final res = await apiClient.post('/settings/otp/send', body: {'purpose': 'EmailChange', 'target': email}).catchError((_) => null);
-      if (res != null && res.statusCode == 200) {
+      if (res != null && mounted) {
         setState(() => _emailOtpSent = true);
         _toast('OTP sent to $email');
-      } else {
+      } else if (mounted) {
         _toast('Failed to send OTP');
       }
     } catch (_) {
-      _toast('Network error');
+      if (mounted) _toast('Network error');
     }
   }
 
@@ -243,20 +245,20 @@ class _MySettingsScreenState extends ConsumerState<MySettingsScreen> {
     final email = _emailInputController.text.trim();
     try {
       final res = await apiClient.post('/settings/email/update', body: {'newEmail': email, 'otpCode': otpCode}).catchError((_) => null);
-      if (res != null && res.statusCode == 200) {
+      if (res != null && mounted) {
         setState(() {
           _userEmail = email;
           _showEmailModal = false;
         });
         _toast('Email updated successfully');
         _loadSettingsSummary();
-      } else {
+      } else if (mounted) {
         _toast('Invalid or expired OTP');
       }
     } catch (_) {
-      _toast('Network error');
+      if (mounted) _toast('Network error');
     } finally {
-      setState(() => _savingEmail = false);
+      if (mounted) setState(() => _savingEmail = false);
     }
   }
 
@@ -269,14 +271,14 @@ class _MySettingsScreenState extends ConsumerState<MySettingsScreen> {
     final apiClient = ref.read(apiClientProvider);
     try {
       final res = await apiClient.post('/settings/otp/send', body: {'purpose': 'MobileChange', 'target': mobile}).catchError((_) => null);
-      if (res != null && res.statusCode == 200) {
+      if (res != null && mounted) {
         setState(() => _mobileOtpSent = true);
         _toast('OTP sent to $mobile');
-      } else {
+      } else if (mounted) {
         _toast('Failed to send OTP');
       }
     } catch (_) {
-      _toast('Network error');
+      if (mounted) _toast('Network error');
     }
   }
 
@@ -291,20 +293,20 @@ class _MySettingsScreenState extends ConsumerState<MySettingsScreen> {
     final mobile = _mobileInputController.text.trim();
     try {
       final res = await apiClient.post('/settings/mobile/update', body: {'newMobile': mobile, 'otpCode': otpCode}).catchError((_) => null);
-      if (res != null && res.statusCode == 200) {
+      if (res != null && mounted) {
         setState(() {
           _userPhone = mobile;
           _showMobileModal = false;
         });
         _toast('Mobile number updated successfully');
         _loadSettingsSummary();
-      } else {
+      } else if (mounted) {
         _toast('Invalid or expired OTP');
       }
     } catch (_) {
-      _toast('Network error');
+      if (mounted) _toast('Network error');
     } finally {
-      setState(() => _savingMobile = false);
+      if (mounted) setState(() => _savingMobile = false);
     }
   }
 
@@ -313,42 +315,61 @@ class _MySettingsScreenState extends ConsumerState<MySettingsScreen> {
     if (type == 'loginHistory') {
       setState(() => _showLoginHistoryModal = true);
       try {
-        final res = await apiClient.get('/settings/login-history').catchError((_) => null);
-        if (res != null && res.statusCode == 200) {
-          setState(() => _loginHistory = jsonDecode(res.body));
+        final res = await apiClient.get('/settings/login-history');
+        if (res != null && mounted) {
+          final data = res is Map && res.containsKey('data') ? res['data'] : res;
+          if (data is List) {
+            setState(() => _loginHistory = List<Map<String, dynamic>>.from(data));
+          }
         }
-      } catch (_) {}
+      } catch (e) {
+        if (mounted) _toast('Failed to load login history');
+      }
     } else if (type == 'activeDevices') {
       setState(() => _showActiveDevicesModal = true);
       try {
-        final res = await apiClient.get('/settings/devices/active').catchError((_) => null);
-        if (res != null && res.statusCode == 200) {
-          setState(() => _activeDevices = jsonDecode(res.body));
+        final res = await apiClient.get('/settings/devices/active');
+        if (res != null && mounted) {
+          final data = res is Map && res.containsKey('data') ? res['data'] : res;
+          if (data is List) {
+            setState(() => _activeDevices = List<Map<String, dynamic>>.from(data));
+          }
         }
-      } catch (_) {}
+      } catch (e) {
+        if (mounted) _toast('Failed to load active devices');
+      }
     } else if (type == 'trustedDevices') {
       setState(() => _showTrustedDevicesModal = true);
       try {
-        final res = await apiClient.get('/settings/devices/trusted').catchError((_) => null);
-        if (res != null && res.statusCode == 200) {
-          setState(() => _trustedDevices = jsonDecode(res.body));
+        final res = await apiClient.get('/settings/devices/trusted');
+        if (res != null && mounted) {
+          final data = res is Map && res.containsKey('data') ? res['data'] : res;
+          if (data is List) {
+            setState(() => _trustedDevices = List<Map<String, dynamic>>.from(data));
+          }
         }
-      } catch (_) {}
+      } catch (e) {
+        if (mounted) _toast('Failed to load trusted devices');
+      }
     } else if (type == 'authenticator') {
       setState(() {
         _activeGenericModal = 'authenticator';
         _authenticatorStep = 'setup';
       });
       try {
-        final res = await apiClient.get('/settings/mfa/authenticator/setup').catchError((_) => null);
-        if (res != null && res.statusCode == 200) {
-          final data = jsonDecode(res.body);
-          setState(() {
-            _authenticatorSecret = data['secret'] ?? '';
-            _authenticatorQrCode = data['qrCode'] ?? '';
-          });
+        final res = await apiClient.get('/settings/mfa/authenticator/setup');
+        if (res != null && mounted) {
+          final data = res is Map && res.containsKey('data') ? res['data'] : res;
+          if (data is Map<String, dynamic>) {
+            setState(() {
+              _authenticatorSecret = data['secret']?.toString() ?? '';
+              _authenticatorQrCode = data['qrCode']?.toString() ?? '';
+            });
+          }
         }
-      } catch (_) {}
+      } catch (e) {
+        if (mounted) _toast('Failed to setup authenticator');
+      }
     } else if (type == 'emailOtp') {
       setState(() => _activeGenericModal = 'emailOtp');
     }
@@ -363,18 +384,22 @@ class _MySettingsScreenState extends ConsumerState<MySettingsScreen> {
     final apiClient = ref.read(apiClientProvider);
     try {
       final res = await apiClient.post('/settings/mfa/authenticator/verify', body: {'code': code}).catchError((_) => null);
-      if (res != null && res.statusCode == 200) {
-        final data = jsonDecode(res.body);
-        setState(() {
-          _authenticatorStep = 'backupCodes';
-          _authenticatorBackupCodes = List<String>.from(data['backupCodes'] ?? []);
-        });
-        _toast('Authenticator app configured');
-      } else {
+      if (res != null && mounted) {
+        final data = res is Map && res.containsKey('data') ? res['data'] : res;
+        if (data is Map<String, dynamic>) {
+          setState(() {
+            _authenticatorStep = 'backupCodes';
+            _authenticatorBackupCodes = List<String>.from(data['backupCodes'] ?? []);
+          });
+          _toast('Authenticator app configured');
+        } else {
+          _toast('Invalid authenticator code');
+        }
+      } else if (mounted) {
         _toast('Invalid authenticator code');
       }
     } catch (_) {
-      _toast('Network error');
+      if (mounted) _toast('Network error');
     }
   }
 
@@ -382,33 +407,45 @@ class _MySettingsScreenState extends ConsumerState<MySettingsScreen> {
     final apiClient = ref.read(apiClientProvider);
     try {
       final res = await apiClient.post('/settings/devices/$deviceId/revoke', body: {}).catchError((_) => null);
-      if (res != null && res.statusCode == 200) {
+      if (res != null && mounted) {
         setState(() => _activeDevices.removeWhere((d) => d['id'] == deviceId));
         _toast('Device session revoked');
+      } else if (mounted) {
+        _toast('Failed to revoke device session');
       }
-    } catch (_) {}
+    } catch (_) {
+      if (mounted) _toast('Network error');
+    }
   }
 
   Future<void> _revokeTrustedDevice(String deviceId) async {
     final apiClient = ref.read(apiClientProvider);
     try {
       final res = await apiClient.post('/settings/devices/trusted/$deviceId/revoke', body: {}).catchError((_) => null);
-      if (res != null && res.statusCode == 200) {
+      if (res != null && mounted) {
         setState(() => _trustedDevices.removeWhere((d) => d['id'] == deviceId));
         _toast('Trusted device removed');
+      } else if (mounted) {
+        _toast('Failed to remove trusted device');
       }
-    } catch (_) {}
+    } catch (_) {
+      if (mounted) _toast('Network error');
+    }
   }
 
   Future<void> _logoutAllDevices() async {
     final apiClient = ref.read(apiClientProvider);
     try {
       final res = await apiClient.post('/settings/devices/logout-all', body: {}).catchError((_) => null);
-      if (res != null && res.statusCode == 200) {
+      if (res != null && mounted) {
         _toast('Logged out from all other devices');
         setState(() => _showLogoutAllModal = false);
+      } else if (mounted) {
+        _toast('Failed to logout other devices');
       }
-    } catch (_) {}
+    } catch (_) {
+      if (mounted) _toast('Network error');
+    }
   }
 
   @override

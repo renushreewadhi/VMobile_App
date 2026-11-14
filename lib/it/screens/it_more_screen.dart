@@ -261,7 +261,6 @@ class _ItMoreScreenState extends ConsumerState<ItMoreScreen> {
           onChanged: (val) => setState(() => _searchQuery = val),
           onClear: () => setState(() => _searchQuery = ''),
         ),
-        const SectionLabel("IT OPERATIONS MODULES"),
         if (isSearching && filteredParents.isEmpty)
           Center(
             child: Padding(
@@ -292,7 +291,6 @@ class _ItMoreScreenState extends ConsumerState<ItMoreScreen> {
               icon: parent.icon,
               gradientColors: parent.colors,
               title: parent.title,
-              subtitle: parent.description,
               count: parent.submodules.length,
               onPress: () {
                 Navigator.push(

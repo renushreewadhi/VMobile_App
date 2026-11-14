@@ -23,12 +23,12 @@ class AppColors {
   static const Color accentBlue = Color(0xFF3478F6);
   static const Color lightSecondarySurface = Color(0xFFEEF2F8);
   
-  static const Color lightPrimaryText = Color(0xFF0F2A29);
-  static const Color lightSecondaryText = Color(0xFF5B7170);
-  static const Color lightTextPrimary = Color(0xFF0F2A29);
-  static const Color lightTextSecondary = Color(0xFF5B7170);
+  static const Color lightPrimaryText = Color(0xFF0F172A);
+  static const Color lightSecondaryText = Color(0xFF334155);
+  static const Color lightTextPrimary = Color(0xFF0F172A);
+  static const Color lightTextSecondary = Color(0xFF334155);
   
-  static const Color lightMutedText = Color(0xFF98A2B3);
+  static const Color lightMutedText = Color(0xFF475569);
   static const Color lightBordersAndDividers = Color(0xFFDCE8E7);
   static const Color lightInputBackground = Color(0xFFFFFFFF);
   static const Color lightBorderSubtle = Color(0xFFDCE8E7);
@@ -40,12 +40,12 @@ class AppColors {
   static const Color darkCardBackground = Color(0xFF1B2A38);
   static const Color darkSecondarySurface = Color(0xFF1F3244);
   
-  static const Color darkPrimaryText = Color(0xFFEAF6F5);
-  static const Color darkSecondaryText = Color(0xFFA5B4C8);
-  static const Color darkTextPrimary = Color(0xFFEAF6F5);
-  static const Color darkTextSecondary = Color(0xFF9DB8B6);
+  static const Color darkPrimaryText = Color(0xFFF8FAFC);
+  static const Color darkSecondaryText = Color(0xFFCBD5E1);
+  static const Color darkTextPrimary = Color(0xFFF8FAFC);
+  static const Color darkTextSecondary = Color(0xFFCBD5E1);
   
-  static const Color darkMutedText = Color(0xFF7C8AA2);
+  static const Color darkMutedText = Color(0xFF94A3B8);
   static const Color darkBordersAndDividers = Color(0x1FFFFFFF);
   static const Color darkInputBackground = Color(0x14FFFFFF);
   static const Color darkBackgroundTint = Color(0xFF0B3B38);

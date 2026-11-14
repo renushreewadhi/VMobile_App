@@ -6,7 +6,7 @@ class ModuleCard extends StatefulWidget {
   final IconData icon;
   final List<Color> gradientColors;
   final String title;
-  final String subtitle;
+  final String? subtitle;
   final int count;
   final VoidCallback onPress;
 
@@ -15,7 +15,7 @@ class ModuleCard extends StatefulWidget {
     required this.icon,
     required this.gradientColors,
     required this.title,
-    required this.subtitle,
+    this.subtitle,
     required this.count,
     required this.onPress,
   });
@@ -30,9 +30,10 @@ class _ModuleCardState extends State<ModuleCard> with SingleTickerProviderStateM
   @override
   Widget build(BuildContext context) {
     final glass = context.glass;
+    final hasSubtitle = widget.subtitle != null && widget.subtitle!.trim().isNotEmpty;
 
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 5),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
       child: GestureDetector(
         onTapDown: (_) => setState(() => _isPressed = true),
         onTapUp: (_) => setState(() => _isPressed = false),
@@ -48,70 +49,82 @@ class _ModuleCardState extends State<ModuleCard> with SingleTickerProviderStateM
             fillColor: glass.cardFill,
             borderColor: glass.cardBorder,
             shadow: glass.cardShadow,
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
             child: Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
               children: [
-                // Icon tile (52x52, radius 16, gradient)
+                // Icon tile (46x46, radius 14, gradient)
                 Container(
-                  width: 52,
-                  height: 52,
+                  width: 46,
+                  height: 46,
                   decoration: BoxDecoration(
                     gradient: LinearGradient(
                       colors: widget.gradientColors,
                       begin: Alignment.topLeft,
                       end: Alignment.bottomRight,
                     ),
-                    borderRadius: BorderRadius.circular(16),
+                    borderRadius: BorderRadius.circular(14),
                     boxShadow: [
                       BoxShadow(
-                        color: widget.gradientColors.last.withOpacity(0.35),
-                        blurRadius: 10,
-                        offset: const Offset(0, 4),
+                        color: widget.gradientColors.last.withOpacity(0.30),
+                        blurRadius: 8,
+                        offset: const Offset(0, 3),
                       ),
                     ],
                   ),
                   child: Center(
                     child: Icon(
                       widget.icon,
-                      size: 24,
+                      size: 22,
                       color: Colors.white,
                     ),
                   ),
                 ),
                 const SizedBox(width: 14),
-                // Title and subtitle
+                // Title (and subtitle if present)
                 Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        widget.title,
-                        style: TextStyle(
-                          fontSize: 15,
-                          fontWeight: FontWeight.w700,
-                          color: glass.textPrimary,
+                  child: hasSubtitle
+                      ? Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              widget.title,
+                              style: TextStyle(
+                                fontSize: 14.5,
+                                fontWeight: FontWeight.w700,
+                                color: glass.textPrimary,
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              widget.subtitle!,
+                              style: TextStyle(
+                                fontSize: 11.5,
+                                fontWeight: FontWeight.w500,
+                                color: glass.textSecondary,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ],
+                        )
+                      : Text(
+                          widget.title,
+                          style: TextStyle(
+                            fontSize: 14.5,
+                            fontWeight: FontWeight.w700,
+                            color: glass.textPrimary,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                         ),
-                      ),
-                      const SizedBox(height: 3),
-                      Text(
-                        widget.subtitle,
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w500,
-                          color: glass.textSecondary,
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ],
-                  ),
                 ),
                 const SizedBox(width: 12),
-                // Count badge (32px circle)
+                // Count badge (30px circle)
                 Container(
-                  width: 32,
-                  height: 32,
+                  width: 30,
+                  height: 30,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
                     color: glass.badgeFill,
@@ -120,7 +133,7 @@ class _ModuleCardState extends State<ModuleCard> with SingleTickerProviderStateM
                     child: Text(
                       '${widget.count}',
                       style: TextStyle(
-                        fontSize: 13,
+                        fontSize: 12.5,
                         fontWeight: FontWeight.w700,
                         color: glass.badgeText,
                       ),

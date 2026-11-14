@@ -50,10 +50,10 @@ class MockApiClient extends ApiClient {
       }
       return mockMeResponse ?? {
         'id': 'user-101',
-        'email': 'verified@company.com',
-        'firstName': 'Verified',
-        'lastName': 'ServerUser',
-        'role': 'EMPLOYEE',
+        'email': 'tl@test.com',
+        'firstName': 'Team',
+        'lastName': 'Lead',
+        'role': 'TL',
       };
     }
     return {};
@@ -302,13 +302,13 @@ void main() {
 
       mockClient.activeAccount = 'AccountA';
       await authService.login('a@company.com', 'pass');
-      expect(mockClient.lastHeaderAuthorization, isNull); // Login request should not send old token
+      expect(mockClient.lastPostHeaderAuthorization, isNull); // Login POST request should not send old token
 
       await authService.logout();
       
       mockClient.activeAccount = 'AccountB';
       await authService.login('b@company.com', 'pass');
-      expect(mockClient.lastHeaderAuthorization, isNull); // Account B login should not send Account A token
+      expect(mockClient.lastPostHeaderAuthorization, isNull); // Account B login POST should not send Account A token
 
       // Subsequent session revalidation uses Account B token
       mockClient.mockMeResponse = {'id': 'b2', 'email': 'b@company.com', 'firstName': 'B', 'lastName': 'User', 'role': 'ADMIN'};
@@ -371,8 +371,10 @@ class MockMultiAccountApiClient extends ApiClient {
   bool failLogin = false;
   String? lastTokenUsed;
   String? lastHeaderAuthorization;
+  String? lastPostHeaderAuthorization;
   String? currentAuthToken;
   Map<String, dynamic>? mockMeResponse;
+  String? lastLoginEmail;
 
   @override
   void setAuthToken(String? token) {
@@ -383,17 +385,19 @@ class MockMultiAccountApiClient extends ApiClient {
   @override
   Future<dynamic> post(String endpoint, {dynamic body, dynamic data, Map<String, String>? headers}) async {
     lastHeaderAuthorization = currentAuthToken != null ? 'Bearer $currentAuthToken' : headers?['Authorization'];
+    lastPostHeaderAuthorization = lastHeaderAuthorization;
     if (endpoint == ApiEndpoints.login) {
       if (failLogin) {
         throw UnauthorizedException('Invalid work email or password.');
       }
+      lastLoginEmail = body?['email'];
       if (activeAccount == 'AccountB') {
         return {
           'token': 'token-B',
           'refreshToken': 'refresh-B',
           'user': {
             'id': 'user-B',
-            'email': body?['email'] ?? 'accountB@company.com',
+            'email': lastLoginEmail ?? 'accountB@company.com',
             'firstName': 'Account',
             'lastName': 'B',
             'role': 'ADMIN',
@@ -405,7 +409,7 @@ class MockMultiAccountApiClient extends ApiClient {
           'refreshToken': 'refresh-A',
           'user': {
             'id': 'user-A',
-            'email': body?['email'] ?? 'accountA@company.com',
+            'email': lastLoginEmail ?? 'accountA@company.com',
             'firstName': 'Account',
             'lastName': 'A',
             'role': 'EMPLOYEE',
@@ -420,13 +424,24 @@ class MockMultiAccountApiClient extends ApiClient {
   Future<dynamic> get(String endpoint, {Map<String, String>? queryParams, Map<String, String>? headers}) async {
     lastHeaderAuthorization = currentAuthToken != null ? 'Bearer $currentAuthToken' : headers?['Authorization'];
     if (endpoint == ApiEndpoints.me) {
-      return mockMeResponse ?? {
-        'id': 'user-B',
-        'email': 'b@company.com',
-        'firstName': 'B',
-        'lastName': 'User',
-        'role': 'ADMIN',
-      };
+      if (mockMeResponse != null) return mockMeResponse;
+      if (activeAccount == 'AccountB') {
+        return {
+          'id': 'user-B',
+          'email': lastLoginEmail ?? 'accountB@company.com',
+          'firstName': 'Account',
+          'lastName': 'B',
+          'role': 'ADMIN',
+        };
+      } else {
+        return {
+          'id': 'user-A',
+          'email': lastLoginEmail ?? 'accountA@company.com',
+          'firstName': 'Account',
+          'lastName': 'A',
+          'role': 'EMPLOYEE',
+        };
+      }
     }
     return {};
   }

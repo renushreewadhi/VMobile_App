@@ -9,6 +9,7 @@ import '../../core/widgets/glass_scaffold.dart';
 import '../../shared/widgets/app_card.dart';
 import '../../shared/widgets/loading_shimmer.dart';
 import '../../shared/widgets/status_chip.dart';
+import 'break_logs_screen.dart';
 import 'punch_in_out_screen.dart';
 
 class BreakTypeOption {
@@ -40,9 +41,11 @@ class BreakLogRow {
   final String startTime;
   final String endTime;
   final int durationMins;
+  final int durationSeconds;
   final String durationDisplay;
   final String status; // 'Completed' | 'In Progress'
   final DateTime? rawStartTime;
+  final int maxMinutes;
 
   BreakLogRow({
     this.id,
@@ -53,9 +56,11 @@ class BreakLogRow {
     required this.startTime,
     required this.endTime,
     required this.durationMins,
+    required this.durationSeconds,
     required this.durationDisplay,
     required this.status,
     this.rawStartTime,
+    required this.maxMinutes,
   });
 }
 
@@ -66,6 +71,7 @@ class CalendarDayItem {
   final bool isCurrentMonth;
   final bool isToday;
   final bool isSelected;
+  final bool isFuture;
 
   CalendarDayItem({
     required this.date,
@@ -74,6 +80,7 @@ class CalendarDayItem {
     required this.isCurrentMonth,
     required this.isToday,
     required this.isSelected,
+    required this.isFuture,
   });
 }
 
@@ -93,6 +100,7 @@ class _BreakTrackerScreenState extends ConsumerState<BreakTrackerScreen> {
   Timer? _timerInterval;
 
   List<BreakLogRow> _todayBreaks = [];
+  final Set<String> _datesWithBreaks = {};
 
   final List<BreakTypeOption> _breakTypes = const [
     BreakTypeOption(
@@ -102,7 +110,7 @@ class _BreakTrackerScreenState extends ConsumerState<BreakTrackerScreen> {
       icon: Icons.coffee_rounded,
       bgColor: Color(0xFFFFF7ED),
       iconColor: Color(0xFFF59E0B),
-      maxDisplay: 'Max 15 mins',
+      maxDisplay: 'Max 15m',
     ),
     BreakTypeOption(
       typeKey: 'lunch',
@@ -111,7 +119,7 @@ class _BreakTrackerScreenState extends ConsumerState<BreakTrackerScreen> {
       icon: Icons.restaurant_rounded,
       bgColor: Color(0xFFF0FDF4),
       iconColor: Color(0xFF10B981),
-      maxDisplay: 'Max 60 mins',
+      maxDisplay: 'Max 60m',
     ),
     BreakTypeOption(
       typeKey: 'personal',
@@ -120,7 +128,7 @@ class _BreakTrackerScreenState extends ConsumerState<BreakTrackerScreen> {
       icon: Icons.person_pin_rounded,
       bgColor: Color(0xFFFAF5FF),
       iconColor: Color(0xFF2563EB),
-      maxDisplay: 'Max 30 mins',
+      maxDisplay: 'Max 30m',
     ),
     BreakTypeOption(
       typeKey: 'short',
@@ -129,7 +137,7 @@ class _BreakTrackerScreenState extends ConsumerState<BreakTrackerScreen> {
       icon: Icons.access_time_rounded,
       bgColor: Color(0xFFF0F9FF),
       iconColor: Color(0xFF0284C7),
-      maxDisplay: 'Max 10 mins',
+      maxDisplay: 'Max 10m',
     ),
   ];
 
@@ -167,37 +175,44 @@ class _BreakTrackerScreenState extends ConsumerState<BreakTrackerScreen> {
 
   bool get _isTodaySelected => _selectedDateIso == _getTodayIso();
 
-  String get _displaySelectedDate {
-    if (_selectedDateIso.isEmpty) return _todayDisplayDate;
-    final parts = _selectedDateIso.split('-');
-    if (parts.length != 3) return _todayDisplayDate;
-    final d = DateTime(int.parse(parts[0]), int.parse(parts[1]) - 1, int.parse(parts[2]));
-    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-    return '${d.day} ${months[d.month - 1]} ${d.year}';
+  String _formatDuration(int seconds) {
+    if (seconds < 60) return '<1 min';
+    final totalMins = seconds ~/ 60;
+    if (totalMins < 60) return '$totalMins mins';
+    final hours = totalMins ~/ 60;
+    final mins = totalMins % 60;
+    return '${hours}h ${mins}m';
   }
 
-  String get _todayDisplayDate {
-    final now = DateTime.now();
+  String _formatDurationFromMins(double minutes) {
+    final secs = (minutes * 60).round();
+    return _formatDuration(secs);
+  }
+
+  String get _displaySelectedDate {
+    if (_selectedDateIso.isEmpty || _isTodaySelected) return 'Today';
+    final parts = _selectedDateIso.split('-');
+    if (parts.length != 3) return 'Today';
+    final y = int.tryParse(parts[0]) ?? DateTime.now().year;
+    final m = int.tryParse(parts[1]) ?? DateTime.now().month;
+    final d = int.tryParse(parts[2]) ?? DateTime.now().day;
+    final dt = DateTime(y, m, d);
     const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-    return '${now.day} ${months[now.month - 1]} ${now.year}';
+    return '${dt.day} ${months[dt.month - 1]} ${dt.year}';
   }
 
   BreakTypeOption get _selectedTypeObj {
     return _breakTypes.firstWhere(
-      (b) => b.name == _selectedBreakType,
+      (b) => b.name.toLowerCase() == _selectedBreakType.toLowerCase(),
       orElse: () => _breakTypes[0],
     );
   }
 
   String get _totalBreakFormatted {
-    final total = _totalBreakMins.round();
-    if (total >= 60) {
-      final h = total ~/ 60;
-      final m = total % 60;
-      return '${h}h ${m < 10 ? '0$m' : m}m';
-    }
-    return '$total mins';
+    return _formatDurationFromMins(_totalBreakMins);
   }
+
+  bool get _isOverLimit => _totalBreakMins > _allowedBreakMins;
 
   int get _remainingMins {
     return (_allowedBreakMins - _totalBreakMins).round().clamp(0, 999);
@@ -206,6 +221,10 @@ class _BreakTrackerScreenState extends ConsumerState<BreakTrackerScreen> {
   void _selectBreakType(String name) {
     if (_activeBreak != null) return;
     setState(() => _selectedBreakType = name);
+  }
+
+  int _countForType(String name) {
+    return _todayBreaks.where((b) => b.type.toLowerCase() == name.toLowerCase()).length;
   }
 
   Future<void> _loadForSelectedDate([String? dateIso]) async {
@@ -283,20 +302,22 @@ class _BreakTrackerScreenState extends ConsumerState<BreakTrackerScreen> {
 
       final startStr = bMap['startTime']?.toString();
       final endStr = bMap['endTime']?.toString();
-      final startDt = startStr != null ? DateTime.tryParse(startStr) : null;
-      final endDt = endStr != null ? DateTime.tryParse(endStr) : null;
+      final startDt = startStr != null ? DateTime.tryParse(startStr)?.toLocal() : null;
+      final endDt = endStr != null ? DateTime.tryParse(endStr)?.toLocal() : null;
       final isOngoing = endDt == null;
 
       if (isOngoing && _isTodaySelected) {
         activeItem = {'b': bMap, 'typeName': typeName, 'config': config, 'startDt': startDt ?? DateTime.now()};
       }
 
-      double durMins = 0;
+      int durSecs = 0;
       if (bMap['durationMinutes'] != null) {
-        durMins = double.tryParse(bMap['durationMinutes'].toString()) ?? 0;
-      } else if (startDt != null && endDt != null) {
-        durMins = endDt.difference(startDt).inMinutes.toDouble();
+        durSecs = ((double.tryParse(bMap['durationMinutes'].toString()) ?? 0) * 60).round();
+      } else if (startDt != null) {
+        final end = endDt ?? DateTime.now();
+        durSecs = end.difference(startDt).inSeconds;
       }
+      final double durMins = durSecs / 60.0;
       totalMins += durMins;
 
       logs.add(BreakLogRow(
@@ -308,10 +329,16 @@ class _BreakTrackerScreenState extends ConsumerState<BreakTrackerScreen> {
         startTime: startDt != null ? _formatTimeOnly(startDt) : '--',
         endTime: endDt != null ? _formatTimeOnly(endDt) : '--',
         durationMins: durMins.round(),
-        durationDisplay: '${durMins.round()} mins',
+        durationSeconds: durSecs,
+        durationDisplay: _formatDuration(durSecs),
         status: isOngoing ? 'In Progress' : 'Completed',
         rawStartTime: startDt,
+        maxMinutes: config.maxMinutes,
       ));
+    }
+
+    if (logs.isNotEmpty) {
+      _datesWithBreaks.add(_selectedDateIso);
     }
 
     setState(() {
@@ -348,13 +375,6 @@ class _BreakTrackerScreenState extends ConsumerState<BreakTrackerScreen> {
     });
   }
 
-  String _formatTimer(int seconds) {
-    final hrs = seconds ~/ 3600;
-    final mins = (seconds % 3600) ~/ 60;
-    final secs = seconds % 60;
-    return '${hrs.toString().padLeft(2, '0')}:${mins.toString().padLeft(2, '0')}:${secs.toString().padLeft(2, '0')}';
-  }
-
   String _formatTimeOnly(DateTime d) {
     final hour = d.hour % 12 == 0 ? 12 : d.hour % 12;
     final minute = d.minute.toString().padLeft(2, '0');
@@ -375,9 +395,20 @@ class _BreakTrackerScreenState extends ConsumerState<BreakTrackerScreen> {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('You have already checked out for today.')));
       return;
     }
+    if (_todayBreaks.length >= 3) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Maximum 3 breaks per day allowed.')));
+      return;
+    }
+    if (_totalBreakMins >= _allowedBreakMins) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Daily break limit reached.')));
+      return;
+    }
 
     final targetType = typeName ?? _selectedBreakType;
-    final config = _breakTypes.firstWhere((b) => b.name == targetType, orElse: () => _breakTypes[0]);
+    final config = _breakTypes.firstWhere(
+      (b) => b.name.toLowerCase() == targetType.toLowerCase(),
+      orElse: () => _breakTypes[0],
+    );
     final now = DateTime.now();
 
     setState(() {
@@ -399,7 +430,8 @@ class _BreakTrackerScreenState extends ConsumerState<BreakTrackerScreen> {
       _loadForSelectedDate();
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString())));
+      final err = e.toString().replaceFirst("ApiException: ", "").replaceFirst("Exception: ", "");
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(err)));
       _loadForSelectedDate();
     }
   }
@@ -420,7 +452,8 @@ class _BreakTrackerScreenState extends ConsumerState<BreakTrackerScreen> {
       _loadForSelectedDate();
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString())));
+      final err = e.toString().replaceFirst("ApiException: ", "").replaceFirst("Exception: ", "");
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(err)));
       _loadForSelectedDate();
     }
   }
@@ -451,8 +484,10 @@ class _BreakTrackerScreenState extends ConsumerState<BreakTrackerScreen> {
     final firstDayOfMonth = DateTime(_calendarYear, _calendarMonth + 1, 1);
     final lastDayOfMonth = DateTime(_calendarYear, _calendarMonth + 2, 0);
 
-    int startDayOfWeek = firstDayOfMonth.weekday - 2; // Mon = 0 ... Sun = 6
-    if (startDayOfWeek < 0) startDayOfWeek = 6;
+    // Mon = 0 ... Sun = 6
+    final startDayOfWeek = firstDayOfMonth.weekday - 1;
+    final now = DateTime.now();
+    final todayIso = _getTodayIso();
 
     final days = <CalendarDayItem>[];
     final prevMonthLastDay = DateTime(_calendarYear, _calendarMonth + 1, 0).day;
@@ -465,8 +500,9 @@ class _BreakTrackerScreenState extends ConsumerState<BreakTrackerScreen> {
         dateIso: dateIso,
         dayNum: dayNum,
         isCurrentMonth: false,
-        isToday: dateIso == _getTodayIso(),
+        isToday: dateIso == todayIso,
         isSelected: dateIso == _selectedDateIso,
+        isFuture: d.isAfter(DateTime(now.year, now.month, now.day, 23, 59, 59)),
       ));
     }
 
@@ -478,12 +514,13 @@ class _BreakTrackerScreenState extends ConsumerState<BreakTrackerScreen> {
         dateIso: dateIso,
         dayNum: dayNum,
         isCurrentMonth: true,
-        isToday: dateIso == _getTodayIso(),
+        isToday: dateIso == todayIso,
         isSelected: dateIso == _selectedDateIso,
+        isFuture: d.isAfter(DateTime(now.year, now.month, now.day, 23, 59, 59)),
       ));
     }
 
-    final totalCells = days.length > 35 ? 42 : 35;
+    final totalCells = (startDayOfWeek + lastDayOfMonth.day) > 35 ? 42 : 35;
     final remaining = totalCells - days.length;
     for (int dayNum = 1; dayNum <= remaining; dayNum++) {
       final d = DateTime(_calendarYear, _calendarMonth + 2, dayNum);
@@ -493,8 +530,9 @@ class _BreakTrackerScreenState extends ConsumerState<BreakTrackerScreen> {
         dateIso: dateIso,
         dayNum: dayNum,
         isCurrentMonth: false,
-        isToday: dateIso == _getTodayIso(),
+        isToday: dateIso == todayIso,
         isSelected: dateIso == _selectedDateIso,
+        isFuture: d.isAfter(DateTime(now.year, now.month, now.day, 23, 59, 59)),
       ));
     }
 
@@ -537,11 +575,28 @@ class _BreakTrackerScreenState extends ConsumerState<BreakTrackerScreen> {
   }
 
   void _selectCalendarDate(CalendarDayItem dayItem) {
+    if (dayItem.isFuture) return;
     setState(() {
       _selectedDateIso = dayItem.dateIso;
       _showCalendarModal = false;
     });
     _loadForSelectedDate();
+  }
+
+  void _openFullLogsScreen() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => BreakLogsScreen(
+          dateIso: _selectedDateIso,
+          displayDate: _displaySelectedDate,
+          totalBreakMins: _totalBreakMins,
+          allowedBreakMins: _allowedBreakMins,
+          breaks: _todayBreaks,
+          onRefresh: () => _loadForSelectedDate(),
+        ),
+      ),
+    );
   }
 
   @override
@@ -554,24 +609,26 @@ class _BreakTrackerScreenState extends ConsumerState<BreakTrackerScreen> {
       return GlassScaffold(title: 'Break Tracker', body: skeleton);
     }
 
+    final bottomPadding = MediaQuery.paddingOf(context).bottom;
+
     final content = Stack(
       children: [
         RefreshIndicator(
           onRefresh: () => _loadForSelectedDate(),
           child: SingleChildScrollView(
             physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
-            padding: const EdgeInsets.all(16),
+            padding: EdgeInsets.fromLTRB(14, 12, 14, bottomPadding + 20),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                // 1. Break Type Selection Grid & Banners
-                _buildBreakSelectionSection(isDark),
-                const SizedBox(height: 20),
-                // 2. Summary Grid (2x2)
-                _buildSummaryGrid(isDark),
-                const SizedBox(height: 24),
-                // 3. Break Logs Table Card
-                _buildBreakLogsCard(isDark),
+                // 1. Compact Break Type Picker & Action Banner
+                _buildCompactBreakSelectionSection(isDark),
+                const SizedBox(height: 12),
+                // 2. Summary 4-Column Strip & Progress Bar
+                _buildCompactSummaryStrip(isDark),
+                const SizedBox(height: 14),
+                // 3. Compact Logs Preview Card
+                _buildCompactLogsPreviewCard(isDark),
               ],
             ),
           ),
@@ -588,262 +645,226 @@ class _BreakTrackerScreenState extends ConsumerState<BreakTrackerScreen> {
     );
   }
 
-  Widget _buildBreakSelectionSection(bool isDark) {
+  Widget _buildCompactBreakSelectionSection(bool isDark) {
+    final bool isLimitReached = _totalBreakMins >= _allowedBreakMins || _todayBreaks.length >= 3;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        // Select Break Type Box
-        AppCard(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Select Break Type to Start',
-                style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold, color: isDark ? AppColors.darkPrimaryText : AppColors.lightPrimaryText),
-              ),
-              const SizedBox(height: 16),
-              LayoutBuilder(
-                builder: (context, constraints) {
-                  final crossAxisCount = constraints.maxWidth > 600 ? 4 : 2;
-                  return GridView.builder(
-                    shrinkWrap: true,
-                    physics: const NeverScrollableScrollPhysics(),
-                    gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                      crossAxisCount: crossAxisCount,
-                      crossAxisSpacing: 12,
-                      mainAxisSpacing: 12,
-                      childAspectRatio: 1.5,
-                    ),
-                    itemCount: _breakTypes.length,
-                    itemBuilder: (context, index) {
-                      final b = _breakTypes[index];
-                      final isSelected = _selectedBreakType == b.name;
+        // 1. Horizontal Chip Row (40-44px high)
+        SizedBox(
+          height: 42,
+          child: ListView.separated(
+            scrollDirection: Axis.horizontal,
+            physics: const BouncingScrollPhysics(),
+            itemCount: _breakTypes.length,
+            separatorBuilder: (_, __) => const SizedBox(width: 8),
+            itemBuilder: (context, index) {
+              final b = _breakTypes[index];
+              final isSelected = _selectedBreakType == b.name;
+              final usedCount = _countForType(b.name);
 
-                      return GestureDetector(
-                        onTap: () => _selectBreakType(b.name),
-                        child: Container(
-                          padding: const EdgeInsets.all(12),
+              return GestureDetector(
+                onTap: () => _selectBreakType(b.name),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: isSelected ? const Color(0xFFEFF6FF) : (isDark ? AppColors.darkSecondarySurface : const Color(0xFFF8FAFC)),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: isSelected ? AppColors.primary : (isDark ? AppColors.darkBordersAndDividers : const Color(0xFFE2E8F0)),
+                      width: isSelected ? 1.5 : 1,
+                    ),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(b.icon, color: isSelected ? AppColors.primary : b.iconColor, size: 16),
+                      const SizedBox(width: 6),
+                      Text(
+                        b.name,
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: isSelected ? FontWeight.bold : FontWeight.w600,
+                          color: isSelected ? AppColors.primary : (isDark ? AppColors.darkPrimaryText : AppColors.lightPrimaryText),
+                        ),
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        'Max ${b.maxMinutes}m',
+                        style: TextStyle(fontSize: 10, color: isDark ? AppColors.darkSecondaryText : AppColors.lightSecondaryText),
+                      ),
+                      if (usedCount > 0) ...[
+                        const SizedBox(width: 4),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
                           decoration: BoxDecoration(
-                            color: isSelected ? const Color(0xFFEFF6FF) : (isDark ? AppColors.darkSecondarySurface : const Color(0xFFF8FAFC)),
-                            borderRadius: BorderRadius.circular(16),
-                            border: Border.all(
-                              color: isSelected ? AppColors.primary : (isDark ? AppColors.darkBordersAndDividers : const Color(0xFFE2E8F0)),
-                              width: isSelected ? 2 : 1,
-                            ),
+                            color: AppColors.primary.withOpacity(0.12),
+                            borderRadius: BorderRadius.circular(8),
                           ),
-                          child: Stack(
-                            children: [
-                              if (isSelected)
-                                Positioned(
-                                  top: 0,
-                                  right: 0,
-                                  child: Container(
-                                    width: 20,
-                                    height: 20,
-                                    decoration: const BoxDecoration(color: AppColors.primary, shape: BoxShape.circle),
-                                    child: const Icon(Icons.check, size: 12, color: Colors.white),
-                                  ),
-                                ),
-                              Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  Container(
-                                    padding: const EdgeInsets.all(8),
-                                    decoration: BoxDecoration(color: b.bgColor, borderRadius: BorderRadius.circular(10)),
-                                    child: Icon(b.icon, color: b.iconColor, size: 20),
-                                  ),
-                                  const SizedBox(height: 8),
-                                  Text(
-                                    b.name,
-                                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: isDark ? AppColors.darkPrimaryText : AppColors.lightPrimaryText),
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                  Text(
-                                    b.maxDisplay,
-                                    style: TextStyle(fontSize: 11, color: isDark ? AppColors.darkSecondaryText : AppColors.lightSecondaryText),
-                                  ),
-                                ],
-                              ),
-                            ],
+                          child: Text(
+                            '$usedCount',
+                            style: const TextStyle(fontSize: 9.5, fontWeight: FontWeight.bold, color: AppColors.primary),
                           ),
                         ),
-                      );
-                    },
-                  );
-                },
-              ),
-            ],
+                      ],
+                    ],
+                  ),
+                ),
+              );
+            },
           ),
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: 10),
 
-        // Active Break Banner
+        // 2. Active Break Banner Row (Slim ~54px)
         if (_activeBreak != null && _isTodaySelected)
           Container(
-            padding: const EdgeInsets.all(20),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
             decoration: BoxDecoration(
               gradient: const LinearGradient(colors: [Color(0xFFE0F2FE), Color(0xFFDBEAFE)]),
-              borderRadius: BorderRadius.circular(20),
+              borderRadius: BorderRadius.circular(14),
               border: Border.all(color: const Color(0xFFBAE6FD)),
             ),
-            child: Column(
+            child: Row(
               children: [
-                Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(12),
-                      decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle),
-                      child: const Icon(Icons.coffee, color: Color(0xFF0284C7), size: 24),
-                    ),
-                    const SizedBox(width: 14),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(_activeBreak!['type'], style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF0F172A))),
-                          const SizedBox(height: 2),
-                          Text('Started at ${_activeBreak!['startTimeDisplay']}', style: const TextStyle(fontSize: 12, color: Color(0xFF475569))),
-                          const SizedBox(height: 6),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
-                            decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20), border: Border.all(color: const Color(0xFFDCFCE7))),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: const [
-                                Icon(Icons.circle, size: 8, color: Color(0xFF16A34A)),
-                                SizedBox(width: 6),
-                                Text('Break In Progress', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Color(0xFF16A34A))),
-                              ],
-                            ),
-                          ),
-                        ],
+                const Icon(Icons.coffee, color: Color(0xFF0284C7), size: 20),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        '${_activeBreak!['type']} in Progress',
+                        style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Color(0xFF0F172A)),
                       ),
-                    ),
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.end,
-                      children: [
-                        const Text('ELAPSED', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Color(0xFF475569))),
-                        const SizedBox(height: 2),
-                        Text(_formatTimer(_elapsedSeconds), style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w900, color: Color(0xFF0F172A))),
-                        Text('of ${_activeBreak!['maxMinutes']} mins', style: const TextStyle(fontSize: 11, color: Color(0xFF64748B))),
-                      ],
-                    ),
-                  ],
+                      Text(
+                        'Started ${_activeBreak!['startTimeDisplay']} · Elapsed: ${_formatDuration(_elapsedSeconds)}',
+                        style: const TextStyle(fontSize: 11, color: Color(0xFF475569)),
+                      ),
+                    ],
+                  ),
                 ),
-                const SizedBox(height: 16),
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton.icon(
-                    onPressed: _stopBreak,
-                    icon: const Icon(Icons.stop, color: Colors.white),
-                    label: const Text('End Break', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFFDC2626),
-                      padding: const EdgeInsets.symmetric(vertical: 12),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                    ),
+                ElevatedButton.icon(
+                  onPressed: _stopBreak,
+                  icon: const Icon(Icons.stop, color: Colors.white, size: 14),
+                  label: const Text('End', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: Colors.white)),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFFDC2626),
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    minimumSize: Size.zero,
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                   ),
                 ),
               ],
             ),
           ),
 
-        // Historical Date View Warning
+        // 3. Historical View Warning Banner
         if (!_isTodaySelected)
           Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(color: const Color(0xFFEFF6FF), borderRadius: BorderRadius.circular(16), border: Border.all(color: const Color(0xFFDBEAFE))),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            decoration: BoxDecoration(color: const Color(0xFFEFF6FF), borderRadius: BorderRadius.circular(12), border: Border.all(color: const Color(0xFFDBEAFE))),
             child: Row(
               children: [
-                const Icon(Icons.history, color: AppColors.primary, size: 24),
-                const SizedBox(width: 12),
+                const Icon(Icons.history, color: AppColors.primary, size: 18),
+                const SizedBox(width: 8),
                 Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text('Viewing Past Log ($_displaySelectedDate)', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: AppColors.primary)),
-                      const SizedBox(height: 2),
-                      const Text('Break controls are only active for today.', style: TextStyle(fontSize: 12, color: Colors.grey)),
-                    ],
-                  ),
+                  child: Text('Viewing Past Log ($_displaySelectedDate)', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: AppColors.primary)),
                 ),
                 TextButton.icon(
                   onPressed: _goToToday,
-                  icon: const Icon(Icons.calendar_today, size: 14),
-                  label: const Text('Today'),
+                  icon: const Icon(Icons.calendar_today, size: 12),
+                  label: const Text('Today', style: TextStyle(fontSize: 11)),
+                  style: TextButton.styleFrom(padding: EdgeInsets.zero, minimumSize: Size.zero),
                 ),
               ],
             ),
           ),
 
-        // Check-In Required Warning
+        // 4. Check-In Warning Banner
         if (_isTodaySelected && (!_hasCheckedInToday || _isCheckedOut))
           Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(color: const Color(0xFFFEF3C7), borderRadius: BorderRadius.circular(16), border: Border.all(color: const Color(0xFFFDE68A))),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            decoration: BoxDecoration(color: const Color(0xFFFEF3C7), borderRadius: BorderRadius.circular(12), border: Border.all(color: const Color(0xFFFDE68A))),
             child: Row(
               children: [
-                Icon(_isCheckedOut ? Icons.check_circle : Icons.warning_amber_rounded, color: const Color(0xFFD97706), size: 24),
-                const SizedBox(width: 12),
+                Icon(_isCheckedOut ? Icons.check_circle : Icons.warning_amber_rounded, color: const Color(0xFFD97706), size: 18),
+                const SizedBox(width: 8),
                 Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(_isCheckedOut ? 'Shift Completed' : 'Check-In Required First', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Color(0xFF92400E))),
-                      const SizedBox(height: 2),
-                      Text(
-                        _isCheckedOut ? 'You have checked out for today.' : 'You must check in on the Attendance page before taking breaks.',
-                        style: const TextStyle(fontSize: 12, color: Color(0xFFB45309)),
-                      ),
-                    ],
+                  child: Text(
+                    _isCheckedOut ? 'Shift Completed for today.' : 'Check in on Attendance before taking breaks.',
+                    style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.bold, color: Color(0xFF92400E)),
                   ),
                 ),
                 if (!_isCheckedOut)
                   ElevatedButton(
                     onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const PunchInOutScreen())),
-                    style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFD97706), foregroundColor: Colors.white),
-                    child: const Text('Check-In'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFFD97706),
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                      minimumSize: Size.zero,
+                    ),
+                    child: const Text('Check-In', style: TextStyle(fontSize: 11)),
                   ),
               ],
             ),
           ),
 
-        // Idle Start Break Banner
-        if (_activeBreak == null && _isTodaySelected)
+        // 5. Idle Slim Merged Banner & Start Row (~54px high)
+        if (_activeBreak == null && _isTodaySelected && _hasCheckedInToday && !_isCheckedOut)
           Container(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
             decoration: BoxDecoration(
               color: isDark ? AppColors.darkSecondarySurface : Colors.white,
-              borderRadius: BorderRadius.circular(16),
+              borderRadius: BorderRadius.circular(14),
               border: Border.all(color: isDark ? AppColors.darkBordersAndDividers : const Color(0xFFE2E8F0)),
             ),
             child: Row(
               children: [
                 Container(
-                  padding: const EdgeInsets.all(10),
-                  decoration: BoxDecoration(color: _selectedTypeObj.bgColor, borderRadius: BorderRadius.circular(12)),
-                  child: Icon(_selectedTypeObj.icon, color: _selectedTypeObj.iconColor, size: 22),
+                  padding: const EdgeInsets.all(7),
+                  decoration: BoxDecoration(color: _selectedTypeObj.bgColor, borderRadius: BorderRadius.circular(10)),
+                  child: Icon(_selectedTypeObj.icon, color: _selectedTypeObj.iconColor, size: 18),
                 ),
-                const SizedBox(width: 12),
+                const SizedBox(width: 10),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
                     children: [
-                      Text('Ready for $_selectedBreakType?', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: isDark ? AppColors.darkPrimaryText : AppColors.lightPrimaryText)),
-                      const SizedBox(height: 2),
-                      Text('Max limit is ${_selectedTypeObj.maxMinutes} mins.', style: TextStyle(fontSize: 12, color: isDark ? AppColors.darkSecondaryText : AppColors.lightSecondaryText)),
+                      Text(
+                        _selectedBreakType,
+                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: isDark ? AppColors.darkPrimaryText : AppColors.lightPrimaryText),
+                      ),
+                      Text(
+                        _todayBreaks.length >= 3
+                            ? '3/3 breaks used'
+                            : _totalBreakMins >= _allowedBreakMins
+                                ? 'Limit reached (${_totalBreakMins.round()}/${_allowedBreakMins.round()}m)'
+                                : 'Max ${_selectedTypeObj.maxMinutes} mins',
+                        style: TextStyle(
+                          fontSize: 10.5,
+                          color: isLimitReached ? AppColors.error : (isDark ? AppColors.darkSecondaryText : AppColors.lightSecondaryText),
+                          fontWeight: isLimitReached ? FontWeight.bold : FontWeight.normal,
+                        ),
+                      ),
                     ],
                   ),
                 ),
                 ElevatedButton.icon(
-                  onPressed: (!_hasCheckedInToday || _isCheckedOut) ? null : () => _startBreak(),
-                  icon: const Icon(Icons.play_arrow, size: 16),
-                  label: Text('Start $_selectedBreakType'),
+                  onPressed: isLimitReached ? null : () => _startBreak(),
+                  icon: Icon(isLimitReached ? Icons.block_rounded : Icons.play_arrow, size: 14),
+                  label: Text(isLimitReached ? 'Limit reached' : 'Start $_selectedBreakType', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppColors.primary,
+                    disabledBackgroundColor: Colors.grey.withOpacity(0.3),
                     foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    minimumSize: Size.zero,
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                   ),
                 ),
@@ -854,25 +875,34 @@ class _BreakTrackerScreenState extends ConsumerState<BreakTrackerScreen> {
     );
   }
 
-  Widget _buildSummaryGrid(bool isDark) {
+  Widget _buildCompactSummaryStrip(bool isDark) {
+    final bool overLimit = _isOverLimit;
+    final double overrunMins = overLimit ? (_totalBreakMins - _allowedBreakMins) : 0;
+    final ratio = (_totalBreakMins / _allowedBreakMins).clamp(0.0, 1.0);
+
+    final Color remainingColor = overLimit ? AppColors.error : const Color(0xFFEA580C);
+    final String remainingValue = overLimit ? 'Over by ${_formatDurationFromMins(overrunMins)}' : '${_remainingMins}m';
+
+    final Color progressColor = ratio < 0.8
+        ? const Color(0xFF10B981)
+        : (overLimit ? AppColors.error : Colors.amber.shade700);
+
     return AppCard(
+      padding: const EdgeInsets.all(12),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Row(
-                children: [
-                  const Icon(Icons.calendar_today, size: 16, color: AppColors.primary),
-                  const SizedBox(width: 8),
-                  Text(_isTodaySelected ? "Today's Summary" : "Break Summary", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: isDark ? AppColors.darkPrimaryText : AppColors.lightPrimaryText)),
-                ],
+              Text(
+                "Today's Summary",
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13.5, color: isDark ? AppColors.darkPrimaryText : AppColors.lightPrimaryText),
               ),
               InkWell(
                 onTap: _toggleCalendarModal,
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                   decoration: BoxDecoration(
                     color: isDark ? AppColors.darkSecondarySurface : const Color(0xFFEFF6FF),
                     borderRadius: BorderRadius.circular(8),
@@ -880,153 +910,193 @@ class _BreakTrackerScreenState extends ConsumerState<BreakTrackerScreen> {
                   ),
                   child: Row(
                     children: [
-                      const Icon(Icons.calendar_month, size: 14, color: AppColors.primary),
-                      const SizedBox(width: 6),
-                      Text(_displaySelectedDate, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.primary)),
+                      const Icon(Icons.calendar_month, size: 12, color: AppColors.primary),
+                      const SizedBox(width: 4),
+                      Text(_displaySelectedDate, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: AppColors.primary)),
                     ],
                   ),
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 16),
-          GridView.count(
-            crossAxisCount: 2,
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            crossAxisSpacing: 12,
-            mainAxisSpacing: 12,
-            childAspectRatio: 1.6,
-            children: [
-              _summaryTile('Total Break Time', _totalBreakFormatted, Icons.access_time, const Color(0xFF2563EB), const Color(0xFFDBEAFE), isDark),
-              _summaryTile('Daily Allowed Limit', '${_allowedBreakMins.round()} mins', Icons.hourglass_top, const Color(0xFF16A34A), const Color(0xFFDCFCE7), isDark),
-              _summaryTile('Total Breaks', '${_todayBreaks.length}', Icons.layers, const Color(0xFF8B5CF6), const Color(0xFFEDE9FE), isDark),
-              _summaryTile('Remaining', '$_remainingMins mins', Icons.timer_off, const Color(0xFFEA580C), const Color(0xFFFFEDD5), isDark),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _summaryTile(String label, String value, IconData icon, Color color, Color bg, bool isDark) {
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: isDark ? AppColors.darkSecondarySurface : const Color(0xFFF8FAFC),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: isDark ? AppColors.darkBordersAndDividers : const Color(0xFFE2E8F0)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
+          const SizedBox(height: 10),
+          // Single 4-column strip (~54px high)
           Container(
-            padding: const EdgeInsets.all(6),
-            decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(8)),
-            child: Icon(icon, color: color, size: 16),
+            padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+            decoration: BoxDecoration(
+              color: isDark ? AppColors.darkSecondarySurface : const Color(0xFFF8FAFC),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: isDark ? AppColors.darkBordersAndDividers : const Color(0xFFE2E8F0)),
+            ),
+            child: Row(
+              children: [
+                _compactSummaryCell('Total', _totalBreakFormatted, const Color(0xFF2563EB), isDark),
+                _vDivider(isDark),
+                _compactSummaryCell('Limit', '${_allowedBreakMins.round()}m', const Color(0xFF16A34A), isDark),
+                _vDivider(isDark),
+                _compactSummaryCell('Breaks', '${_todayBreaks.length}', const Color(0xFF8B5CF6), isDark),
+                _vDivider(isDark),
+                _compactSummaryCell('Remaining', remainingValue, remainingColor, isDark),
+              ],
+            ),
           ),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(value, style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: color)),
-              const SizedBox(height: 1),
-              Text(label, style: TextStyle(fontSize: 11, color: isDark ? AppColors.darkSecondaryText : AppColors.lightSecondaryText)),
-            ],
+          const SizedBox(height: 8),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(4),
+            child: LinearProgressIndicator(
+              value: ratio,
+              minHeight: 5,
+              backgroundColor: isDark ? Colors.white12 : Colors.grey.shade200,
+              valueColor: AlwaysStoppedAnimation<Color>(progressColor),
+            ),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildBreakLogsCard(bool isDark) {
+  Widget _compactSummaryCell(String label, String value, Color color, bool isDark) {
+    return Expanded(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            value,
+            style: TextStyle(fontSize: 13, fontWeight: FontWeight.w900, color: color),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+          const SizedBox(height: 1),
+          Text(
+            label,
+            style: TextStyle(fontSize: 10, color: isDark ? AppColors.darkSecondaryText : AppColors.lightSecondaryText),
+            maxLines: 1,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _vDivider(bool isDark) {
+    return Container(
+      width: 1,
+      height: 24,
+      color: isDark ? AppColors.darkBordersAndDividers : const Color(0xFFE2E8F0),
+    );
+  }
+
+  Widget _buildCompactLogsPreviewCard(bool isDark) {
+    final displayLogs = _todayBreaks.take(5).toList();
+
     return AppCard(
+      padding: const EdgeInsets.all(12),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Row(
-                children: [
-                  const Icon(Icons.history, size: 16, color: AppColors.primary),
-                  const SizedBox(width: 8),
-                  Text(_isTodaySelected ? "Today's Break Logs" : "Break Logs ($_displaySelectedDate)", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: isDark ? AppColors.darkPrimaryText : AppColors.lightPrimaryText)),
-                ],
+              Text(
+                "Break Logs",
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13.5, color: isDark ? AppColors.darkPrimaryText : AppColors.lightPrimaryText),
               ),
-              Row(
-                children: [
-                  OutlinedButton.icon(
-                    onPressed: _toggleCalendarModal,
-                    icon: const Icon(Icons.calendar_month, size: 14),
-                    label: const Text('Calendar', style: TextStyle(fontSize: 12)),
-                    style: OutlinedButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6)),
+              InkWell(
+                onTap: _openFullLogsScreen,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 2, horizontal: 4),
+                  child: Text(
+                    "View all (${_todayBreaks.length}) →",
+                    style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.bold, color: AppColors.primary),
                   ),
-                  if (!_isTodaySelected) ...[
-                    const SizedBox(width: 6),
-                    TextButton.icon(
-                      onPressed: _goToToday,
-                      icon: const Icon(Icons.refresh, size: 14),
-                      label: const Text('Today', style: TextStyle(fontSize: 12)),
-                    ),
-                  ],
-                ],
+                ),
               ),
             ],
           ),
-          const SizedBox(height: 14),
-          _todayBreaks.isEmpty
-              ? Padding(
-                  padding: const EdgeInsets.all(24),
-                  child: Center(
-                    child: Text('No break logs recorded for ${_isTodaySelected ? 'today' : _displaySelectedDate}.', style: TextStyle(color: isDark ? AppColors.darkSecondaryText : AppColors.lightSecondaryText)),
+          const SizedBox(height: 8),
+          if (_todayBreaks.isEmpty)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 12),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.coffee_outlined, size: 16, color: Colors.grey.withOpacity(0.5)),
+                  const SizedBox(width: 8),
+                  Text(
+                    'No breaks taken on this day',
+                    style: TextStyle(fontSize: 11.5, color: isDark ? AppColors.darkSecondaryText : AppColors.lightSecondaryText),
                   ),
-                )
-              : ListView.separated(
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  itemCount: _todayBreaks.length,
-                  separatorBuilder: (_, __) => const SizedBox(height: 10),
-                  itemBuilder: (context, index) {
-                    final item = _todayBreaks[index];
-                    return Container(
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: isDark ? AppColors.darkSecondarySurface : const Color(0xFFF8FAFC),
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: isDark ? AppColors.darkBordersAndDividers : const Color(0xFFE2E8F0)),
+                ],
+              ),
+            )
+          else
+            ListView.separated(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: displayLogs.length,
+              separatorBuilder: (_, __) => const SizedBox(height: 6),
+              itemBuilder: (context, index) {
+                final item = displayLogs[index];
+                final isOngoing = item.status == 'In Progress';
+                final bool isOverrun = item.durationMins > item.maxMinutes;
+
+                return Container(
+                  height: 44,
+                  padding: const EdgeInsets.symmetric(horizontal: 10),
+                  decoration: BoxDecoration(
+                    color: isDark ? AppColors.darkSecondarySurface : const Color(0xFFF8FAFC),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: isDark ? AppColors.darkBordersAndDividers : const Color(0xFFE2E8F0)),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(item.icon, color: item.iconColor, size: 16),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          '${item.type.toUpperCase()}  ${item.startTime} - ${item.endTime}',
+                          style: TextStyle(
+                            fontSize: 11.5,
+                            fontWeight: FontWeight.bold,
+                            color: isDark ? AppColors.darkPrimaryText : AppColors.lightPrimaryText,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
                       ),
-                      child: Row(
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.all(8),
-                            decoration: BoxDecoration(color: item.iconBg, borderRadius: BorderRadius.circular(10)),
-                            child: Icon(item.icon, color: item.iconColor, size: 18),
+                      const SizedBox(width: 6),
+                      if (isOngoing)
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          decoration: BoxDecoration(color: const Color(0xFFFFEDD5), borderRadius: BorderRadius.circular(6)),
+                          child: Text(
+                            _formatDuration(_elapsedSeconds),
+                            style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Color(0xFFC2410C)),
                           ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(item.type, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13.5, color: isDark ? AppColors.darkPrimaryText : AppColors.lightPrimaryText)),
-                                const SizedBox(height: 2),
-                                Text('${item.startTime} - ${item.endTime}', style: TextStyle(fontSize: 11.5, color: isDark ? AppColors.darkSecondaryText : AppColors.lightSecondaryText)),
-                              ],
-                            ),
+                        )
+                      else ...[
+                        Text(
+                          item.durationDisplay,
+                          style: TextStyle(
+                            fontSize: 11.5,
+                            fontWeight: FontWeight.w900,
+                            color: isOverrun ? AppColors.error : AppColors.primary,
                           ),
-                          Column(
-                            crossAxisAlignment: CrossAxisAlignment.end,
-                            children: [
-                              Text(item.durationDisplay, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppColors.primary)),
-                              const SizedBox(height: 2),
-                              StatusChip(status: item.status),
-                            ],
+                        ),
+                        const SizedBox(width: 6),
+                        Container(
+                          width: 6,
+                          height: 6,
+                          decoration: BoxDecoration(
+                            color: isOverrun ? AppColors.error : const Color(0xFF10B981),
+                            shape: BoxShape.circle,
                           ),
-                        ],
-                      ),
-                    );
-                  },
-                ),
+                        ),
+                      ],
+                    ],
+                  ),
+                );
+              },
+            ),
         ],
       ),
     );
@@ -1050,7 +1120,7 @@ class _BreakTrackerScreenState extends ConsumerState<BreakTrackerScreen> {
               children: [
                 // Header
                 Padding(
-                  padding: const EdgeInsets.all(16),
+                  padding: const EdgeInsets.all(14),
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
@@ -1073,7 +1143,7 @@ class _BreakTrackerScreenState extends ConsumerState<BreakTrackerScreen> {
                 const Divider(height: 1),
                 // Days Grid
                 Padding(
-                  padding: const EdgeInsets.all(16),
+                  padding: const EdgeInsets.fromLTRB(14, 10, 14, 14),
                   child: Column(
                     children: [
                       Row(
@@ -1088,7 +1158,7 @@ class _BreakTrackerScreenState extends ConsumerState<BreakTrackerScreen> {
                           Text('Sun', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.grey)),
                         ],
                       ),
-                      const SizedBox(height: 12),
+                      const SizedBox(height: 6),
                       GridView.builder(
                         shrinkWrap: true,
                         physics: const NeverScrollableScrollPhysics(),
@@ -1100,28 +1170,46 @@ class _BreakTrackerScreenState extends ConsumerState<BreakTrackerScreen> {
                         itemCount: _calendarDays.length,
                         itemBuilder: (context, index) {
                           final day = _calendarDays[index];
+                          final hasBreaks = _datesWithBreaks.contains(day.dateIso);
+
                           return GestureDetector(
-                            onTap: () => _selectCalendarDate(day),
+                            onTap: day.isFuture ? null : () => _selectCalendarDate(day),
                             child: Container(
                               decoration: BoxDecoration(
                                 color: day.isSelected
                                     ? AppColors.primary
-                                    : (day.isToday ? AppColors.primary.withOpacity(0.1) : Colors.transparent),
+                                    : (day.isToday ? AppColors.primary.withOpacity(0.12) : Colors.transparent),
                                 borderRadius: BorderRadius.circular(8),
-                                border: day.isToday && !day.isSelected ? Border.all(color: AppColors.primary) : null,
+                                border: day.isToday
+                                    ? Border.all(color: AppColors.primary, width: 1.5)
+                                    : null,
                               ),
-                              alignment: Alignment.center,
-                              child: Text(
-                                '${day.dayNum}',
-                                style: TextStyle(
-                                  fontSize: 13,
-                                  fontWeight: day.isToday || day.isSelected ? FontWeight.bold : FontWeight.normal,
-                                  color: day.isSelected
-                                      ? Colors.white
-                                      : (!day.isCurrentMonth
-                                          ? Colors.grey.withOpacity(0.5)
-                                          : (isDark ? AppColors.darkPrimaryText : AppColors.lightPrimaryText)),
-                                ),
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Text(
+                                    '${day.dayNum}',
+                                    style: TextStyle(
+                                      fontSize: 12.5,
+                                      fontWeight: day.isToday || day.isSelected ? FontWeight.bold : FontWeight.normal,
+                                      color: day.isSelected
+                                          ? Colors.white
+                                          : (day.isFuture || !day.isCurrentMonth
+                                              ? Colors.grey.withOpacity(0.4)
+                                              : (isDark ? AppColors.darkPrimaryText : AppColors.lightPrimaryText)),
+                                    ),
+                                  ),
+                                  if (hasBreaks && day.isCurrentMonth)
+                                    Container(
+                                      margin: const EdgeInsets.only(top: 2),
+                                      width: 4,
+                                      height: 4,
+                                      decoration: BoxDecoration(
+                                        color: day.isSelected ? Colors.white : AppColors.primary,
+                                        shape: BoxShape.circle,
+                                      ),
+                                    ),
+                                ],
                               ),
                             ),
                           );

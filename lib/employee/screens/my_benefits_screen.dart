@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:image_picker/image_picker.dart';
 
 import '../../core/api/api_client.dart';
 import '../../core/theme/app_colors.dart';
@@ -30,6 +31,9 @@ class _MyBenefitsScreenState extends ConsumerState<MyBenefitsScreen> {
   dynamic _selectedEnrollmentForClaim;
   final TextEditingController _claimAmountController = TextEditingController();
   final TextEditingController _claimDescController = TextEditingController();
+  final TextEditingController _claimDateController = TextEditingController(text: DateTime.now().toIso8601String().split('T')[0]);
+  final TextEditingController _claimDocUrlController = TextEditingController();
+  XFile? _claimReceiptFile;
   bool _submittingClaim = false;
 
   @override
@@ -42,7 +46,33 @@ class _MyBenefitsScreenState extends ConsumerState<MyBenefitsScreen> {
   void dispose() {
     _claimAmountController.dispose();
     _claimDescController.dispose();
+    _claimDateController.dispose();
+    _claimDocUrlController.dispose();
     super.dispose();
+  }
+
+  Future<void> _pickClaimReceipt() async {
+    try {
+      final picker = ImagePicker();
+      final file = await picker.pickImage(source: ImageSource.gallery, imageQuality: 85);
+      if (file != null) {
+        setState(() {
+          _claimReceiptFile = file;
+          _claimDocUrlController.text = file.path;
+        });
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Receipt attached successfully!'), backgroundColor: AppColors.success),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to attach receipt: $e'), backgroundColor: AppColors.error),
+        );
+      }
+    }
   }
 
   Future<void> _loadAllData() async {
@@ -224,6 +254,9 @@ class _MyBenefitsScreenState extends ConsumerState<MyBenefitsScreen> {
       _selectedEnrollmentForClaim = enrollment;
       _claimAmountController.text = '';
       _claimDescController.text = '';
+      _claimDateController.text = DateTime.now().toIso8601String().split('T')[0];
+      _claimDocUrlController.text = '';
+      _claimReceiptFile = null;
       _showClaimModal = true;
     });
   }
@@ -233,17 +266,16 @@ class _MyBenefitsScreenState extends ConsumerState<MyBenefitsScreen> {
     setState(() => _submittingClaim = true);
     final apiClient = ref.read(apiClientProvider);
     try {
-      await apiClient.post('/benefits/my/claims', body: {
+      final payload = {
         'employeeBenefitId': _selectedEnrollmentForClaim['id'] ?? _selectedEnrollmentForClaim['benefitId'],
         'benefitId': _selectedEnrollmentForClaim['benefitId'] ?? _selectedEnrollmentForClaim['id'],
         'amount': double.tryParse(_claimAmountController.text) ?? 0,
         'description': _claimDescController.text.trim(),
-      }).catchError((_) async {
-        return await apiClient.post('/benefits/claims', body: {
-          'benefitId': _selectedEnrollmentForClaim['benefitId'] ?? _selectedEnrollmentForClaim['id'],
-          'amount': double.tryParse(_claimAmountController.text) ?? 0,
-          'description': _claimDescController.text.trim(),
-        });
+        'claimDate': _claimDateController.text.trim(),
+        'documentUrl': _claimDocUrlController.text.trim(),
+      };
+      await apiClient.post('/benefits/my/claims', body: payload).catchError((_) async {
+        return await apiClient.post('/benefits/claims', body: payload);
       });
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Claim submitted successfully!'), backgroundColor: AppColors.success));
@@ -774,57 +806,114 @@ class _MyBenefitsScreenState extends ConsumerState<MyBenefitsScreen> {
   Widget _buildClaimModal(BuildContext context, bool isDark) {
     final glass = context.glass;
     return Container(
+      constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.85),
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: Theme.of(context).cardColor,
         borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
         boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.2), blurRadius: 20)],
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text('Submit Benefit Claim', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: glass.textPrimary)),
-              IconButton(icon: Icon(Icons.close, color: glass.textSecondary), onPressed: () => setState(() => _showClaimModal = false)),
-            ],
-          ),
-          const Divider(height: 16),
-          Text('Benefit: ${_selectedEnrollmentForClaim?['benefitName'] ?? 'Selected Plan'}', style: TextStyle(fontSize: 13, color: glass.textSecondary)),
-          const SizedBox(height: 12),
-          TextField(
-            controller: _claimAmountController,
-            keyboardType: TextInputType.number,
-            style: TextStyle(color: glass.textPrimary),
-            decoration: InputDecoration(
-              labelText: 'Claim Amount (₹)',
-              labelStyle: TextStyle(color: glass.textSecondary),
-              border: const OutlineInputBorder(),
+      child: SingleChildScrollView(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text('Submit Benefit Claim', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: glass.textPrimary)),
+                IconButton(icon: Icon(Icons.close, color: glass.textSecondary), onPressed: () => setState(() => _showClaimModal = false)),
+              ],
             ),
-          ),
-          const SizedBox(height: 12),
-          TextField(
-            controller: _claimDescController,
-            maxLines: 3,
-            style: TextStyle(color: glass.textPrimary),
-            decoration: InputDecoration(
-              labelText: 'Description / Remarks',
-              labelStyle: TextStyle(color: glass.textSecondary),
-              border: const OutlineInputBorder(),
+            const Divider(height: 16),
+            Text('Benefit: ${_selectedEnrollmentForClaim?['benefitName'] ?? 'Selected Plan'}', style: TextStyle(fontSize: 13, color: glass.textSecondary)),
+            const SizedBox(height: 14),
+            TextField(
+              controller: _claimAmountController,
+              keyboardType: TextInputType.number,
+              style: TextStyle(color: glass.textPrimary),
+              decoration: InputDecoration(
+                labelText: 'Amount (₹) *',
+                labelStyle: TextStyle(color: glass.textSecondary),
+                border: const OutlineInputBorder(),
+              ),
             ),
-          ),
-          const SizedBox(height: 20),
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton(
-              onPressed: _submittingClaim ? null : _submitClaim,
-              style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary, foregroundColor: Colors.white),
-              child: Text(_submittingClaim ? 'Submitting...' : 'Submit Claim'),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _claimDescController,
+              maxLines: 3,
+              style: TextStyle(color: glass.textPrimary),
+              decoration: InputDecoration(
+                labelText: 'Description *',
+                labelStyle: TextStyle(color: glass.textSecondary),
+                border: const OutlineInputBorder(),
+              ),
             ),
-          ),
-        ],
+            const SizedBox(height: 12),
+            TextField(
+              controller: _claimDateController,
+              style: TextStyle(color: glass.textPrimary),
+              decoration: InputDecoration(
+                labelText: 'Claim Date (YYYY-MM-DD)',
+                labelStyle: TextStyle(color: glass.textSecondary),
+                suffixIcon: const Icon(Icons.calendar_today, size: 18),
+                border: const OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 12),
+            InkWell(
+              onTap: _pickClaimReceipt,
+              child: Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: isDark ? const Color(0xFF1A2632) : const Color(0xFFF8FAFC),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: AppColors.primary.withOpacity(0.4)),
+                ),
+                child: Column(
+                  children: [
+                    const Icon(Icons.cloud_upload_outlined, size: 30, color: AppColors.primary),
+                    const SizedBox(height: 6),
+                    Text(_claimReceiptFile != null ? _claimReceiptFile!.name : 'Upload Document / Receipt', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12.5, color: glass.textPrimary)),
+                    const SizedBox(height: 2),
+                    const Text('PDF, PNG, JPG or DOCX (Max 5MB)', style: TextStyle(fontSize: 10.5, color: Colors.grey)),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _claimDocUrlController,
+              style: TextStyle(color: glass.textPrimary),
+              decoration: InputDecoration(
+                labelText: 'Or enter document URL link',
+                labelStyle: TextStyle(color: glass.textSecondary),
+                border: const OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 20),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: () => setState(() => _showClaimModal = false),
+                    style: OutlinedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 12)),
+                    child: const Text('Cancel'),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: ElevatedButton(
+                    onPressed: _submittingClaim ? null : _submitClaim,
+                    style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary, foregroundColor: Colors.white, padding: const EdgeInsets.symmetric(vertical: 12)),
+                    child: Text(_submittingClaim ? 'Submitting...' : 'Submit Claim', style: const TextStyle(fontWeight: FontWeight.bold)),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }

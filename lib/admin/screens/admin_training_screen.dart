@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/api/api_client.dart';
 import '../../core/api/api_endpoints.dart';
+import '../../core/api/training_service.dart';
 import '../../core/auth/auth_service.dart';
 import '../../core/errors/api_exception.dart';
 import '../../core/models/user_model.dart';
@@ -142,10 +143,10 @@ class _AdminTrainingScreenState extends ConsumerState<AdminTrainingScreen> {
       _errorMessage = null;
     });
 
-    final apiClient = ref.read(apiClientProvider);
+    final trainingService = ref.read(trainingServiceProvider);
 
     try {
-      final res = await apiClient.get(ApiEndpoints.trainingCourses).catchError((_) => null);
+      final res = await trainingService.getCourses().catchError((_) => null);
       if (!mounted || currentReq != _requestId) return;
 
       dynamic rawCourses = res is Map<String, dynamic> && res.containsKey('data') ? res['data'] : res;

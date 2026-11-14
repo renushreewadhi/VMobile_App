@@ -236,21 +236,6 @@ class _AdminReportingHierarchyScreenState extends ConsumerState<AdminReportingHi
               children: [],
             );
           }).toList();
-        } else {
-          treeList = [
-            ReportingNodeModel(
-              id: '1',
-              name: 'Praveen Singh',
-              designation: 'Team Lead',
-              department: 'Engineering',
-              directReportCount: 2,
-              employmentStatus: 'Active',
-              children: [
-                ReportingNodeModel(id: '2', name: 'Ajay Raja', designation: 'Developer', department: 'Engineering', directReportCount: 0, employmentStatus: 'Active', children: []),
-                ReportingNodeModel(id: '3', name: 'Manasi Borase', designation: 'Developer', department: 'Engineering', directReportCount: 0, employmentStatus: 'Active', children: []),
-              ],
-            )
-          ];
         }
       }
 
@@ -258,25 +243,14 @@ class _AdminReportingHierarchyScreenState extends ConsumerState<AdminReportingHi
       setState(() {
         _tree = treeList;
         _isLoading = false;
+        _errorMessage = treeList.isEmpty ? 'No organization hierarchy found.' : null;
       });
     } catch (e) {
       if (!mounted || currentReq != _requestId) return;
       setState(() {
-        _tree = [
-          ReportingNodeModel(
-            id: '1',
-            name: 'Praveen Singh',
-            designation: 'Team Lead',
-            department: 'Engineering',
-            directReportCount: 2,
-            employmentStatus: 'Active',
-            children: [
-              ReportingNodeModel(id: '2', name: 'Ajay Raja', designation: 'Developer', department: 'Engineering', directReportCount: 0, employmentStatus: 'Active', children: []),
-              ReportingNodeModel(id: '3', name: 'Manasi Borase', designation: 'Developer', department: 'Engineering', directReportCount: 0, employmentStatus: 'Active', children: []),
-            ],
-          )
-        ];
+        _tree = [];
         _isLoading = false;
+        _errorMessage = 'Failed to load organization hierarchy: $e';
       });
     } finally {
       if (mounted && _isLoading) {

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/api/api_client.dart';
+import '../../../core/api/training_service.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/widgets/glass_scaffold.dart';
 import '../../../shared/widgets/app_card.dart';
@@ -29,9 +30,9 @@ class _HrCategoriesScreenState extends ConsumerState<HrCategoriesScreen> {
 
   Future<void> _loadCategories() async {
     setState(() => _isLoading = true);
-    final apiClient = ref.read(apiClientProvider);
+    final trainingService = ref.read(trainingServiceProvider);
     try {
-      final res = await apiClient.get('/training/categories').catchError((_) => null);
+      final res = await trainingService.getCategories().catchError((_) => null);
       List<dynamic> items = res is List ? res : (res is Map && res['data'] is List ? res['data'] : []);
 
       if (items.isEmpty) {
@@ -100,9 +101,9 @@ class _HrCategoriesScreenState extends ConsumerState<HrCategoriesScreen> {
             ElevatedButton(
               style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary, foregroundColor: Colors.white),
               onPressed: () async {
-                final apiClient = ref.read(apiClientProvider);
+                final trainingService = ref.read(trainingServiceProvider);
                 try {
-                  await apiClient.post('/training/categories', body: {
+                  await trainingService.createCategory({
                     'name': nameController.text.trim(),
                     'description': descController.text.trim(),
                     'status': isActive ? 'ACTIVE' : 'DRAFT',

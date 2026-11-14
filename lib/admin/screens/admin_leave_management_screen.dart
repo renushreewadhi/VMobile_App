@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import '../../core/api/api_client.dart';
 import '../../core/api/api_endpoints.dart';
+import '../../core/api/leave_service.dart';
 import '../../core/auth/auth_service.dart';
 import '../../core/errors/api_exception.dart';
 import '../../core/models/user_model.dart';
@@ -239,11 +240,11 @@ class _AdminLeaveManagementScreenState extends ConsumerState<AdminLeaveManagemen
       _errorMessage = null;
     });
 
-    final apiClient = ref.read(apiClientProvider);
+    final leaveService = ref.read(leaveServiceProvider);
 
     try {
       // 1. Fetch Leave Requests (with pageSize 500 to prevent silent omission)
-      final res = await apiClient.get('${ApiEndpoints.leaveAll}?pageSize=500');
+      final res = await leaveService.getAllLeaves(queryParams: {'pageSize': '500'});
       if (!mounted || currentReq != _requestId) return;
 
       dynamic rawData = res;
@@ -317,7 +318,7 @@ class _AdminLeaveManagementScreenState extends ConsumerState<AdminLeaveManagemen
       // 2. Fetch Leave Balances
       List<LeaveBalanceModel> balances = [];
       try {
-        final balRes = await apiClient.get(ApiEndpoints.leaveBalances);
+        final balRes = await leaveService.getLeaveBalances();
         if (!mounted || currentReq != _requestId) return;
         dynamic rawBal = balRes is Map<String, dynamic> && balRes.containsKey('data') ? balRes['data'] : balRes;
         if (rawBal is List) {
@@ -471,10 +472,10 @@ class _AdminLeaveManagementScreenState extends ConsumerState<AdminLeaveManagemen
     setState(() => _processingIds.add(record.id));
 
     final currentReq = ++_requestId;
-    final apiClient = ref.read(apiClientProvider);
+    final leaveService = ref.read(leaveServiceProvider);
 
     try {
-      await apiClient.post(ApiEndpoints.approveOrRejectLeave(record.id), body: {
+      await leaveService.approveOrRejectLeave(record.id, {
         'status': status,
         'comments': rejectionReason,
         'rejectionReason': rejectionReason,
@@ -897,12 +898,7 @@ class _AdminLeaveManagementScreenState extends ConsumerState<AdminLeaveManagemen
                                       icon: const Icon(Icons.remove_red_eye_outlined, size: 16),
                                       label: const Text('View', style: TextStyle(fontSize: 12)),
                                       style: OutlinedButton.styleFrom(visualDensity: VisualDensity.compact),
-                                      onPressed: () {
-                                        setState(() {
-                                          _selectedRequestModal = r;
-                                          _showDetailsModal = true;
-                                        });
-                                      },
+                                      onPressed: () => _showLeaveDetailDialog(r),
                                     ),
                                   ],
                                 ),
@@ -960,6 +956,67 @@ class _AdminLeaveManagementScreenState extends ConsumerState<AdminLeaveManagemen
       ),
       onPressed: () => _switchTab(tabId),
       child: Text(label, style: TextStyle(fontSize: 12, fontWeight: isSelected ? FontWeight.bold : FontWeight.normal)),
+    );
+  }
+
+  void _showLeaveDetailDialog(LeaveRecordModel r) {
+    final dark = Theme.of(context).brightness == Brightness.dark;
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: dark ? AppColors.darkMainSurface : Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => Padding(
+        padding: EdgeInsets.fromLTRB(20, 20, 20, MediaQuery.of(ctx).viewInsets.bottom + 20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text('Leave Request Details', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                IconButton(
+                  icon: const Icon(Icons.close),
+                  onPressed: () => Navigator.pop(ctx),
+                ),
+              ],
+            ),
+            const Divider(),
+            const SizedBox(height: 10),
+            _detailRow('Employee Name:', r.employeeName),
+            _detailRow('Leave Type:', r.leaveType),
+            _detailRow('Duration:', '${r.days} Days'),
+            _detailRow('Start Date:', r.fromDate),
+            _detailRow('End Date:', r.toDate),
+            _detailRow('Status:', r.status),
+            _detailRow('Reason:', r.reason),
+            const SizedBox(height: 20),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text('Close'),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _detailRow(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(label, style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.grey)),
+          Text(value, style: const TextStyle(fontWeight: FontWeight.w600)),
+        ],
+      ),
     );
   }
 }

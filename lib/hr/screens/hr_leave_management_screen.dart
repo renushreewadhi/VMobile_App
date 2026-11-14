@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import '../../core/api/api_client.dart';
 import '../../core/api/api_endpoints.dart';
+import '../../core/api/leave_service.dart';
 import '../../core/auth/auth_service.dart';
 import '../../core/widgets/glass_header.dart';
 import '../../core/widgets/glass_scaffold.dart';
@@ -78,7 +79,8 @@ class _HrLeaveManagementScreenState extends ConsumerState<HrLeaveManagementScree
     }
 
     try {
-      final res = await apiClient.get('${ApiEndpoints.leaveAll}?pageSize=500').catchError((_) => null);
+      final leaveService = ref.read(leaveServiceProvider);
+      final res = await leaveService.getAllLeaves(queryParams: {'pageSize': '500'}).catchError((_) => null);
       if (!mounted || currentReq != _requestId) return;
 
       dynamic rawData = res;
@@ -142,7 +144,8 @@ class _HrLeaveManagementScreenState extends ConsumerState<HrLeaveManagementScree
 
       List<dynamic> balances = [];
       try {
-        final balRes = await apiClient.get(ApiEndpoints.leaveBalances);
+        final leaveService = ref.read(leaveServiceProvider);
+        final balRes = await leaveService.getLeaveBalances();
         if (!mounted || currentReq != _requestId) return;
         dynamic rawBal = balRes is Map<String, dynamic> && balRes.containsKey('data') ? balRes['data'] : balRes;
         if (rawBal is List) {
@@ -275,10 +278,10 @@ class _HrLeaveManagementScreenState extends ConsumerState<HrLeaveManagementScree
     if (id.isEmpty) return;
 
     setState(() => _processingIds.add(id));
-    final apiClient = ref.read(apiClientProvider);
+    final leaveService = ref.read(leaveServiceProvider);
 
     try {
-      await apiClient.post(ApiEndpoints.approveOrRejectLeave(id), body: {
+      await leaveService.approveOrRejectLeave(id, {
         'status': newStatus,
         if (newStatus == 'REJECTED') 'rejectionReason': _rejectReasonController.text.trim(),
       });

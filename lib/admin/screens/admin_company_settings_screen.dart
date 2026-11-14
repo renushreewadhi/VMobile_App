@@ -7,6 +7,7 @@ import 'package:http/http.dart' as http;
 import '../../core/api/api_client.dart';
 import '../../core/api/api_endpoints.dart';
 import '../../core/auth/auth_service.dart';
+import '../../core/config/app_config.dart';
 import '../../core/errors/api_exception.dart';
 import '../../core/models/user_model.dart';
 import '../../core/theme/app_colors.dart';
@@ -120,39 +121,41 @@ class _AdminCompanySettingsScreenState extends ConsumerState<AdminCompanySetting
     });
 
     try {
-      // 1. Try Google Maps Geocoding API first
-      const googleApiKey = 'AIzaSyAdMx61EKaRXeKnM2SS17AOzK4NvMjEFbE';
-      final googleUrl = Uri.parse(
-        'https://maps.googleapis.com/maps/api/geocode/json?latlng=$lat,$lng&key=$googleApiKey',
-      );
-      final res = await http.get(googleUrl).timeout(const Duration(seconds: 4));
-      if (res.statusCode == 200) {
-        final data = jsonDecode(res.body);
-        if (data['status'] == 'OK' && data['results'] != null && (data['results'] as List).isNotEmpty) {
-          final result = data['results'][0];
-          final formattedAddress = result['formatted_address'];
-          if (formattedAddress != null && formattedAddress.toString().trim().isNotEmpty) {
-            if (mounted) {
-              setState(() {
-                _addressController.text = formattedAddress.toString().trim();
-              });
+      // 1. Try Google Maps Geocoding API if key is configured
+      final googleApiKey = AppConfig.googleMapsApiKey;
+      if (googleApiKey.isNotEmpty) {
+        final googleUrl = Uri.parse(
+          'https://maps.googleapis.com/maps/api/geocode/json?latlng=$lat,$lng&key=$googleApiKey',
+        );
+        final res = await http.get(googleUrl).timeout(const Duration(seconds: 4));
+        if (res.statusCode == 200) {
+          final data = jsonDecode(res.body);
+          if (data['status'] == 'OK' && data['results'] != null && (data['results'] as List).isNotEmpty) {
+            final result = data['results'][0];
+            final formattedAddress = result['formatted_address'];
+            if (formattedAddress != null && formattedAddress.toString().trim().isNotEmpty) {
+              if (mounted) {
+                setState(() {
+                  _addressController.text = formattedAddress.toString().trim();
+                });
 
-              final components = result['address_components'] as List?;
-              if (components != null) {
-                for (var comp in components) {
-                  final types = (comp['types'] as List?)?.cast<String>() ?? [];
-                  final longName = comp['long_name']?.toString().trim() ?? '';
-                  if (types.contains('locality') || types.contains('administrative_area_level_2')) {
-                    if (longName.isNotEmpty) _cityController.text = longName;
-                  }
-                  if (types.contains('administrative_area_level_1')) {
-                    if (longName.isNotEmpty) _stateController.text = longName;
-                  }
-                  if (types.contains('country')) {
-                    if (longName.isNotEmpty) _countryController.text = longName;
-                  }
-                  if (types.contains('postal_code')) {
-                    if (longName.isNotEmpty) _zipController.text = longName;
+                final components = result['address_components'] as List?;
+                if (components != null) {
+                  for (var comp in components) {
+                    final types = (comp['types'] as List?)?.cast<String>() ?? [];
+                    final longName = comp['long_name']?.toString().trim() ?? '';
+                    if (types.contains('locality') || types.contains('administrative_area_level_2')) {
+                      if (longName.isNotEmpty) _cityController.text = longName;
+                    }
+                    if (types.contains('administrative_area_level_1')) {
+                      if (longName.isNotEmpty) _stateController.text = longName;
+                    }
+                    if (types.contains('country')) {
+                      if (longName.isNotEmpty) _countryController.text = longName;
+                    }
+                    if (types.contains('postal_code')) {
+                      if (longName.isNotEmpty) _zipController.text = longName;
+                    }
                   }
                 }
               }
@@ -834,7 +837,7 @@ class _AdminCompanySettingsScreenState extends ConsumerState<AdminCompanySetting
                       ),
                       mapType: _mapType,
                       zoomControlsEnabled: true,
-                      myLocationEnabled: true,
+                      myLocationEnabled: false,
                       myLocationButtonEnabled: false,
                       compassEnabled: true,
                       onTap: canEdit ? (LatLng latLng) => _updateLocationFromMap(latLng) : null,

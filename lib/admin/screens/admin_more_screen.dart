@@ -8,17 +8,49 @@ import '../../core/widgets/glass_scaffold.dart';
 import '../../core/widgets/glass_search_bar.dart';
 import '../../core/widgets/module_card.dart';
 import '../../core/widgets/section_label.dart';
+import '../../employee/screens/break_tracker_screen.dart';
 import '../../employee/screens/daily_work_update_screen.dart';
 import '../../employee/screens/my_assets_screen.dart';
+import '../../employee/screens/my_attendance_screen.dart';
 import '../../employee/screens/my_benefits_screen.dart';
 import '../../employee/screens/my_expenses_screen.dart';
+import '../../employee/screens/my_performance_screen.dart';
+import '../../employee/screens/my_profile_screen.dart';
+import '../../employee/screens/my_projects_screen.dart';
 import '../../employee/screens/my_salary_screen.dart';
 import '../../employee/screens/my_payslips_screen.dart';
 import '../../employee/screens/my_settings_screen.dart';
+import '../../employee/screens/my_tasks_screen.dart';
 import '../../employee/screens/notifications_screen.dart';
 import '../../employee/screens/training_screens.dart';
 import '../../employee/screens/wfh_apply_screen.dart';
-import '../../team-lead/screens/tl_benefits_screen.dart';
+import '../../features/attendance/punch/screens/punch_home_screen.dart';
+import '../../team_lead/screens/my_team_screen.dart';
+import '../../team_lead/screens/tl_attendance_screen.dart';
+import '../../team_lead/screens/tl_benefits_screen.dart';
+import '../../team_lead/screens/tl_eod_updates_screen.dart';
+import '../../team_lead/screens/tl_kpi_screen.dart';
+import '../../team_lead/screens/tl_performance_screen.dart';
+import '../../team_lead/screens/tl_projects_screen.dart';
+import '../../team_lead/screens/tl_reports_screen.dart';
+import '../../team_lead/screens/tl_tasks_screen.dart';
+import '../../team_lead/screens/tl_team_payroll_screen.dart';
+import '../../finance/screens/finance_approvals_screen.dart';
+import '../../finance/screens/finance_benefit_dashboard_screen.dart';
+import '../../finance/screens/finance_benefit_payments_screen.dart';
+import '../../finance/screens/finance_benefit_reports_screen.dart';
+import '../../finance/screens/finance_benefits_screen.dart';
+import '../../finance/screens/finance_employee_salaries_screen.dart';
+import '../../finance/screens/finance_loans_advances_screen.dart';
+import '../../finance/screens/finance_pay_cycles_screen.dart';
+import '../../finance/screens/finance_payments_screen.dart';
+import '../../finance/screens/finance_payroll_inputs_screen.dart';
+import '../../finance/screens/finance_reimbursements_screen.dart';
+import '../../finance/screens/finance_reports_screen.dart';
+import '../../finance/screens/finance_salary_components_screen.dart';
+import '../../finance/screens/finance_salary_revisions_screen.dart';
+import '../../finance/screens/finance_salary_structure_screen.dart';
+import '../../finance/screens/finance_tax_compliance_screen.dart';
 import '../../helpdesk/screens/helpdesk_chatbot_screen.dart';
 import '../../helpdesk/screens/helpdesk_dashboard_screen.dart';
 import '../../helpdesk/screens/helpdesk_knowledge_base_screen.dart';
@@ -33,6 +65,7 @@ import 'admin_branches_screen.dart';
 import 'admin_company_settings_screen.dart';
 import 'admin_departments_screen.dart';
 import 'admin_designations_screen.dart';
+import '../../hr/screens/hr_salary_packages_screen.dart';
 import 'admin_documents_screen.dart';
 import 'admin_email_sms_config_screen.dart';
 import 'admin_employee_management_screen.dart';
@@ -62,6 +95,16 @@ import '../../hr/screens/training/hr_assign_training_screen.dart';
 import '../../hr/screens/training/hr_certificates_screen.dart';
 import '../../hr/screens/training/hr_training_reports_screen.dart';
 import 'system_settings_screen.dart';
+import '../../it/screens/it_access_screen.dart';
+import '../../it/screens/it_asset_requests_screen.dart';
+import '../../it/screens/it_assets_screen.dart';
+import '../../it/screens/it_employee_accounts_screen.dart';
+import '../../it/screens/it_offboarding_screen.dart';
+import '../../it/screens/it_onboarding_screen.dart';
+import '../../it/screens/it_reports_screen.dart';
+import '../../it/screens/it_security_screen.dart';
+import '../../it/screens/it_software_screen.dart';
+import '../../it/screens/it_tickets_screen.dart';
 import 'user_management_screen.dart';
 
 class SubModuleItem {
@@ -120,16 +163,129 @@ class _AdminMoreScreenState extends ConsumerState<AdminMoreScreen> {
   final List<ParentModuleItem> _parentModules = [
     ParentModuleItem(
       title: 'My Space',
-      description: 'Work From Home (WFH) requests and personal tools',
+      description: 'My Profile, Attendance, Check In/Out, Break Tracker, Daily Updates & WFH',
       icon: Icons.person_outline_rounded,
       colors: [const Color(0xFF34D399), const Color(0xFF059669)],
       submodules: [
+        SubModuleItem(
+          name: 'My Profile',
+          description: 'View and edit your personal profile and details',
+          icon: Icons.person_rounded,
+          colors: [const Color(0xFF34D399), const Color(0xFF059669)],
+          screen: const MyProfileScreen(showAppBar: true),
+        ),
+        SubModuleItem(
+          name: 'My Attendance',
+          description: 'Personal attendance records and logs',
+          icon: Icons.calendar_today_rounded,
+          colors: [const Color(0xFF34D399), const Color(0xFF059669)],
+          screen: const MyAttendanceScreen(showAppBar: true),
+        ),
+        SubModuleItem(
+          name: 'Check In/Out',
+          description: 'Check in, check out, live status tracking',
+          icon: Icons.touch_app_rounded,
+          colors: [const Color(0xFF34D399), const Color(0xFF059669)],
+          screen: const PunchInOutScreen(),
+        ),
+        SubModuleItem(
+          name: 'Break Tracker',
+          description: 'Manage your break time and history',
+          icon: Icons.free_breakfast_rounded,
+          colors: [const Color(0xFF34D399), const Color(0xFF059669)],
+          screen: const BreakTrackerScreen(showAppBar: true),
+        ),
+        SubModuleItem(
+          name: 'Daily Work Update',
+          description: 'Submit and view daily task and progress updates',
+          icon: Icons.edit_note_rounded,
+          colors: [const Color(0xFF34D399), const Color(0xFF059669)],
+          screen: const DailyWorkUpdateScreen(showAppBar: true),
+        ),
         SubModuleItem(
           name: 'WFH Apply',
           description: 'Work from home requests and status',
           icon: Icons.home_work_rounded,
           colors: [const Color(0xFF34D399), const Color(0xFF059669)],
           screen: const WfhApplyScreen(),
+        ),
+      ],
+    ),
+    ParentModuleItem(
+      title: 'My Team',
+      description: 'Team Overview, Attendance, Leave Requests, Tasks, Performance, KPIs, Reports, Projects, EOD Updates & Team Payroll',
+      icon: Icons.groups_rounded,
+      colors: [const Color(0xFF7C3AED), const Color(0xFF5B21B6)],
+      submodules: [
+        SubModuleItem(
+          name: 'Team Overview',
+          description: 'View team members, roles and contact details',
+          icon: Icons.groups_rounded,
+          colors: [const Color(0xFF7C3AED), const Color(0xFF5B21B6)],
+          screen: const MyTeamScreen(showAppBar: true),
+        ),
+        SubModuleItem(
+          name: 'Attendance',
+          description: 'Monitor team attendance logs and punches',
+          icon: Icons.calendar_today_rounded,
+          colors: [const Color(0xFF7C3AED), const Color(0xFF5B21B6)],
+          screen: const TlAttendanceScreen(),
+        ),
+        SubModuleItem(
+          name: 'Leave Requests',
+          description: 'Review and approve team leave requests',
+          icon: Icons.event_note_rounded,
+          colors: [const Color(0xFF7C3AED), const Color(0xFF5B21B6)],
+          screen: const AdminLeaveManagementScreen(),
+        ),
+        SubModuleItem(
+          name: 'Tasks',
+          description: 'Manage and assign team tasks',
+          icon: Icons.task_alt_rounded,
+          colors: [const Color(0xFF7C3AED), const Color(0xFF5B21B6)],
+          screen: const TlTasksScreen(showAppBar: true),
+        ),
+        SubModuleItem(
+          name: 'Performance',
+          description: 'Review team performance appraisals',
+          icon: Icons.trending_up_rounded,
+          colors: [const Color(0xFF7C3AED), const Color(0xFF5B21B6)],
+          screen: const TlPerformanceScreen(),
+        ),
+        SubModuleItem(
+          name: 'KPIs',
+          description: 'Track key performance indicators and goals',
+          icon: Icons.track_changes_rounded,
+          colors: [const Color(0xFF7C3AED), const Color(0xFF5B21B6)],
+          screen: const TlKpiScreen(),
+        ),
+        SubModuleItem(
+          name: 'Reports',
+          description: 'Generate team activity and status reports',
+          icon: Icons.bar_chart_rounded,
+          colors: [const Color(0xFF7C3AED), const Color(0xFF5B21B6)],
+          screen: const TlReportsScreen(showAppBar: true),
+        ),
+        SubModuleItem(
+          name: 'Projects',
+          description: 'Manage team projects and deliverables',
+          icon: Icons.assignment_rounded,
+          colors: [const Color(0xFF7C3AED), const Color(0xFF5B21B6)],
+          screen: const TlProjectsScreen(showAppBar: true),
+        ),
+        SubModuleItem(
+          name: 'EOD Updates',
+          description: 'Track end of day work updates from team',
+          icon: Icons.checklist_rtl_rounded,
+          colors: [const Color(0xFF7C3AED), const Color(0xFF5B21B6)],
+          screen: const TlEodUpdatesScreen(),
+        ),
+        SubModuleItem(
+          name: 'Team Payroll',
+          description: 'View team payroll and compensation summary',
+          icon: Icons.payments_rounded,
+          colors: [const Color(0xFF7C3AED), const Color(0xFF5B21B6)],
+          screen: const TlTeamPayrollScreen(showAppBar: true),
         ),
       ],
     ),
@@ -244,37 +400,149 @@ class _AdminMoreScreenState extends ConsumerState<AdminMoreScreen> {
     ),
     ParentModuleItem(
       title: 'Finance',
-      description: 'Payroll, Salary Structures, Payroll Reports, and Salary Packages',
+      description: 'Payroll, Salary Structures, Reports, Reimbursements, Loans, Benefits, Tax & Approvals',
       icon: Icons.account_balance_wallet_rounded,
       colors: [const Color(0xFF10B981), const Color(0xFF047857)],
       submodules: [
         SubModuleItem(
           name: 'Payroll',
           description: 'Payroll runs and salary distribution',
-          icon: Icons.payments,
+          icon: Icons.payments_rounded,
           colors: [const Color(0xFF10B981), const Color(0xFF047857)],
           screen: const AdminPayrollScreen(),
         ),
         SubModuleItem(
           name: 'Salary Structures',
           description: 'Configure salary structures and templates',
-          icon: Icons.calculate,
+          icon: Icons.calculate_rounded,
           colors: [const Color(0xFF10B981), const Color(0xFF047857)],
           screen: const AdminSalaryConfigScreen(),
         ),
         SubModuleItem(
           name: 'Payroll Reports',
           description: 'Payroll analytics and financial reports',
-          icon: Icons.receipt_long,
+          icon: Icons.receipt_long_rounded,
           colors: [const Color(0xFF10B981), const Color(0xFF047857)],
           screen: const AdminPayrollReportsScreen(),
         ),
         SubModuleItem(
-          name: 'Salary Packages',
-          description: 'Manage salary packages and components',
-          icon: Icons.layers,
+          name: 'Reimbursements',
+          description: 'Review and process employee reimbursements',
+          icon: Icons.request_quote_rounded,
           colors: [const Color(0xFF10B981), const Color(0xFF047857)],
-          screen: const AdminSalaryConfigScreen(),
+          screen: const FinanceReimbursementsScreen(showAppBar: true),
+        ),
+        SubModuleItem(
+          name: 'Loans & Advances',
+          description: 'Manage employee loan applications & recovery',
+          icon: Icons.price_change_rounded,
+          colors: [const Color(0xFF10B981), const Color(0xFF047857)],
+          screen: const FinanceLoansAdvancesScreen(showAppBar: true),
+        ),
+        SubModuleItem(
+          name: 'Employee Benefits',
+          description: 'Employee benefit plans and claims oversight',
+          icon: Icons.card_giftcard_rounded,
+          colors: [const Color(0xFF10B981), const Color(0xFF047857)],
+          screen: const FinanceBenefitsScreen(showAppBar: true),
+        ),
+        SubModuleItem(
+          name: 'Tax & Compliance',
+          description: 'Tax deductions and statutory compliance',
+          icon: Icons.gavel_rounded,
+          colors: [const Color(0xFF10B981), const Color(0xFF047857)],
+          screen: const FinanceTaxComplianceScreen(showAppBar: true),
+        ),
+        SubModuleItem(
+          name: 'Payroll Inputs',
+          description: 'Variable pay, overtime, and monthly deductions',
+          icon: Icons.playlist_add_check_rounded,
+          colors: [const Color(0xFF10B981), const Color(0xFF047857)],
+          screen: const FinancePayrollInputsScreen(),
+        ),
+        SubModuleItem(
+          name: 'Payments',
+          description: 'Disbursements and bank transfer orders',
+          icon: Icons.send_rounded,
+          colors: [const Color(0xFF10B981), const Color(0xFF047857)],
+          screen: const FinancePaymentsScreen(showAppBar: true),
+        ),
+        SubModuleItem(
+          name: 'Finance Approvals',
+          description: 'Review pending financial approval workflows',
+          icon: Icons.how_to_reg_rounded,
+          colors: [const Color(0xFF10B981), const Color(0xFF047857)],
+          screen: const FinanceApprovalsScreen(showAppBar: true),
+        ),
+        SubModuleItem(
+          name: 'Finance Reports',
+          description: 'Comprehensive financial reports & analytics',
+          icon: Icons.bar_chart_rounded,
+          colors: [const Color(0xFF10B981), const Color(0xFF047857)],
+          screen: const FinanceReportsScreen(showAppBar: true),
+        ),
+        SubModuleItem(
+          name: 'Benefit Dashboard',
+          description: 'Overview of company benefit metrics',
+          icon: Icons.dashboard_rounded,
+          colors: [const Color(0xFF10B981), const Color(0xFF047857)],
+          screen: const FinanceBenefitDashboardScreen(showAppBar: true),
+        ),
+        SubModuleItem(
+          name: 'Benefit Claims',
+          description: 'Review employee benefit claim requests',
+          icon: Icons.receipt_rounded,
+          colors: [const Color(0xFF10B981), const Color(0xFF047857)],
+          screen: const AdminBenefitInvoicesScreen(),
+        ),
+        SubModuleItem(
+          name: 'Benefit Payments',
+          description: 'Disburse verified benefit claims',
+          icon: Icons.credit_card_rounded,
+          colors: [const Color(0xFF10B981), const Color(0xFF047857)],
+          screen: const FinanceBenefitPaymentsScreen(showAppBar: true),
+        ),
+        SubModuleItem(
+          name: 'Benefit Reports',
+          description: 'Analytics and reports on benefit costs',
+          icon: Icons.pie_chart_rounded,
+          colors: [const Color(0xFF10B981), const Color(0xFF047857)],
+          screen: const FinanceBenefitReportsScreen(showAppBar: true),
+        ),
+        SubModuleItem(
+          name: 'Employee Salaries',
+          description: 'Manage individual employee salaries',
+          icon: Icons.badge_rounded,
+          colors: [const Color(0xFF10B981), const Color(0xFF047857)],
+          screen: const FinanceEmployeeSalariesScreen(showAppBar: true),
+        ),
+        SubModuleItem(
+          name: 'Salary Revisions',
+          description: 'Salary increments and revision history',
+          icon: Icons.published_with_changes_rounded,
+          colors: [const Color(0xFF10B981), const Color(0xFF047857)],
+          screen: const FinanceSalaryRevisionsScreen(showAppBar: true),
+        ),
+        SubModuleItem(
+          name: 'Salary Components',
+          description: 'Earnings, allowances, and deductions',
+          icon: Icons.list_alt_rounded,
+          colors: [const Color(0xFF10B981), const Color(0xFF047857)],
+          screen: const FinanceSalaryComponentsScreen(showAppBar: true),
+        ),
+        SubModuleItem(
+          name: 'Pay Cycles',
+          description: 'Configure pay cycle schedules',
+          icon: Icons.date_range_rounded,
+          colors: [const Color(0xFF10B981), const Color(0xFF047857)],
+          screen: const FinancePayCyclesScreen(showAppBar: true),
+        ),
+        SubModuleItem(
+          name: 'Salary Packages',
+          description: 'Manage salary packages and compensation slabs',
+          icon: Icons.layers_rounded,
+          colors: [const Color(0xFF10B981), const Color(0xFF047857)],
+          screen: const HrSalaryPackagesScreen(showAppBar: true),
         ),
       ],
     ),
@@ -344,11 +612,25 @@ class _AdminMoreScreenState extends ConsumerState<AdminMoreScreen> {
       colors: [const Color(0xFF8B5CF6), const Color(0xFF6D28D9)],
       submodules: [
         SubModuleItem(
+          name: 'My Tasks',
+          description: 'View and track your assigned tasks and deliverables',
+          icon: Icons.format_list_bulleted_rounded,
+          colors: [const Color(0xFF8B5CF6), const Color(0xFF6D28D9)],
+          screen: const MyTasksScreen(showAppBar: true),
+        ),
+        SubModuleItem(
+          name: 'My Performance',
+          description: 'View performance reviews, ratings and feedback',
+          icon: Icons.trending_up_rounded,
+          colors: [const Color(0xFF8B5CF6), const Color(0xFF6D28D9)],
+          screen: const MyPerformanceScreen(showAppBar: true),
+        ),
+        SubModuleItem(
           name: 'My Projects',
           description: 'View and manage assigned projects',
-          icon: Icons.folder_special,
+          icon: Icons.account_tree_rounded,
           colors: [const Color(0xFF8B5CF6), const Color(0xFF6D28D9)],
-          screen: const AdminProjectsScreen(),
+          screen: const MyProjectsScreen(showAppBar: true),
         ),
       ],
     ),
@@ -666,77 +948,77 @@ class _AdminMoreScreenState extends ConsumerState<AdminMoreScreen> {
           description: 'Manage company IT hardware and equipment',
           icon: Icons.laptop,
           colors: [const Color(0xFF0284C7), const Color(0xFF0369A1)],
-          screen: const MyAssetsScreen(),
+          screen: const ItAssetsScreen(showAppBar: true),
         ),
         SubModuleItem(
           name: 'Asset Requests',
           description: 'Review and process IT asset requests',
           icon: Icons.assignment,
           colors: [const Color(0xFF0284C7), const Color(0xFF0369A1)],
-          screen: const MyAssetsScreen(),
+          screen: const ItAssetRequestsScreen(showAppBar: true),
         ),
         SubModuleItem(
           name: 'Asset Assignment',
           description: 'Assign hardware assets to employees',
           icon: Icons.swap_horiz,
           colors: [const Color(0xFF0284C7), const Color(0xFF0369A1)],
-          screen: const MyAssetsScreen(),
+          screen: const ItAssetsScreen(showAppBar: true),
         ),
         SubModuleItem(
           name: 'Software & Licenses',
           description: 'Manage software licenses and distribution',
           icon: Icons.apps,
           colors: [const Color(0xFF0284C7), const Color(0xFF0369A1)],
-          screen: const MyAssetsScreen(),
+          screen: const ItSoftwareScreen(showAppBar: true),
         ),
         SubModuleItem(
           name: 'Employee Accounts',
           description: 'Manage employee system accounts',
           icon: Icons.people,
           colors: [const Color(0xFF0284C7), const Color(0xFF0369A1)],
-          screen: const UserManagementScreen(showAppBar: true),
+          screen: const ItEmployeeAccountsScreen(showAppBar: true),
         ),
         SubModuleItem(
           name: 'Access Management',
           description: 'Manage access controls and permissions',
           icon: Icons.vpn_key,
           colors: [const Color(0xFF0284C7), const Color(0xFF0369A1)],
-          screen: const AdminRolesPermissionsScreen(),
+          screen: const ItAccessScreen(showAppBar: true),
         ),
         SubModuleItem(
           name: 'IT Tickets / Support',
           description: 'Manage IT support tickets and requests',
           icon: Icons.support_agent,
           colors: [const Color(0xFF0284C7), const Color(0xFF0369A1)],
-          screen: const HelpdeskTicketsScreen(showAppBar: true),
+          screen: const ItTicketsScreen(showAppBar: true),
         ),
         SubModuleItem(
           name: 'IT Onboarding',
           description: 'IT provisioning for new hires',
           icon: Icons.person_add,
           colors: [const Color(0xFF0284C7), const Color(0xFF0369A1)],
-          screen: const AdminOnboardingScreen(),
+          screen: const ItOnboardingScreen(showAppBar: true),
         ),
         SubModuleItem(
           name: 'IT Offboarding',
           description: 'IT de-provisioning and asset retrieval',
           icon: Icons.person_remove,
           colors: [const Color(0xFF0284C7), const Color(0xFF0369A1)],
-          screen: const AdminOnboardingScreen(),
+          screen: const ItOffboardingScreen(showAppBar: true),
         ),
         SubModuleItem(
           name: 'Security & Audit',
           description: 'IT security logs and audits',
           icon: Icons.security,
           colors: [const Color(0xFF0284C7), const Color(0xFF0369A1)],
-          screen: const AdminAuditLogsScreen(),
+          screen: const ItSecurityScreen(showAppBar: true),
         ),
         SubModuleItem(
           name: 'IT Reports',
           description: 'IT operations analytics and reports',
           icon: Icons.bar_chart,
           colors: [const Color(0xFF0284C7), const Color(0xFF0369A1)],
-          screen: const AdminReportsScreen(),
+          screen: const ItReportsScreen(showAppBar: true),
         ),
       ],
     ),
@@ -876,7 +1158,6 @@ class _AdminMoreScreenState extends ConsumerState<AdminMoreScreen> {
             onClear: () => setState(() => _searchQuery = ''),
           ),
         ),
-        const SectionLabel("ADMIN MODULES"),
         if (isSearching && filteredParents.isEmpty)
           Center(
             child: Padding(
@@ -907,7 +1188,6 @@ class _AdminMoreScreenState extends ConsumerState<AdminMoreScreen> {
               icon: parent.icon,
               gradientColors: parent.colors,
               title: parent.title,
-              subtitle: parent.description,
               count: parent.submodules.length,
               onPress: () {
                 Navigator.push(

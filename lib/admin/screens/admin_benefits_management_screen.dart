@@ -243,48 +243,34 @@ class _AdminBenefitsManagementScreenState extends ConsumerState<AdminBenefitsMan
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Top Header Banner with Action Buttons
+                  // Header Action Bar
                   Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    mainAxisAlignment: MainAxisAlignment.end,
                     children: [
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text('Benefits Management', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: glass.textPrimary)),
-                            const SizedBox(height: 2),
-                            Text('Manage company employee benefits, coverage, enrollments & claims', style: TextStyle(fontSize: 12, color: glass.textSecondary)),
-                          ],
+                      if (_currentTab != 'list')
+                        OutlinedButton.icon(
+                          icon: const Icon(Icons.arrow_back, size: 16),
+                          label: const Text('Back', style: TextStyle(fontSize: 12)),
+                          onPressed: () => setState(() => _currentTab = 'list'),
+                        )
+                      else ...[
+                        ElevatedButton.icon(
+                          icon: const Icon(Icons.fact_check_outlined, size: 16),
+                          label: const Text('Review Claims', style: TextStyle(fontSize: 12)),
+                          style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF475569), foregroundColor: Colors.white),
+                          onPressed: () => setState(() => _currentTab = 'claims'),
                         ),
-                      ),
-                      Row(
-                        children: [
-                          if (_currentTab != 'list')
-                            OutlinedButton.icon(
-                              icon: const Icon(Icons.arrow_back, size: 16),
-                              label: const Text('Back', style: TextStyle(fontSize: 12)),
-                              onPressed: () => setState(() => _currentTab = 'list'),
-                            )
-                          else ...[
-                            ElevatedButton.icon(
-                              icon: const Icon(Icons.fact_check_outlined, size: 16),
-                              label: const Text('Review Claims', style: TextStyle(fontSize: 12)),
-                              style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF475569), foregroundColor: Colors.white),
-                              onPressed: () => setState(() => _currentTab = 'claims'),
-                            ),
-                            const SizedBox(width: 8),
-                            ElevatedButton.icon(
-                              icon: const Icon(Icons.add, size: 16),
-                              label: const Text('Create Benefit', style: TextStyle(fontSize: 12)),
-                              style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF0F6B66), foregroundColor: Colors.white),
-                              onPressed: () => setState(() => _currentTab = 'create'),
-                            ),
-                          ],
-                        ],
-                      ),
+                        const SizedBox(width: 8),
+                        ElevatedButton.icon(
+                          icon: const Icon(Icons.add, size: 16),
+                          label: const Text('Create Benefit', style: TextStyle(fontSize: 12)),
+                          style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF0F6B66), foregroundColor: Colors.white),
+                          onPressed: () => setState(() => _currentTab = 'create'),
+                        ),
+                      ],
                     ],
                   ),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 14),
 
                   // 6 KPI Summary Cards Row
                   SingleChildScrollView(

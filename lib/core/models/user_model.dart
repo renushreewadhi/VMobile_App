@@ -7,10 +7,12 @@ enum UserRole {
   EMPLOYEE,
   IT,
   FINANCE,
-  HELPDESK;
+  HELPDESK,
+  UNAUTHORIZED;
+//user model
 
   static UserRole fromString(String? role) {
-    if (role == null) return UserRole.EMPLOYEE;
+    if (role == null) return UserRole.UNAUTHORIZED;
     final cleanRole = role.trim().toUpperCase();
     switch (cleanRole) {
       case 'ADMIN':
@@ -43,8 +45,9 @@ enum UserRole {
       case 'HELPDESK ADMIN':
         return UserRole.HELPDESK;
       case 'EMPLOYEE':
-      default:
         return UserRole.EMPLOYEE;
+      default:
+        return UserRole.UNAUTHORIZED;
     }
   }
 
@@ -64,6 +67,8 @@ enum UserRole {
         return 'Helpdesk';
       case UserRole.EMPLOYEE:
         return 'Employee';
+      case UserRole.UNAUTHORIZED:
+        return 'Unauthorized';
     }
   }
 }

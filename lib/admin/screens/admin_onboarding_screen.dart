@@ -39,14 +39,17 @@ class OnboardingModel {
     final rawProg = json['progress'] ?? json['completionRate'] ?? 0;
     final progDouble = rawProg is num ? rawProg.toDouble() : (double.tryParse(rawProg.toString()) ?? 0.0);
 
+    final rawDate = json['startDate']?.toString() ?? json['joiningDate']?.toString() ?? DateTime.now().toIso8601String();
+    final cleanDate = rawDate.contains('T') ? rawDate.split('T')[0] : rawDate;
+
     return OnboardingModel(
       id: json['id']?.toString() ?? json['_id']?.toString() ?? '',
-      employeeName: json['employeeName']?.toString() ?? json['name']?.toString() ?? 'Candidate',
-      jobPosition: json['jobPosition']?.toString() ?? json['position']?.toString() ?? 'Position',
-      departmentName: json['departmentName']?.toString() ?? json['department']?.toString() ?? 'General',
+      employeeName: json['employeeName']?.toString() ?? json['candidateName']?.toString() ?? json['name']?.toString() ?? 'Candidate',
+      jobPosition: json['jobPosition']?.toString() ?? json['designationName']?.toString() ?? json['position']?.toString() ?? 'Position',
+      departmentName: json['departmentName']?.toString() ?? json['department']?.toString() ?? 'Unassigned',
       status: (json['status']?.toString() ?? 'IN_PROGRESS').toUpperCase(),
       progress: progDouble,
-      startDate: json['startDate']?.toString() ?? json['joiningDate']?.toString() ?? DateTime.now().toIso8601String().substring(0, 10),
+      startDate: cleanDate,
       mentorName: json['mentorName']?.toString() ?? json['mentor']?.toString(),
     );
   }
@@ -158,32 +161,6 @@ class _AdminOnboardingScreenState extends ConsumerState<AdminOnboardingScreen> {
             } catch (_) {}
           }
         }
-      }
-
-      // Robust fallback seed data if API returns empty
-      if (items.isEmpty) {
-        items = [
-          OnboardingModel(
-            id: 'onb-01',
-            employeeName: 'Aarav Sharma',
-            jobPosition: 'Junior .NET Developer',
-            departmentName: 'Engineering',
-            status: 'IN_PROGRESS',
-            progress: 45.0,
-            startDate: '2026-10-28',
-            mentorName: 'Praveen Singh',
-          ),
-          OnboardingModel(
-            id: 'onb-02',
-            employeeName: 'Priya Verma',
-            jobPosition: 'HR Associate',
-            departmentName: 'Human Resources',
-            status: 'AWAITING_APPROVAL',
-            progress: 80.0,
-            startDate: '2026-10-25',
-            mentorName: 'Prachi Natali',
-          ),
-        ];
       }
 
       if (!mounted || currentReq != _requestId) return;

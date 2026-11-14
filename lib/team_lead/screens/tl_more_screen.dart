@@ -49,6 +49,7 @@ import 'tl_performance_screen.dart';
 import 'tl_projects_screen.dart';
 import 'tl_reports_screen.dart';
 import 'tl_tasks_screen.dart';
+import 'tl_team_assets_screen.dart';
 import 'tl_team_payroll_screen.dart';
 import 'tl_team_training_screen.dart';
 
@@ -240,8 +241,8 @@ class _TlMoreScreenState extends ConsumerState<TlMoreScreen> {
       ],
     ),
     ParentModuleItem(
-      title: 'My Assets',
-      description: 'Assigned hardware and devices',
+      title: 'My & Team Assets',
+      description: 'Assigned hardware, devices and team asset oversight',
       icon: Icons.laptop_mac_rounded,
       colors: [const Color(0xFF38BDF8), const Color(0xFF0284C7)],
       submodules: [
@@ -251,6 +252,13 @@ class _TlMoreScreenState extends ConsumerState<TlMoreScreen> {
           icon: Icons.laptop_mac_rounded,
           colors: [const Color(0xFF38BDF8), const Color(0xFF0284C7)],
           screen: const MyAssetsScreen(),
+        ),
+        SubModuleItem(
+          name: 'Team Assets',
+          description: 'Team hardware & software asset oversight',
+          icon: Icons.devices_rounded,
+          colors: [const Color(0xFF6366F1), const Color(0xFF4F46E5)],
+          screen: const TLTeamAssetsScreen(showAppBar: true),
         ),
       ],
     ),
@@ -623,7 +631,6 @@ class _TlMoreScreenState extends ConsumerState<TlMoreScreen> {
           onChanged: (val) => setState(() => _searchQuery = val),
           onClear: () => setState(() => _searchQuery = ''),
         ),
-        const SectionLabel("TEAM LEAD MODULES"),
         if (isSearching && filteredParents.isEmpty)
           Center(
             child: Padding(
@@ -654,7 +661,6 @@ class _TlMoreScreenState extends ConsumerState<TlMoreScreen> {
               icon: parent.icon,
               gradientColors: parent.colors,
               title: parent.title,
-              subtitle: parent.description,
               count: parent.submodules.length,
               onPress: () {
                 Navigator.push(

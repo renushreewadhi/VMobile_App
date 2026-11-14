@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/api/api_client.dart';
+import '../../core/api/api_endpoints.dart';
+import '../../core/api/helpdesk_service.dart';
 import '../../core/auth/auth_service.dart';
 import '../../shared/widgets/app_card.dart';
 import '../../shared/widgets/custom_button.dart';
@@ -28,9 +30,9 @@ class _HelpdeskDashboardScreenState extends ConsumerState<HelpdeskDashboardScree
 
   Future<void> _fetchHelpdesk() async {
     setState(() => _isLoading = true);
-    final apiClient = ref.read(apiClientProvider);
+    final helpdeskService = ref.read(helpdeskServiceProvider);
     try {
-      final res = await apiClient.get('/helpdesk/tickets').catchError((_) => null);
+      final res = await helpdeskService.getTickets();
       if (mounted) {
         setState(() {
           if (res is List) _tickets = res;
@@ -165,15 +167,90 @@ class AiAssistantScreen extends ConsumerStatefulWidget {
 
 class _AiAssistantScreenState extends ConsumerState<AiAssistantScreen> {
   final _msgController = TextEditingController();
-  final List<String> _messages = ['Hello! I am your Etaprise AI HR Assistant. How can I help you today?'];
+  final List<Map<String, String>> _messages = [
+    {'role': 'ai', 'text': 'Hello! I am your Etaprise AI HR Assistant. How can I help you today?'}
+  ];
+  bool _sending = false;
 
-  void _sendMessage() {
-    if (_msgController.text.trim().isEmpty) return;
+  @override
+  void initState() {
+    super.initState();
+    _loadHistory();
+  }
+
+  @override
+  void dispose() {
+    _msgController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _loadHistory() async {
+    final apiClient = ref.read(apiClientProvider);
+    try {
+      final res = await apiClient.get(ApiEndpoints.aiHistory).catchError((_) => null);
+      if (res != null && mounted) {
+        final data = res is Map && res.containsKey('data') ? res['data'] : res;
+        if (data is List && data.isNotEmpty) {
+          final historyList = <Map<String, String>>[];
+          for (final item in data) {
+            if (item is Map) {
+              if (item['question'] != null) {
+                historyList.add({'role': 'user', 'text': item['question'].toString()});
+              }
+              if (item['answer'] != null) {
+                historyList.add({'role': 'ai', 'text': item['answer'].toString()});
+              }
+            }
+          }
+          if (historyList.isNotEmpty) {
+            setState(() {
+              _messages.clear();
+              _messages.addAll(historyList);
+            });
+          }
+        }
+      }
+    } catch (_) {}
+  }
+
+  Future<void> _sendMessage() async {
+    final prompt = _msgController.text.trim();
+    if (prompt.isEmpty || _sending) return;
+
     setState(() {
-      _messages.add('You: ${_msgController.text}');
-      _messages.add('AI: I understand your query regarding "${_msgController.text}". Let me assist you with that.');
+      _messages.add({'role': 'user', 'text': prompt});
       _msgController.clear();
+      _sending = true;
     });
+
+    final apiClient = ref.read(apiClientProvider);
+
+    try {
+      final res = await apiClient.post(ApiEndpoints.aiAsk, body: {'question': prompt});
+      if (!mounted) return;
+
+      String aiAnswer = 'I understand your query. How else may I help you?';
+      if (res != null) {
+        final data = res is Map && res.containsKey('data') ? res['data'] : res;
+        if (data is String && data.isNotEmpty) {
+          aiAnswer = data;
+        } else if (data is Map && data['answer'] != null) {
+          aiAnswer = data['answer'].toString();
+        }
+      }
+
+      setState(() {
+        _messages.add({'role': 'ai', 'text': aiAnswer});
+        _sending = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      final err = e.toString().replaceFirst('ApiException: ', '').replaceFirst('Exception: ', '');
+      setState(() {
+        _messages.add({'role': 'ai', 'text': 'Sorry, I encountered an error: $err'});
+        _sending = false;
+      });
+    }
   }
 
   @override
@@ -187,29 +264,53 @@ class _AiAssistantScreenState extends ConsumerState<AiAssistantScreen> {
               padding: const EdgeInsets.all(16),
               itemCount: _messages.length,
               itemBuilder: (context, index) {
-                final isUser = _messages[index].startsWith('You:');
+                final isUser = _messages[index]['role'] == 'user';
+                final isDark = Theme.of(context).brightness == Brightness.dark;
                 return Align(
                   alignment: isUser ? Alignment.centerRight : Alignment.centerLeft,
                   child: Container(
                     margin: const EdgeInsets.only(bottom: 12),
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
-                      color: isUser ? Colors.blue.shade100 : Colors.grey.shade200,
+                      color: isUser
+                          ? Colors.blue.shade600
+                          : (isDark ? const Color(0xFF1E293B) : Colors.grey.shade200),
                       borderRadius: BorderRadius.circular(12),
                     ),
-                    child: Text(_messages[index]),
+                    child: Text(
+                      _messages[index]['text'] ?? '',
+                      style: TextStyle(
+                        color: isUser
+                            ? Colors.white
+                            : (isDark ? Colors.white : Colors.black87),
+                      ),
+                    ),
                   ),
                 );
               },
             ),
           ),
+          if (_sending)
+            const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              child: Row(
+                children: [
+                  SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)),
+                  SizedBox(width: 8),
+                  Text('AI Assistant is thinking...', style: TextStyle(fontSize: 12, color: Colors.grey)),
+                ],
+              ),
+            ),
           Padding(
             padding: const EdgeInsets.all(16),
             child: Row(
               children: [
                 Expanded(child: CustomTextField(label: '', hint: 'Ask me anything about HR...', controller: _msgController)),
                 const SizedBox(width: 8),
-                IconButton(icon: const Icon(Icons.send, color: Colors.blue), onPressed: _sendMessage),
+                IconButton(
+                  icon: Icon(Icons.send, color: _sending ? Colors.grey : Colors.blue),
+                  onPressed: _sending ? null : _sendMessage,
+                ),
               ],
             ),
           ),

@@ -60,6 +60,9 @@ class PunchState {
   final XFile? capturedSelfie;
   final String? capturedSelfieBase64;
   final bool isGalleryUpload;
+  final bool isTemporaryClockOut;
+  final bool applyLeaveForPendingHours;
+  final String? leaveReason;
 
   const PunchState({
     this.phase = PunchPhase.notCheckedIn,
@@ -105,6 +108,9 @@ class PunchState {
     this.capturedSelfie,
     this.capturedSelfieBase64,
     this.isGalleryUpload = false,
+    this.isTemporaryClockOut = false,
+    this.applyLeaveForPendingHours = false,
+    this.leaveReason,
   });
 
   bool get checkedIn => checkInAt != null && checkOutAt == null;
@@ -133,29 +139,75 @@ class PunchState {
     if (!checkedIn || checkOutAt != null) return false;
     try {
       final parts = shiftEndTime.replaceAll(RegExp(r'[^\d:]'), '').split(':');
+      final startParts = shiftStartTime.replaceAll(RegExp(r'[^\d:]'), '').split(':');
       if (parts.length >= 2) {
         int hour = int.tryParse(parts[0]) ?? 18;
         final min = int.tryParse(parts[1]) ?? 0;
         if (shiftEndTime.toUpperCase().contains('PM') && hour < 12) hour += 12;
         if (shiftEndTime.toUpperCase().contains('AM') && hour == 12) hour = 0;
 
-        final shiftEndDateTime = DateTime(now.year, now.month, now.day, hour, min);
+        int startHour = 9;
+        if (startParts.length >= 2) {
+          startHour = int.tryParse(startParts[0]) ?? 9;
+          if (shiftStartTime.toUpperCase().contains('PM') && startHour < 12) startHour += 12;
+          if (shiftStartTime.toUpperCase().contains('AM') && startHour == 12) startHour = 0;
+        }
+
+        DateTime shiftEndDateTime = DateTime(now.year, now.month, now.day, hour, min);
+        if (hour <= startHour && (shiftEndTime.toUpperCase().contains('AM') || hour < 12)) {
+          shiftEndDateTime = shiftEndDateTime.add(const Duration(days: 1));
+        }
+
         return now.isAfter(shiftEndDateTime.add(const Duration(minutes: 30)));
       }
     } catch (_) {}
     return false;
   }
 
-  String get distanceDisplay {
-    if (distanceFromOfficeMeters <= 0) return '0m away';
-    if (distanceFromOfficeMeters >= 1000) {
-      return '${(distanceFromOfficeMeters / 1000).toStringAsFixed(2)}km away';
+  bool get hasLocationFix => gpsStatus == GpsStatus.ready && currentPosition != null;
+  bool get isLocating => gpsStatus == GpsStatus.detecting && currentPosition == null;
+
+  String get locationProblemTitle {
+    switch (gpsStatus) {
+      case GpsStatus.serviceDisabled:
+        return 'Location is turned off';
+      case GpsStatus.denied:
+        return 'Location permission needed';
+      case GpsStatus.deniedForever:
+        return 'Location blocked in settings';
+      case GpsStatus.error:
+        return "Can't detect your location";
+      case GpsStatus.detecting:
+        return 'Locating you...';
+      case GpsStatus.ready:
+        if (currentPosition == null) return 'Locating you...';
+        return 'Location ready';
     }
-    return '${distanceFromOfficeMeters.round()}m away';
+  }
+
+  String get locationActionLabel {
+    if (gpsStatus == GpsStatus.serviceDisabled) return 'Turn on';
+    if (gpsStatus == GpsStatus.deniedForever) return 'Settings';
+    return 'Retry';
+  }
+
+  String get distanceDisplay {
+    if (!hasLocationFix) {
+      return isLocating ? 'Locating...' : '--';
+    }
+    if (distanceFromOfficeMeters < 1) return 'At office';
+    if (distanceFromOfficeMeters < 1000) {
+      return '${distanceFromOfficeMeters.round()} m away';
+    }
+    if (distanceFromOfficeMeters >= 100000) {
+      return '${(distanceFromOfficeMeters / 1000).round()} km away';
+    }
+    return '${(distanceFromOfficeMeters / 1000).toStringAsFixed(1)} km away';
   }
 
   String checkedStatusLabel(DateTime now) {
     if (isOnBreak) return 'ON BREAK';
+    if (isTemporaryClockOut) return 'SHIFT INCOMPLETE (STEPPED OUT)';
     if (checkOutAt != null) return 'SHIFT COMPLETED';
     if (checkInAt != null) {
       final mode = todayRecord['workMode']?.toString().toUpperCase() ?? workMode;
@@ -169,7 +221,7 @@ class PunchState {
     if (phase != PunchPhase.notCheckedIn) return false;
     if (capturedSelfieBase64 == null || capturedSelfieBase64!.isEmpty) return false;
     if (workMode == 'OFFICE') {
-      return gpsStatus == GpsStatus.ready && currentPosition != null && isWithinGeofence;
+      return hasLocationFix && isWithinGeofence;
     } else if (workMode == 'WFH') {
       return wfhReason != null && wfhReason!.trim().isNotEmpty;
     }
@@ -177,22 +229,17 @@ class PunchState {
   }
 
   String? get clockInBlockedReason {
-    if (isActionInProgress) return 'Action in progress...';
-    if (phase != PunchPhase.notCheckedIn) return 'You are already checked in or out.';
-    if (capturedSelfieBase64 == null || capturedSelfieBase64!.isEmpty) {
-      return 'Selfie is required to clock in.';
+    if (!hasLocationFix) {
+      return locationProblemTitle;
     }
-    if (workMode == 'OFFICE') {
-      if (gpsStatus != GpsStatus.ready || currentPosition == null) {
-        return 'Waiting for GPS fix...';
-      }
-      if (!isWithinGeofence) {
-        return 'You are outside the office geofence ($distanceDisplay).';
-      }
-    } else if (workMode == 'WFH') {
-      if (wfhReason == null || wfhReason!.trim().isEmpty) {
-        return 'Please enter a reason for WFH.';
-      }
+    if (workMode == 'OFFICE' && !isWithinGeofence) {
+      return 'You are outside the office geofence ($distanceDisplay).';
+    }
+    if (workMode == 'WFH' && (wfhReason == null || wfhReason!.trim().isEmpty)) {
+      return 'Please enter a reason for working from home.';
+    }
+    if (capturedSelfieBase64 == null || capturedSelfieBase64!.isEmpty) {
+      return 'Please take a verification selfie.';
     }
     return null;
   }
@@ -243,13 +290,23 @@ class PunchState {
     bool clearSelfie = false,
     String? capturedSelfieBase64,
     bool? isGalleryUpload,
+    bool? isTemporaryClockOut,
+    bool? applyLeaveForPendingHours,
+    String? leaveReason,
   }) {
     final newCheckIn = checkInAt ?? this.checkInAt;
     final newCheckOut = checkOutAt ?? this.checkOutAt;
     final newIsOnBreak = isOnBreak ?? this.isOnBreak;
 
     PunchPhase computedPhase = this.phase;
-    if (newCheckOut != null) {
+    final rec = todayRecord ?? {};
+    final isTempOut = isTemporaryClockOut ?? 
+        ((todayRecord != null && todayRecord.isNotEmpty)
+            ? (rec['isTemporaryClockOut'] == true || (rec['notes']?.toString().contains('[TEMPORARY_CLOCKOUT]') ?? false))
+            : this.isTemporaryClockOut);
+    if (isTempOut) {
+      computedPhase = PunchPhase.notCheckedIn;
+    } else if (newCheckOut != null) {
       computedPhase = PunchPhase.checkedOut;
     } else if (newIsOnBreak) {
       computedPhase = PunchPhase.onBreak;
@@ -303,6 +360,9 @@ class PunchState {
       capturedSelfie: clearSelfie ? null : (capturedSelfie ?? this.capturedSelfie),
       capturedSelfieBase64: clearSelfie ? null : (capturedSelfieBase64 ?? this.capturedSelfieBase64),
       isGalleryUpload: isGalleryUpload ?? this.isGalleryUpload,
+      isTemporaryClockOut: isTemporaryClockOut ?? this.isTemporaryClockOut,
+      applyLeaveForPendingHours: applyLeaveForPendingHours ?? this.applyLeaveForPendingHours,
+      leaveReason: leaveReason ?? this.leaveReason,
     );
   }
 }

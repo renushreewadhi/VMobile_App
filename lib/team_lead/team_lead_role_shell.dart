@@ -26,7 +26,7 @@ class _TeamLeadRoleShellState extends State<TeamLeadRoleShell> {
     ];
 
     final titles = [
-      'Team Lead Dashboard',
+      '',
       'My Team Members',
       'Team Leave Approvals',
       'More Services',

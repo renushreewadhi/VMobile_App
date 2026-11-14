@@ -65,11 +65,23 @@ class InfoTile extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(label, style: TextStyle(color: muted, fontSize: 8, fontWeight: FontWeight.w800), maxLines: 1, overflow: TextOverflow.ellipsis),
-                  const SizedBox(height: 1),
+                  Text(
+                    label,
+                    style: TextStyle(
+                      color: dark ? const Color(0xFFCBD5E1) : const Color(0xFF334155),
+                      fontSize: 12,
+                      fontWeight: FontWeight.w800,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 2),
                   FittedBox(
                     fit: BoxFit.scaleDown,
-                    child: Text(value, style: TextStyle(color: text, fontSize: 11, fontWeight: FontWeight.w900)),
+                    child: Text(
+                      value,
+                      style: TextStyle(color: text, fontSize: 13, fontWeight: FontWeight.w900),
+                    ),
                   ),
                 ],
               ),

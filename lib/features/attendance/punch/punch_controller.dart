@@ -1,14 +1,19 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 import 'dart:math' as math;
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:http/http.dart' as http;
 
 import '../../../core/api/api_client.dart';
 import '../../../core/api/api_endpoints.dart';
+import '../../../core/api/attendance_service.dart';
+import '../../../core/api/leave_service.dart';
 import '../../../core/auth/auth_service.dart';
+import '../../../core/errors/api_exception.dart';
 import 'punch_state.dart';
 
 class PunchMessage {
@@ -88,10 +93,10 @@ class PunchController extends StateNotifier<PunchState> with WidgetsBindingObser
     return null;
   }
 
-  Future<dynamic> _tryFetch(ApiClient apiClient, List<String> endpoints, {Map<String, String>? queryParams}) async {
+  Future<dynamic> _tryFetch(AttendanceService attendanceService, List<String> endpoints, {Map<String, String>? queryParams}) async {
     for (final ep in endpoints) {
       try {
-        final res = await apiClient.get(ep, queryParams: queryParams);
+        final res = await attendanceService.rawGet(ep, queryParams: queryParams);
         if (res != null) return res;
       } catch (_) {}
     }
@@ -102,6 +107,7 @@ class PunchController extends StateNotifier<PunchState> with WidgetsBindingObser
     state = state.copyWith(isLoading: true, clearError: true);
     _lastLoadedDate = DateTime.now();
     final apiClient = _ref.read(apiClientProvider);
+    final attendanceService = _ref.read(attendanceServiceProvider);
 
     try {
       final profileRes = await apiClient.get(ApiEndpoints.currentUser).catchError((_) => <String, dynamic>{});
@@ -117,27 +123,27 @@ class PunchController extends StateNotifier<PunchState> with WidgetsBindingObser
       final startDate = DateTime.now().subtract(const Duration(days: 30)).toIso8601String().split('T')[0];
       final endDate = DateTime.now().toIso8601String().split('T')[0];
 
-      final todayRes = await _tryFetch(apiClient, [
+      final todayRes = await _tryFetch(attendanceService, [
         ApiEndpoints.attendanceToday,
         '/attendance/today',
         '/attendance/active',
         '/attendance/current',
       ]);
 
-      final shiftRes = await _tryFetch(apiClient, [
+      final shiftRes = await _tryFetch(attendanceService, [
         '/attendance/my-shift',
         '/shifts/my-shift',
         '/attendance/shift',
         '/shifts/current',
       ]);
 
-      final officeLocRes = await _tryFetch(apiClient, [
+      final officeLocRes = await _tryFetch(attendanceService, [
         '/attendance/office-location',
         '/attendance/office',
         '/attendance/geofence',
       ]);
 
-      final summaryRes = await _tryFetch(apiClient, [
+      final summaryRes = await _tryFetch(attendanceService, [
         ApiEndpoints.attendanceSummary,
         '/attendance/my',
         '/attendance/records',
@@ -204,8 +210,12 @@ class PunchController extends StateNotifier<PunchState> with WidgetsBindingObser
       String checkOutLocation = state.checkOutLocation;
       Map<String, dynamic> todayRecord = {};
 
+      bool isTempOut = false;
       if (record is Map && record.isNotEmpty) {
         todayRecord = Map<String, dynamic>.from(record);
+
+        final notes = record['notes']?.toString() ?? '';
+        isTempOut = record['isTemporaryClockOut'] == true || notes.contains('[TEMPORARY_CLOCKOUT]');
 
         final checkInStr = _extractFirst(record, [
           'checkIn', 'checkInTime', 'punchIn', 'punchInTime', 'clockIn', 'checkInAt', 'inTime'
@@ -269,6 +279,7 @@ class PunchController extends StateNotifier<PunchState> with WidgetsBindingObser
         officeAddress: officeAddress,
         geofenceRadiusMeters: geofenceRadius,
         attendanceHistory: historyList,
+        isTemporaryClockOut: isTempOut,
         isLoading: false,
       );
 
@@ -467,7 +478,7 @@ class PunchController extends StateNotifier<PunchState> with WidgetsBindingObser
 
   Future<bool> clockIn({required String workMode, String? wfhReason, String? selfieBase64, bool isGallery = false}) async {
     state = state.copyWith(isActionInProgress: true, clearError: true);
-    final apiClient = _ref.read(apiClientProvider);
+    final attendanceService = _ref.read(attendanceServiceProvider);
 
     try {
       final pos = state.currentPosition;
@@ -477,21 +488,38 @@ class PunchController extends StateNotifier<PunchState> with WidgetsBindingObser
           ? 'Lat: ${pos.latitude.toStringAsFixed(4)}, Lng: ${pos.longitude.toStringAsFixed(4)}'
           : (state.officeName.isNotEmpty ? state.officeName : 'Mobile App Check-In');
 
-      await apiClient.post(ApiEndpoints.punchIn, body: {
+      final faceBase64 = selfieBase64 ?? state.capturedSelfieBase64;
+      String? finalFaceBase64 = faceBase64;
+      if ((finalFaceBase64 == null || finalFaceBase64.isEmpty) && state.capturedSelfie != null) {
+        try {
+          final bytes = await File(state.capturedSelfie!.path).readAsBytes();
+          finalFaceBase64 = base64Encode(bytes);
+        } catch (_) {}
+      }
+
+      final isResuming = state.isTemporaryClockOut;
+
+      await attendanceService.checkIn({
         'latitude': lat,
         'longitude': lng,
         'location': loc,
-        'notes': 'Punched in from mobile app',
-        'capturedFaceBase64': selfieBase64 ?? state.capturedSelfieBase64,
+        'notes': isResuming ? 'Resuming shift (Temporary clock-out resumption)' : 'Punched in from mobile app',
+        'capturedFaceBase64': finalFaceBase64 ?? '',
         'verificationType': 'CLOCK_IN',
         'workMode': workMode,
-        'wfhReason': wfhReason ?? state.wfhReason,
+        'wfhReason': wfhReason ?? state.wfhReason ?? '',
         'isGalleryUpload': isGallery,
+        if (isResuming) 'isResume': true,
+        if (isResuming) 'isTemporaryClockOut': false,
       });
 
-      // Clear selfie memory after successful submit
-      state = state.copyWith(isActionInProgress: false, clearSelfie: true);
-      emitMessage('Clocked in successfully!');
+      // Clear selfie memory and reset temporary clock out state after successful submit
+      state = state.copyWith(
+        isActionInProgress: false,
+        clearSelfie: true,
+        isTemporaryClockOut: false,
+      );
+      emitMessage(isResuming ? 'Shift resumed successfully! Welcome back.' : 'Clocked in successfully!');
       await loadAllData();
       return true;
     } catch (e) {
@@ -502,16 +530,34 @@ class PunchController extends StateNotifier<PunchState> with WidgetsBindingObser
     }
   }
 
-  Future<ClockOutResult> clockOut({bool isHalfDayOverride = false}) async {
+  Future<ClockOutResult> clockOut({
+    bool isHalfDayOverride = false,
+    bool isTemporary = false,
+    bool applyLeave = false,
+    String? leaveType,
+    String? leaveReason,
+  }) async {
     if (state.isOnBreak) {
       emitMessage('End your break before clocking out.', isError: true);
       return ClockOutResult.blockedOnBreak;
     }
 
     state = state.copyWith(isActionInProgress: true, clearError: true);
-    final apiClient = _ref.read(apiClientProvider);
+    final attendanceService = _ref.read(attendanceServiceProvider);
+    final leaveService = _ref.read(leaveServiceProvider);
 
     try {
+      if (applyLeave && leaveType != null) {
+        final nowStr = DateTime.now().toIso8601String().split('T')[0];
+        await leaveService.applyLeave({
+          'leaveType': leaveType,
+          'startDate': nowStr,
+          'endDate': nowStr,
+          'reason': leaveReason ?? 'Early check-out deficit hours charge',
+          'session': 'FULL_DAY',
+        });
+      }
+
       final pos = state.currentPosition;
       final lat = pos?.latitude ?? (state.officeLat != 0.0 ? state.officeLat : 12.9716);
       final lng = pos?.longitude ?? (state.officeLng != 0.0 ? state.officeLng : 77.5946);
@@ -520,38 +566,47 @@ class PunchController extends StateNotifier<PunchState> with WidgetsBindingObser
           : (state.officeName.isNotEmpty ? state.officeName : 'Mobile App Check-Out');
 
       final workDuration = state.workDuration(DateTime.now());
-      final isLess8Hrs = workDuration.inHours < 8;
+      final isLess8Hrs = workDuration.inHours < 8 && !isTemporary;
       final workModeToUse = (isHalfDayOverride || isLess8Hrs || state.todayRecord['workMode'] == 'HALF_DAY')
           ? 'HALF_DAY'
           : (state.todayRecord['workMode']?.toString() ?? 'OFFICE');
 
-      final notesToUse = (isHalfDayOverride || isLess8Hrs)
-          ? 'Half Day Check-Out (${workDuration.inHours}h ${workDuration.inMinutes.remainder(60)}m worked)'
-          : 'Punched out from mobile app';
+      final notesToUse = isTemporary
+          ? 'Temporary clock out (Stepping out)'
+          : ((isHalfDayOverride || isLess8Hrs)
+              ? 'Half Day Check-Out (${workDuration.inHours}h ${workDuration.inMinutes.remainder(60)}m worked)'
+              : 'Punched out from mobile app');
 
-      await apiClient.post(ApiEndpoints.punchOut, body: {
+      await attendanceService.rawPost(ApiEndpoints.punchOut, body: {
         'latitude': lat,
         'longitude': lng,
         'location': loc,
         'notes': notesToUse,
         'verificationType': 'CLOCK_OUT',
         'workMode': workModeToUse,
-        'wfhReason': 'Half day check-out authorized',
+        'wfhReason': 'Check-out authorized',
+        'isTemporaryClockOut': isTemporary,
       });
 
-      state = state.copyWith(isActionInProgress: false);
-      emitMessage('Clocked out successfully!');
+      state = state.copyWith(isActionInProgress: false, isTemporaryClockOut: isTemporary);
+      if (isTemporary) {
+        emitMessage('Clocked out temporarily. Remember to clock back in before shift end!');
+      } else {
+        emitMessage('Checked out successfully! Great work today.');
+      }
       await loadAllData();
       return ClockOutResult.success;
     } catch (e) {
       final errStr = e.toString().replaceFirst("ApiException: ", "").replaceFirst("Exception: ", "");
-      state = state.copyWith(isActionInProgress: false, error: errStr);
-
-      if (errStr.contains('8.00 net working hours') ||
+      
+      if (!isTemporary && (errStr.contains('8.00 net working hours') ||
           errStr.contains('complete at least') ||
-          errStr.contains('Status: 400')) {
+          errStr.contains('Status: 400') ||
+          state.workDuration(DateTime.now()).inHours < 8)) {
+        state = state.copyWith(isActionInProgress: false);
         return ClockOutResult.needsHalfDayOverride;
       } else {
+        state = state.copyWith(isActionInProgress: false);
         emitMessage('Clock-out failed: $errStr', isError: true);
         return ClockOutResult.failure;
       }
@@ -569,14 +624,14 @@ class PunchController extends StateNotifier<PunchState> with WidgetsBindingObser
     }
 
     state = state.copyWith(isActionInProgress: true, clearError: true);
-    final apiClient = _ref.read(apiClientProvider);
+    final attendanceService = _ref.read(attendanceServiceProvider);
 
     try {
       if (state.isOnBreak) {
-        await apiClient.post(ApiEndpoints.breakEnd, body: {});
+        await attendanceService.endBreak();
         emitMessage('Break ended successfully.');
       } else {
-        await apiClient.post(ApiEndpoints.breakStart, body: {
+        await attendanceService.rawPost(ApiEndpoints.breakStart, body: {
           'breakType': 'SHORT',
           'reason': 'Mobile app break',
         });
@@ -586,23 +641,26 @@ class PunchController extends StateNotifier<PunchState> with WidgetsBindingObser
       await loadAllData();
     } catch (e) {
       final err = e.toString().replaceFirst("ApiException: ", "").replaceFirst("Exception: ", "");
-      state = state.copyWith(isActionInProgress: false, error: err);
-      emitMessage('Break action failed: $err', isError: true);
+      state = state.copyWith(isActionInProgress: false);
+      emitMessage(err, isError: true);
     }
   }
 
   Future<bool> submitRegularization(Map<String, dynamic> payload) async {
     state = state.copyWith(isActionInProgress: true, clearError: true);
-    final apiClient = _ref.read(apiClientProvider);
+    final attendanceService = _ref.read(attendanceServiceProvider);
 
     try {
-      await apiClient.post('/attendance/correction-request', body: payload);
+      await attendanceService.requestCorrection(payload);
       state = state.copyWith(isActionInProgress: false);
       emitMessage('Correction request submitted successfully.');
       await loadAllData();
       return true;
     } catch (e) {
       final err = e.toString().replaceFirst("ApiException: ", "").replaceFirst("Exception: ", "");
+      state = state.copyWith(isActionInProgress: false, error: err);
+      emitMessage('Submission failed: $err', isError: true);
+      return false;
       state = state.copyWith(isActionInProgress: false, error: err);
       emitMessage('Submission failed: $err', isError: true);
       return false;

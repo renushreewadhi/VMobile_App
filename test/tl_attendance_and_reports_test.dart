@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:etaprise_hrms/team-lead/screens/tl_reports_screen.dart';
+import 'package:etaprise_hrms/team_lead/screens/tl_reports_screen.dart';
 import 'package:etaprise_hrms/core/api/api_client.dart';
 
 class ReportTestApiClient extends ApiClient {

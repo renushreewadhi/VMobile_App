@@ -4,6 +4,8 @@ import 'package:intl/intl.dart';
 
 import '../../core/api/api_client.dart';
 import '../../core/api/api_endpoints.dart';
+import '../../core/api/asset_service.dart';
+import '../../core/errors/api_exception.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/glass_theme.dart';
 import '../../core/widgets/glass_scaffold.dart';
@@ -54,12 +56,9 @@ class _ItAssetRequestsScreenState extends ConsumerState<ItAssetRequestsScreen> {
 
   Future<void> _fetchRequests() async {
     setState(() => _isLoading = true);
-    final apiClient = ref.read(apiClientProvider);
+    final assetService = ref.read(assetServiceProvider);
     try {
-      dynamic res = await apiClient.get('/assets/requests').catchError((_) => null);
-      if (res == null) {
-        res = await apiClient.get(ApiEndpoints.assetRequests).catchError((_) => null);
-      }
+      final res = await assetService.getAssetRequests();
 
       if (mounted) {
         setState(() {
@@ -73,12 +72,16 @@ class _ItAssetRequestsScreenState extends ConsumerState<ItAssetRequestsScreen> {
           _isLoading = false;
         });
       }
-    } catch (_) {
+    } catch (e) {
+      debugPrint('[ItAssetRequests] load failed: $e');
       if (mounted) {
         setState(() {
           _requests = [];
           _isLoading = false;
         });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to load requests: ${e.toString().replaceFirst("ApiException: ", "")}'), backgroundColor: AppColors.error),
+        );
       }
     }
   }
@@ -100,7 +103,7 @@ class _ItAssetRequestsScreenState extends ConsumerState<ItAssetRequestsScreen> {
 
   String _categoryLabel(String value) {
     final cat = _categories.firstWhere(
-      (c) => c['value'] == value.toUpperCase(),
+          (c) => c['value'] == value.toUpperCase(),
       orElse: () => {'label': value.isEmpty ? 'Hardware' : value},
     );
     return cat['label']!;
@@ -117,15 +120,12 @@ class _ItAssetRequestsScreenState extends ConsumerState<ItAssetRequestsScreen> {
   }
 
   Future<void> _handleRequest(dynamic request, bool approve) async {
-    final apiClient = ref.read(apiClientProvider);
+    final assetService = ref.read(assetServiceProvider);
     final id = request['id'] ?? request['requestId'];
     setState(() => _processingAction = true);
 
     try {
-      dynamic res = await apiClient.put('/assets/requests/$id', body: {'approve': approve}).catchError((_) => null);
-      if (res == null) {
-        await apiClient.post('/assets/requests/$id/handle', body: {'approve': approve}).catchError((_) => null);
-      }
+      await assetService.reviewAssetRequest(id.toString(), approve);
 
       if (mounted) {
         setState(() => _processingAction = false);
@@ -137,16 +137,13 @@ class _ItAssetRequestsScreenState extends ConsumerState<ItAssetRequestsScreen> {
         );
         _fetchRequests();
       }
-    } catch (_) {
+    } catch (e) {
       if (mounted) {
-        setState(() {
-          request['status'] = approve ? 'APPROVED' : 'REJECTED';
-          _processingAction = false;
-        });
+        setState(() => _processingAction = false);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(approve ? 'Request approved.' : 'Request rejected.'),
-            backgroundColor: approve ? AppColors.success : AppColors.error,
+            content: Text('Failed to process request: ${e.toString().replaceFirst("ApiException: ", "")}'),
+            backgroundColor: AppColors.error,
           ),
         );
       }
@@ -306,9 +303,9 @@ class _ItAssetRequestsScreenState extends ConsumerState<ItAssetRequestsScreen> {
                           onPressed: _processingAction
                               ? null
                               : () {
-                                  Navigator.pop(context);
-                                  _handleRequest(req, true);
-                                },
+                            Navigator.pop(context);
+                            _handleRequest(req, true);
+                          },
                           icon: const Icon(Icons.check, size: 16),
                           label: const Text('Approve'),
                           style: ElevatedButton.styleFrom(
@@ -323,9 +320,9 @@ class _ItAssetRequestsScreenState extends ConsumerState<ItAssetRequestsScreen> {
                           onPressed: _processingAction
                               ? null
                               : () {
-                                  Navigator.pop(context);
-                                  _handleRequest(req, false);
-                                },
+                            Navigator.pop(context);
+                            _handleRequest(req, false);
+                          },
                           icon: const Icon(Icons.close, size: 16),
                           label: const Text('Reject'),
                           style: ElevatedButton.styleFrom(
@@ -463,52 +460,52 @@ class _ItAssetRequestsScreenState extends ConsumerState<ItAssetRequestsScreen> {
                         onPressed: isSubmitting
                             ? null
                             : () async {
-                                if (reasonController.text.trim().isEmpty) {
-                                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please describe the reason for request.')));
-                                  return;
-                                }
+                          if (reasonController.text.trim().isEmpty) {
+                            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please describe the reason for request.')));
+                            return;
+                          }
 
-                                setModalState(() => isSubmitting = true);
-                                final apiClient = ref.read(apiClientProvider);
-                                final payload = {
-                                  'category': selectedCategory,
-                                  'reason': reasonController.text.trim(),
-                                };
+                          setModalState(() => isSubmitting = true);
+                          final apiClient = ref.read(apiClientProvider);
+                          final payload = {
+                            'category': selectedCategory,
+                            'reason': reasonController.text.trim(),
+                          };
 
-                                try {
-                                  await apiClient.post(ApiEndpoints.assetRequests, body: payload);
-                                  if (mounted) {
-                                    Navigator.pop(modalContext);
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      const SnackBar(
-                                        content: Text('Asset request submitted successfully'),
-                                        backgroundColor: AppColors.success,
-                                      ),
-                                    );
-                                    _fetchRequests();
-                                  }
-                                } catch (_) {
-                                  if (mounted) {
-                                    _requests.insert(0, {
-                                      'id': 'req-${DateTime.now().millisecondsSinceEpoch}',
-                                      'employeeName': 'Current User',
-                                      'category': selectedCategory,
-                                      'reason': reasonController.text.trim(),
-                                      'status': 'PENDING',
-                                      'requestedAt': DateTime.now().toIso8601String()
-                                    });
-                                    Navigator.pop(modalContext);
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      const SnackBar(
-                                        content: Text('Asset request submitted successfully'),
-                                        backgroundColor: AppColors.success,
-                                      ),
-                                    );
-                                  }
-                                } finally {
-                                  isSubmitting = false;
-                                }
-                              },
+                          try {
+                            await apiClient.post(ApiEndpoints.assetRequests, body: payload);
+                            if (mounted) {
+                              Navigator.pop(modalContext);
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text('Asset request submitted successfully'),
+                                  backgroundColor: AppColors.success,
+                                ),
+                              );
+                              _fetchRequests();
+                            }
+                          } catch (_) {
+                            if (mounted) {
+                              _requests.insert(0, {
+                                'id': 'req-${DateTime.now().millisecondsSinceEpoch}',
+                                'employeeName': 'Current User',
+                                'category': selectedCategory,
+                                'reason': reasonController.text.trim(),
+                                'status': 'PENDING',
+                                'requestedAt': DateTime.now().toIso8601String()
+                              });
+                              Navigator.pop(modalContext);
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text('Asset request submitted successfully'),
+                                  backgroundColor: AppColors.success,
+                                ),
+                              );
+                            }
+                          } finally {
+                            isSubmitting = false;
+                          }
+                        },
                         style: ElevatedButton.styleFrom(
                           backgroundColor: AppColors.primary,
                           foregroundColor: Colors.white,

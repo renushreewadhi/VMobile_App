@@ -37,6 +37,7 @@ class _HrJobAddScreenState extends ConsumerState<HrJobAddScreen> {
   String _teamId = '';
   String _employmentType = 'Full-time';
   String _visibility = 'PUBLIC';
+  final List<String> _employmentTypes = ['Full-time', 'Part-time', 'Contract', 'Internship'];
 
   List<dynamic> _departments = [];
   List<dynamic> _designations = [];
@@ -162,6 +163,9 @@ class _HrJobAddScreenState extends ConsumerState<HrJobAddScreen> {
 
     final empType = data['employmentType']?.toString();
     if (empType != null && empType.isNotEmpty) {
+      if (!_employmentTypes.contains(empType)) {
+        _employmentTypes.add(empType);
+      }
       _employmentType = empType;
     }
 
@@ -388,7 +392,7 @@ class _HrJobAddScreenState extends ConsumerState<HrJobAddScreen> {
               DropdownButtonFormField<String>(
                 value: _employmentType,
                 decoration: const InputDecoration(labelText: 'Employment Type', border: OutlineInputBorder()),
-                items: ['Full-time', 'Part-time', 'Contract', 'Internship'].map((e) => DropdownMenuItem(value: e, child: Text(e))).toList(),
+                items: _employmentTypes.map((e) => DropdownMenuItem(value: e, child: Text(e))).toList(),
                 onChanged: (val) => setState(() => _employmentType = val ?? 'Full-time'),
               ),
               const SizedBox(height: 16),

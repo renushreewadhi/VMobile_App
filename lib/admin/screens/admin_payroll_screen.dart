@@ -1090,33 +1090,7 @@ class _AdminPayrollScreenState extends ConsumerState<AdminPayrollScreen> {
           ),
           const SizedBox(height: 16),
 
-          // Selected Count Bar
-          if (_selectedIds.isNotEmpty) ...[
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-              decoration: BoxDecoration(color: const Color(0xFF0F6B66).withAlpha(30), borderRadius: BorderRadius.circular(10)),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text('${_selectedIds.length} item(s) selected', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: glass.textPrimary)),
-                  Row(
-                    children: [
-                      TextButton.icon(
-                        icon: const Icon(Icons.download_rounded, size: 16),
-                        label: const Text('Export Selected', style: TextStyle(fontSize: 12)),
-                        onPressed: _exportExcel,
-                      ),
-                      TextButton(
-                        onPressed: () => setState(() => _selectedIds.clear()),
-                        child: const Text('Clear', style: TextStyle(fontSize: 12)),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 12),
-          ],
+          // Selected Count Bar removed
 
           // Payroll Feed List or Empty State
           if (filtered.isEmpty)
@@ -1184,77 +1158,57 @@ class _AdminPayrollScreenState extends ConsumerState<AdminPayrollScreen> {
       backgroundColor: cardBgColor,
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(14),
-      child: Row(
+      child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Checkbox(
-            value: isSelected,
-            onChanged: (val) {
-              setState(() {
-                if (val == true) {
-                  _selectedIds.add(r.id);
-                } else {
-                  _selectedIds.remove(r.id);
-                }
-              });
-            },
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Expanded(
+                child: Text(r.employeeName, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: glass.textPrimary)),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(
+                  color: r.status == 'Paid' ? const Color(0xFF10B981).withAlpha(30) : (r.status == 'Processing' ? const Color(0xFF2563EB).withAlpha(30) : const Color(0xFFF59E0B).withAlpha(30)),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text(
+                  r.status.toUpperCase(),
+                  style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: r.status == 'Paid' ? const Color(0xFF10B981) : (r.status == 'Processing' ? const Color(0xFF2563EB) : const Color(0xFFF59E0B))),
+                ),
+              ),
+            ],
           ),
-          const SizedBox(width: 4),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Expanded(
-                      child: Text(r.employeeName, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: glass.textPrimary)),
-                    ),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                      decoration: BoxDecoration(
-                        color: r.status == 'Paid' ? const Color(0xFF10B981).withAlpha(30) : (r.status == 'Processing' ? const Color(0xFF2563EB).withAlpha(30) : const Color(0xFFF59E0B).withAlpha(30)),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Text(
-                        r.status.toUpperCase(),
-                        style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: r.status == 'Paid' ? const Color(0xFF10B981) : (r.status == 'Processing' ? const Color(0xFF2563EB) : const Color(0xFFF59E0B))),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 4),
-                Text('${r.employeeId} • ${r.department} (${r.designation})', style: TextStyle(fontSize: 12, color: glass.textSecondary)),
-                const SizedBox(height: 6),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text('Net Pay: ${currencyFmt.format(r.netPay)}', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Color(0xFF10B981))),
-                    Text('Deductions: ${currencyFmt.format(r.totalDeductions)}', style: TextStyle(fontSize: 11, color: glass.textSecondary)),
-                  ],
-                ),
-                const SizedBox(height: 10),
-                Wrap(
-                  spacing: 6,
-                  runSpacing: 6,
-                  alignment: WrapAlignment.end,
-                  children: [
-                    OutlinedButton.icon(
-                      icon: const Icon(Icons.edit_rounded, size: 14),
-                      label: const Text('Edit Salary', style: TextStyle(fontSize: 11)),
-                      style: OutlinedButton.styleFrom(visualDensity: VisualDensity.compact),
-                      onPressed: () => _showEditSalaryDialog(r),
-                    ),
-                    OutlinedButton.icon(
-                      icon: const Icon(Icons.receipt_long_rounded, size: 14),
-                      label: const Text('View Payslip', style: TextStyle(fontSize: 11)),
-                      style: OutlinedButton.styleFrom(visualDensity: VisualDensity.compact),
-                      onPressed: () => _showPayslipDialog(r),
-                    ),
-                  ],
-                ),
-              ],
-            ),
+          const SizedBox(height: 4),
+          Text('${r.employeeId} • ${r.department} (${r.designation})', style: TextStyle(fontSize: 12, color: glass.textSecondary)),
+          const SizedBox(height: 6),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text('Net Pay: ${currencyFmt.format(r.netPay)}', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Color(0xFF10B981))),
+              Text('Deductions: ${currencyFmt.format(r.totalDeductions)}', style: TextStyle(fontSize: 11, color: glass.textSecondary)),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Wrap(
+            spacing: 6,
+            runSpacing: 6,
+            alignment: WrapAlignment.end,
+            children: [
+              OutlinedButton.icon(
+                icon: const Icon(Icons.edit_rounded, size: 14),
+                label: const Text('Edit Salary', style: TextStyle(fontSize: 11)),
+                style: OutlinedButton.styleFrom(visualDensity: VisualDensity.compact),
+                onPressed: () => _showEditSalaryDialog(r),
+              ),
+              OutlinedButton.icon(
+                icon: const Icon(Icons.receipt_long_rounded, size: 14),
+                label: const Text('View Payslip', style: TextStyle(fontSize: 11)),
+                style: OutlinedButton.styleFrom(visualDensity: VisualDensity.compact),
+                onPressed: () => _showPayslipDialog(r),
+              ),
+            ],
           ),
         ],
       ),

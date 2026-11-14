@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 
 import '../../core/api/api_client.dart';
 import '../../core/api/api_endpoints.dart';
+import '../../core/api/leave_service.dart';
 import '../../core/auth/auth_service.dart';
 import '../../core/errors/api_exception.dart';
 import '../../core/models/user_model.dart';
@@ -270,7 +271,8 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
 
       // 4. Fetch Pending Leaves
       try {
-        final leaveRes = await apiClient.get(ApiEndpoints.leavePending).timeout(const Duration(seconds: 4));
+        final leaveService = ref.read(leaveServiceProvider);
+        final leaveRes = await leaveService.getPendingLeaves().timeout(const Duration(seconds: 4));
         if (!mounted || currentReq != _requestId) return;
         dynamic rawLeaves = leaveRes is Map<String, dynamic> && leaveRes.containsKey('data') ? leaveRes['data'] : leaveRes;
 
@@ -476,9 +478,9 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
     if (_processingLeaveIds.contains(leaveId)) return;
     setState(() => _processingLeaveIds.add(leaveId.toString()));
 
-    final apiClient = ref.read(apiClientProvider);
+    final leaveService = ref.read(leaveServiceProvider);
     try {
-      await apiClient.post(ApiEndpoints.approveOrRejectLeave(leaveId.toString()), body: {
+      await leaveService.approveOrRejectLeave(leaveId.toString(), {
         'status': 'APPROVED',
         'rejectionReason': null,
       });
@@ -504,9 +506,9 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
     if (_processingLeaveIds.contains(leaveId)) return;
     setState(() => _processingLeaveIds.add(leaveId.toString()));
 
-    final apiClient = ref.read(apiClientProvider);
+    final leaveService = ref.read(leaveServiceProvider);
     try {
-      await apiClient.post(ApiEndpoints.approveOrRejectLeave(leaveId.toString()), body: {
+      await leaveService.approveOrRejectLeave(leaveId.toString(), {
         'status': 'REJECTED',
         'rejectionReason': 'Rejected from dashboard',
       });

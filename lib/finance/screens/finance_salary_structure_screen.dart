@@ -6,6 +6,8 @@ import '../../core/api/api_endpoints.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/widgets/glass_scaffold.dart';
 import '../../shared/widgets/app_card.dart';
+import '../../shared/widgets/empty_state_widget.dart';
+import '../../shared/widgets/error_state_widget.dart';
 import '../../shared/widgets/loading_shimmer.dart';
 
 class FinanceSalaryStructureScreen extends ConsumerStatefulWidget {
@@ -17,6 +19,7 @@ class FinanceSalaryStructureScreen extends ConsumerStatefulWidget {
 
 class _FinanceSalaryStructureScreenState extends ConsumerState<FinanceSalaryStructureScreen> {
   bool _isLoading = true;
+  String? _errorMessage;
   List<Map<String, dynamic>> _structures = [];
 
   @override
@@ -26,11 +29,14 @@ class _FinanceSalaryStructureScreenState extends ConsumerState<FinanceSalaryStru
   }
 
   Future<void> _loadStructures() async {
-    setState(() => _isLoading = true);
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
     final apiClient = ref.read(apiClientProvider);
 
     try {
-      final res = await apiClient.get(ApiEndpoints.salaryStructures).catchError((_) => null);
+      final res = await apiClient.get(ApiEndpoints.salaryStructures);
 
       if (mounted) {
         List<dynamic> items = [];
@@ -42,18 +48,15 @@ class _FinanceSalaryStructureScreenState extends ConsumerState<FinanceSalaryStru
           items = res['items'];
         }
 
-        if (items.isNotEmpty) {
-          _structures = items.map((s) => _mapStructureItem(s)).toList();
-        } else {
-          _structures = _getMockStructures();
-        }
+        _structures = items.map((s) => _mapStructureItem(s)).toList();
         _isLoading = false;
         setState(() {});
       }
-    } catch (_) {
+    } catch (e) {
       if (mounted) {
         setState(() {
-          _structures = _getMockStructures();
+          _structures = [];
+          _errorMessage = e.toString().replaceFirst('Exception: ', '').replaceFirst('ApiException: ', '');
           _isLoading = false;
         });
       }
@@ -66,49 +69,12 @@ class _FinanceSalaryStructureScreenState extends ConsumerState<FinanceSalaryStru
       'grade': map['name'] ?? map['grade'] ?? 'Standard Structure',
       'basePay': map['basicSalary'] != null
           ? '₹${map['basicSalary']}'
-          : (map['basePay'] ?? '₹45,000 - ₹85,000'),
-      'HRA': map['hraPercent'] != null ? '${map['hraPercent']}%' : (map['HRA'] ?? '20%'),
-      'DA': map['daPercent'] != null ? '${map['daPercent']}%' : (map['DA'] ?? '10%'),
-      'medical': map['medicalAllowance'] != null ? '₹${map['medicalAllowance']}' : (map['medical'] ?? '₹1,200'),
-      'bonus': map['bonusPercent'] != null ? '${map['bonusPercent']}%' : (map['bonus'] ?? '5%'),
+          : (map['basePay'] ?? '₹0'),
+      'HRA': map['hraPercent'] != null ? '${map['hraPercent']}%' : (map['HRA'] ?? '0%'),
+      'DA': map['daPercent'] != null ? '${map['daPercent']}%' : (map['DA'] ?? '0%'),
+      'medical': map['medicalAllowance'] != null ? '₹${map['medicalAllowance']}' : (map['medical'] ?? '₹0'),
+      'bonus': map['bonusPercent'] != null ? '${map['bonusPercent']}%' : (map['bonus'] ?? '0%'),
     };
-  }
-
-  List<Map<String, dynamic>> _getMockStructures() {
-    return [
-      {
-        'grade': 'Executive Grade E1',
-        'basePay': '₹45,000 - ₹75,000',
-        'HRA': '20%',
-        'DA': '10%',
-        'medical': '₹1,200',
-        'bonus': '5%',
-      },
-      {
-        'grade': 'Senior Manager M2',
-        'basePay': '₹85,000 - ₹1,40,000',
-        'HRA': '25%',
-        'DA': '12%',
-        'medical': '₹2,000',
-        'bonus': '10%',
-      },
-      {
-        'grade': 'Director / VP Level',
-        'basePay': '₹1,50,000 - ₹2,50,000',
-        'HRA': '30%',
-        'DA': '15%',
-        'medical': '₹3,000',
-        'bonus': '15%',
-      },
-      {
-        'grade': 'Associate Level A1',
-        'basePay': '₹25,000 - ₹45,000',
-        'HRA': '15%',
-        'DA': '8%',
-        'medical': '₹1,000',
-        'bonus': '3%',
-      },
-    ];
   }
 
   void _showAddGradeDialog() {
@@ -192,6 +158,15 @@ class _FinanceSalaryStructureScreenState extends ConsumerState<FinanceSalaryStru
         body: DashboardSkeleton(),
       );
     }
+    if (_errorMessage != null) {
+      return GlassScaffold(
+        title: 'Salary Structures',
+        body: ErrorStateWidget(
+          errorMessage: _errorMessage!,
+          onRetry: _loadStructures,
+        ),
+      );
+    }
 
     return GlassScaffold(
       title: 'Salary Structures',
@@ -252,11 +227,17 @@ class _FinanceSalaryStructureScreenState extends ConsumerState<FinanceSalaryStru
               const SizedBox(height: 16),
 
               // Salary Structure Cards Grid
-              ListView.builder(
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                itemCount: _structures.length,
-                itemBuilder: (context, index) {
+              _structures.isEmpty
+                  ? const EmptyStateWidget(
+                      title: 'No Salary Structures',
+                      message: 'There are no configured salary structures found on the server.',
+                      icon: Icons.calculate_outlined,
+                    )
+                  : ListView.builder(
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      itemCount: _structures.length,
+                      itemBuilder: (context, index) {
                   final item = _structures[index];
                   return Padding(
                     padding: const EdgeInsets.only(bottom: 12),

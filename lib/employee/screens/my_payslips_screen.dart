@@ -1,10 +1,13 @@
+import 'dart:io';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/api/api_client.dart';
 import '../../core/api/api_endpoints.dart';
+import '../../core/api/payroll_service.dart';
 import '../../core/auth/auth_service.dart';
+import '../../core/storage/storage_service.dart';
 import '../../core/theme/app_colors.dart';
 import '../../shared/widgets/app_card.dart';
 import '../../shared/widgets/loading_shimmer.dart';
@@ -37,10 +40,10 @@ class _MyPayslipsScreenState extends ConsumerState<MyPayslipsScreen> {
     _loadPayrollData();
   }
 
-  Future<dynamic> _tryFetch(ApiClient apiClient, List<String> endpoints) async {
+  Future<dynamic> _tryFetch(PayrollService payrollService, List<String> endpoints) async {
     for (final ep in endpoints) {
       try {
-        final res = await apiClient.get(ep);
+        final res = await payrollService.rawGet(ep);
         if (res != null) return res;
       } catch (_) {}
     }
@@ -80,10 +83,10 @@ class _MyPayslipsScreenState extends ConsumerState<MyPayslipsScreen> {
       _error = null;
     });
 
-    final apiClient = ref.read(apiClientProvider);
+    final payrollService = ref.read(payrollServiceProvider);
 
     try {
-      final salaryRes = await _tryFetch(apiClient, [
+      final salaryRes = await _tryFetch(payrollService, [
         ApiEndpoints.mySalary,
         '/payroll/salary/my',
         '/salary/structure/my',
@@ -92,7 +95,7 @@ class _MyPayslipsScreenState extends ConsumerState<MyPayslipsScreen> {
         '/salary/me',
       ]);
 
-      final historyRes = await _tryFetch(apiClient, [
+      final historyRes = await _tryFetch(payrollService, [
         ApiEndpoints.myPayslips,
         ApiEndpoints.mySalaryHistory,
         '/payroll/payslips/my',
@@ -275,6 +278,62 @@ class _MyPayslipsScreenState extends ConsumerState<MyPayslipsScreen> {
     }
     if (total > 0) return total;
     return 651750.0;
+  }
+
+  Future<void> _downloadPayslipPdf(Map<String, dynamic> record) async {
+    final payrollId = (record['id'] ?? record['payrollId'] ?? '').toString();
+    final period = _formatMonthYear(record['month'], record['year']);
+
+    if (payrollId.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Unable to download: Invalid payslip ID.')),
+      );
+      return;
+    }
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Downloading payslip for $period...')),
+    );
+
+    final apiClient = ref.read(apiClientProvider);
+    final storageService = ref.read(storageServiceProvider);
+    final user = ref.read(authServiceProvider).user;
+
+    try {
+      final tempDir = Directory.systemTemp;
+      final tempFile = File('${tempDir.path}/temp_payslip_$payrollId.pdf');
+
+      final downloadedPdf = await apiClient.getBinaryStreamToFile(
+        '/payroll/payslip/$payrollId',
+        targetFile: tempFile,
+      );
+
+      if (user != null) {
+        final pdfBytes = await downloadedPdf.readAsBytes();
+        await storageService.encryptAndSavePayslipBytes(
+          pdfBytes: pdfBytes,
+          userId: user.id,
+          payrollId: payrollId,
+          targetDirectoryPath: tempDir.path,
+        );
+      }
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Payslip for $period downloaded and encrypted in secure vault.'),
+          backgroundColor: Colors.green.shade700,
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Failed to download payslip: ${e.toString().replaceFirst("ApiException: ", "")}'),
+          backgroundColor: Colors.red.shade700,
+        ),
+      );
+    }
   }
 
   void _showPayslipModal(Map<String, dynamic> record) {
@@ -717,9 +776,7 @@ class _MyPayslipsScreenState extends ConsumerState<MyPayslipsScreen> {
                             ),
                             IconButton(
                               visualDensity: VisualDensity.compact,
-                              onPressed: () {
-                                ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Downloading payslip for $period...')));
-                              },
+                              onPressed: () => _downloadPayslipPdf(record),
                               icon: const Icon(Icons.download_rounded, size: 18, color: AppColors.lightSecondaryText),
                             ),
                           ],
@@ -862,9 +919,7 @@ class _MyPayslipsScreenState extends ConsumerState<MyPayslipsScreen> {
                             ),
                             IconButton(
                               visualDensity: VisualDensity.compact,
-                              onPressed: () {
-                                ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Downloading payslip for $period...')));
-                              },
+                              onPressed: () => _downloadPayslipPdf(record),
                               icon: const Icon(Icons.download_rounded, size: 18, color: AppColors.lightSecondaryText),
                             ),
                           ],

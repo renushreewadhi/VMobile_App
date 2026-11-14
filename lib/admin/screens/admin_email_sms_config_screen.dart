@@ -117,6 +117,14 @@ class _AdminEmailSmsConfigScreenState extends ConsumerState<AdminEmailSmsConfigS
     _smsSenderIdController.text = 'HRMPRO';
   }
 
+  String _maskSecret(dynamic raw) {
+    if (raw == null || raw.toString().trim().isEmpty) return '••••••••';
+    final str = raw.toString().trim();
+    if (str.contains('••')) return str;
+    if (str.length <= 4) return '••••••••';
+    return '••••••••${str.substring(str.length - 4)}';
+  }
+
   Future<void> _loadConfig() async {
     final currentReq = ++_requestId;
     if (!mounted) return;
@@ -159,13 +167,13 @@ class _AdminEmailSmsConfigScreenState extends ConsumerState<AdminEmailSmsConfigS
         if (host != null && host.toString().trim().isNotEmpty) _smtpHostController.text = host.toString().trim();
         if (port != null && port.toString().trim().isNotEmpty) _smtpPortController.text = port.toString().trim();
         if (user != null && user.toString().trim().isNotEmpty) _smtpUserController.text = user.toString().trim();
-        if (pass != null && pass.toString().trim().isNotEmpty) _smtpPassController.text = pass.toString().trim();
+        if (pass != null && pass.toString().trim().isNotEmpty) _smtpPassController.text = _maskSecret(pass);
         if (from != null && from.toString().trim().isNotEmpty) _smtpFromEmailController.text = from.toString().trim();
         if (name != null && name.toString().trim().isNotEmpty) _smtpFromNameController.text = name.toString().trim();
         if (ssl != null) _enableSsl = ssl == true || ssl.toString().toLowerCase() == 'true';
 
         if (smsUrl != null && smsUrl.toString().trim().isNotEmpty) _smsApiUrlController.text = smsUrl.toString().trim();
-        if (smsKey != null && smsKey.toString().trim().isNotEmpty) _smsApiKeyController.text = smsKey.toString().trim();
+        if (smsKey != null && smsKey.toString().trim().isNotEmpty) _smsApiKeyController.text = _maskSecret(smsKey);
         if (smsSender != null && smsSender.toString().trim().isNotEmpty) _smsSenderIdController.text = smsSender.toString().trim();
       }
 
@@ -182,26 +190,29 @@ class _AdminEmailSmsConfigScreenState extends ConsumerState<AdminEmailSmsConfigS
     final currentReq = ++_requestId;
     final apiClient = ref.read(apiClientProvider);
 
+    final smtpPass = _smtpPassController.text.trim();
+    final smsKey = _smsApiKeyController.text.trim();
+
     final payload = {
       'SMTP_HOST': _smtpHostController.text.trim(),
       'SMTP_PORT': _smtpPortController.text.trim(),
       'SMTP_USERNAME': _smtpUserController.text.trim(),
-      'SMTP_PASSWORD': _smtpPassController.text.trim(),
+      if (!smtpPass.contains('••')) 'SMTP_PASSWORD': smtpPass,
       'SMTP_FROM': _smtpFromEmailController.text.trim(),
       'FROM_NAME': _smtpFromNameController.text.trim(),
       'ENABLE_SSL': _enableSsl,
       'SMS_API_URL': _smsApiUrlController.text.trim(),
-      'SMS_API_KEY': _smsApiKeyController.text.trim(),
+      if (!smsKey.contains('••')) 'SMS_API_KEY': smsKey,
       'SMS_SENDER_ID': _smsSenderIdController.text.trim(),
       'smtpHost': _smtpHostController.text.trim(),
       'smtpPort': _smtpPortController.text.trim(),
       'smtpUsername': _smtpUserController.text.trim(),
-      'smtpPassword': _smtpPassController.text.trim(),
+      if (!smtpPass.contains('••')) 'smtpPassword': smtpPass,
       'smtpFrom': _smtpFromEmailController.text.trim(),
       'fromName': _smtpFromNameController.text.trim(),
       'enableSsl': _enableSsl,
       'smsApiUrl': _smsApiUrlController.text.trim(),
-      'smsApiKey': _smsApiKeyController.text.trim(),
+      if (!smsKey.contains('••')) 'smsApiKey': smsKey,
       'smsSenderId': _smsSenderIdController.text.trim(),
     };
 

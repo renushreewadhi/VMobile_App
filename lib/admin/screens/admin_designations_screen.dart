@@ -704,6 +704,20 @@ class _AdminDesignationsScreenState extends ConsumerState<AdminDesignationsScree
               Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
+                  PopupMenuButton<String>(
+                    icon: const Icon(Icons.sort_rounded, size: 20),
+                    tooltip: 'Sort By',
+                    onSelected: _onSort,
+                    itemBuilder: (ctx) => const [
+                      PopupMenuItem(value: 'title', child: Text('Sort by Title')),
+                      PopupMenuItem(value: 'department', child: Text('Sort by Department')),
+                      PopupMenuItem(value: 'level', child: Text('Sort by Level')),
+                      PopupMenuItem(value: 'salary', child: Text('Sort by Min Salary')),
+                      PopupMenuItem(value: 'employeeCount', child: Text('Sort by Employees Assigned')),
+                      PopupMenuItem(value: 'status', child: Text('Sort by Status')),
+                    ],
+                  ),
+                  const SizedBox(width: 4),
                   // Download button
                   Container(
                     width: 36,
@@ -744,7 +758,7 @@ class _AdminDesignationsScreenState extends ConsumerState<AdminDesignationsScree
               ),
             ],
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 12),
 
           // Designations Feed List
           if (filtered.isEmpty)
@@ -755,31 +769,6 @@ class _AdminDesignationsScreenState extends ConsumerState<AdminDesignationsScree
               ),
             )
           else ...[
-            // Select All Toolbar
-            Row(
-              children: [
-                Checkbox(
-                  value: _selectAllChecked,
-                  onChanged: _toggleSelectAll,
-                ),
-                Text('Select Page (${_selectedIds.length} selected)', style: TextStyle(fontSize: 12, color: glass.textSecondary, fontWeight: FontWeight.bold)),
-                const Spacer(),
-                PopupMenuButton<String>(
-                  icon: const Icon(Icons.sort_rounded, size: 20),
-                  tooltip: 'Sort By',
-                  onSelected: _onSort,
-                  itemBuilder: (ctx) => const [
-                    PopupMenuItem(value: 'title', child: Text('Sort by Title')),
-                    PopupMenuItem(value: 'department', child: Text('Sort by Department')),
-                    PopupMenuItem(value: 'level', child: Text('Sort by Level')),
-                    PopupMenuItem(value: 'salary', child: Text('Sort by Min Salary')),
-                    PopupMenuItem(value: 'employeeCount', child: Text('Sort by Employees Assigned')),
-                    PopupMenuItem(value: 'status', child: Text('Sort by Status')),
-                  ],
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
 
             ListView.builder(
               shrinkWrap: true,
@@ -869,57 +858,45 @@ class _AdminDesignationsScreenState extends ConsumerState<AdminDesignationsScree
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(
+            Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Checkbox(
-                  value: isSelected,
-                  onChanged: (val) => _toggleSelectRow(d.id, val),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Expanded(
+                      child: Text(d.title, style: TextStyle(fontWeight: FontWeight.w800, fontSize: 15, color: dark ? AppColors.darkPrimaryText : const Color(0xFF0F172A))),
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: d.isActive ? const Color(0xFFDCFCE7) : const Color(0xFFF1F5F9),
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Text(
+                        d.status.toUpperCase(),
+                        style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: d.isActive ? const Color(0xFF16A34A) : const Color(0xFF64748B)),
+                      ),
+                    ),
+                  ],
                 ),
-                const SizedBox(width: 4),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Expanded(
-                            child: Text(d.title, style: TextStyle(fontWeight: FontWeight.w800, fontSize: 15, color: dark ? AppColors.darkPrimaryText : const Color(0xFF0F172A))),
-                          ),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                            decoration: BoxDecoration(
-                              color: d.isActive ? const Color(0xFFDCFCE7) : const Color(0xFFF1F5F9),
-                              borderRadius: BorderRadius.circular(20),
-                            ),
-                            child: Text(
-                              d.status.toUpperCase(),
-                              style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: d.isActive ? const Color(0xFF16A34A) : const Color(0xFF64748B)),
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 4),
-                      Text('${d.departmentName ?? 'General Department'} • ${d.level ?? 'Mid Level'}', style: TextStyle(fontSize: 12, color: glass.textSecondary, fontWeight: FontWeight.w600)),
-                      const SizedBox(height: 6),
-                      Row(
-                        children: [
-                          const Icon(Icons.currency_rupee_rounded, size: 13, color: Color(0xFF94A3B8)),
-                          const SizedBox(width: 4),
-                          Text(salaryText, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: dark ? AppColors.darkPrimaryText : const Color(0xFF0F172A))),
-                        ],
-                      ),
-                      const SizedBox(height: 3),
-                      Row(
-                        children: [
-                          const Icon(Icons.groups_outlined, size: 13, color: Color(0xFF94A3B8)),
-                          const SizedBox(width: 4),
-                          Text('${d.employeeCount} Assigned Employees', style: TextStyle(fontSize: 11.5, color: glass.textSecondary)),
-                        ],
-                      ),
-                    ],
-                  ),
+                const SizedBox(height: 4),
+                Text('${d.departmentName ?? 'General Department'} • ${d.level ?? 'Mid Level'}', style: TextStyle(fontSize: 12, color: glass.textSecondary, fontWeight: FontWeight.w600)),
+                const SizedBox(height: 6),
+                Row(
+                  children: [
+                    const Icon(Icons.currency_rupee_rounded, size: 13, color: Color(0xFF94A3B8)),
+                    const SizedBox(width: 4),
+                    Text(salaryText, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: dark ? AppColors.darkPrimaryText : const Color(0xFF0F172A))),
+                  ],
+                ),
+                const SizedBox(height: 3),
+                Row(
+                  children: [
+                    const Icon(Icons.groups_outlined, size: 13, color: Color(0xFF94A3B8)),
+                    const SizedBox(width: 4),
+                    Text('${d.employeeCount} Assigned Employees', style: TextStyle(fontSize: 11.5, color: glass.textSecondary)),
+                  ],
                 ),
               ],
             ),

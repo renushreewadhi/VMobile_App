@@ -8,14 +8,30 @@ import '../../core/widgets/glass_search_bar.dart';
 import '../../core/widgets/module_card.dart';
 import '../../core/widgets/section_label.dart';
 import '../../employee/screens/announcements_screen.dart';
+import '../../employee/screens/break_tracker_screen.dart';
+import '../../employee/screens/daily_work_update_screen.dart';
 import '../../employee/screens/holidays_screen.dart';
+import '../../employee/screens/apply_leave_screen.dart';
+import '../../employee/screens/my_assets_screen.dart';
+import '../../employee/screens/my_attendance_screen.dart';
+import '../../employee/screens/my_benefits_screen.dart';
+import '../../employee/screens/my_documents_screen.dart';
 import '../../employee/screens/my_expense_invoices_screen.dart';
 import '../../employee/screens/my_expenses_screen.dart';
+import '../../employee/screens/my_leave_screen.dart';
+import '../../employee/screens/my_payslips_screen.dart';
+import '../../employee/screens/my_profile_screen.dart';
+import '../../employee/screens/my_salary_screen.dart';
 import '../../employee/screens/my_settings_screen.dart';
+import '../../employee/screens/punch_in_out_screen.dart';
+import '../../employee/screens/wfh_apply_screen.dart';
 import '../../helpdesk/screens/helpdesk_chatbot_screen.dart';
 import '../../helpdesk/screens/helpdesk_dashboard_screen.dart';
 import '../../helpdesk/screens/helpdesk_knowledge_base_screen.dart';
 import '../../helpdesk/screens/helpdesk_tickets_screen.dart';
+import '../../it/screens/it_asset_requests_screen.dart';
+import '../../it/screens/it_security_screen.dart';
+import '../../admin/screens/admin_performance_screen.dart';
 import 'finance_approvals_screen.dart';
 import 'finance_benefit_dashboard_screen.dart';
 import 'finance_benefit_payments_screen.dart';
@@ -67,16 +83,6 @@ class ParentModuleItem {
   });
 }
 
-class SearchResultItem {
-  final String parentTitle;
-  final SubModuleItem submodule;
-
-  SearchResultItem({
-    required this.parentTitle,
-    required this.submodule,
-  });
-}
-
 class FinanceMoreScreen extends ConsumerStatefulWidget {
   final bool showAppBar;
   const FinanceMoreScreen({super.key, this.showAppBar = false});
@@ -91,8 +97,88 @@ class _FinanceMoreScreenState extends ConsumerState<FinanceMoreScreen> {
 
   final List<ParentModuleItem> _parentModules = [
     ParentModuleItem(
-      title: 'Finance',
-      description: 'Payroll, Salaries, Benefits, Tax, Approvals & Financial Operations',
+      title: 'My Space',
+      description: 'My Profile, Attendance, Check In/Out, Break Tracker & Daily Updates',
+      icon: Icons.space_dashboard_rounded,
+      colors: [const Color(0xFF3B82F6), const Color(0xFF1D4ED8)],
+      submodules: [
+        SubModuleItem(
+          name: 'My Profile',
+          description: 'View and edit your personal profile and details',
+          icon: Icons.person_rounded,
+          colors: [const Color(0xFF3B82F6), const Color(0xFF1D4ED8)],
+          screen: const MyProfileScreen(showAppBar: true),
+        ),
+        SubModuleItem(
+          name: 'My Attendance',
+          description: 'Personal attendance records and logs',
+          icon: Icons.calendar_today_rounded,
+          colors: [const Color(0xFF3B82F6), const Color(0xFF1D4ED8)],
+          screen: const MyAttendanceScreen(showAppBar: true),
+        ),
+        SubModuleItem(
+          name: 'Check In/Out',
+          description: 'Check in, check out, live status tracking',
+          icon: Icons.touch_app_rounded,
+          colors: [const Color(0xFF3B82F6), const Color(0xFF1D4ED8)],
+          screen: const PunchInOutScreen(),
+        ),
+        SubModuleItem(
+          name: 'Break Tracker',
+          description: 'Manage your break time and history',
+          icon: Icons.free_breakfast_rounded,
+          colors: [const Color(0xFF3B82F6), const Color(0xFF1D4ED8)],
+          screen: const BreakTrackerScreen(showAppBar: true),
+        ),
+        SubModuleItem(
+          name: 'Daily Work Update',
+          description: 'Submit and view daily task and progress updates',
+          icon: Icons.edit_note_rounded,
+          colors: [const Color(0xFF3B82F6), const Color(0xFF1D4ED8)],
+          screen: const DailyWorkUpdateScreen(showAppBar: true),
+        ),
+      ],
+    ),
+    ParentModuleItem(
+      title: 'Time & Attendance',
+      description: 'Work from home requests and status',
+      icon: Icons.access_time_filled_rounded,
+      colors: [const Color(0xFF06B6D4), const Color(0xFF0891B2)],
+      submodules: [
+        SubModuleItem(
+          name: 'WFH Apply',
+          description: 'Work from home requests and status',
+          icon: Icons.home_work_rounded,
+          colors: [const Color(0xFF06B6D4), const Color(0xFF0891B2)],
+          screen: const WfhApplyScreen(),
+        ),
+      ],
+    ),
+    ParentModuleItem(
+      title: 'Leave Management',
+      description: 'Leave requests, applications and balances',
+      icon: Icons.event_note_rounded,
+      colors: [const Color(0xFFEC4899), const Color(0xFFBE185D)],
+      submodules: [
+        SubModuleItem(
+          name: 'My Leave',
+          description: 'View your leave balance and applications',
+          icon: Icons.event_available_rounded,
+          colors: [const Color(0xFFEC4899), const Color(0xFFBE185D)],
+          screen: const MyLeaveScreen(showAppBar: true),
+        ),
+        SubModuleItem(
+          name: 'Apply Leave',
+          description: 'Submit new leave applications',
+          icon: Icons.event_note_rounded,
+          colors: [const Color(0xFFEC4899), const Color(0xFFBE185D)],
+          screen: const ApplyLeaveScreen(),
+        ),
+      ],
+    ),
+    ParentModuleItem(
+      title: 'Finance & Payroll Operations',
+      description: 'Payroll runs, employee salaries, structures, packages, components & reports',
       icon: Icons.account_balance_wallet_rounded,
       colors: [const Color(0xFF6366F1), const Color(0xFF4338CA)],
       submodules: [
@@ -101,7 +187,7 @@ class _FinanceMoreScreenState extends ConsumerState<FinanceMoreScreen> {
           description: 'Process employee payroll and salary runs',
           icon: Icons.payments_rounded,
           colors: [const Color(0xFF6366F1), const Color(0xFF4338CA)],
-          screen: const FinancePayrollScreen(),
+          screen: const FinancePayrollScreen(showAppBar: true),
         ),
         SubModuleItem(
           name: 'Salary Structures',
@@ -122,141 +208,119 @@ class _FinanceMoreScreenState extends ConsumerState<FinanceMoreScreen> {
           description: 'Review and process employee reimbursements',
           icon: Icons.request_quote_rounded,
           colors: [const Color(0xFF6366F1), const Color(0xFF4338CA)],
-          screen: const FinanceReimbursementsScreen(),
+          screen: const FinanceReimbursementsScreen(showAppBar: true),
         ),
         SubModuleItem(
           name: 'Loans & Advances',
           description: 'Manage employee loan applications & recovery',
           icon: Icons.price_change_rounded,
           colors: [const Color(0xFF6366F1), const Color(0xFF4338CA)],
-          screen: const FinanceLoansAdvancesScreen(),
+          screen: const FinanceLoansAdvancesScreen(showAppBar: true),
         ),
         SubModuleItem(
           name: 'Employee Benefits',
           description: 'Employee benefit plans and claims oversight',
           icon: Icons.card_giftcard_rounded,
           colors: [const Color(0xFF6366F1), const Color(0xFF4338CA)],
-          screen: const FinanceBenefitsScreen(),
+          screen: const FinanceBenefitsScreen(showAppBar: true),
         ),
         SubModuleItem(
           name: 'Tax & Compliance',
           description: 'Tax deductions and statutory compliance',
           icon: Icons.gavel_rounded,
           colors: [const Color(0xFF6366F1), const Color(0xFF4338CA)],
-          screen: const FinanceTaxComplianceScreen(),
+          screen: const FinanceTaxComplianceScreen(showAppBar: true),
         ),
         SubModuleItem(
           name: 'Payroll Inputs',
           description: 'Variable pay, overtime, and monthly deductions',
           icon: Icons.playlist_add_check_rounded,
           colors: [const Color(0xFF6366F1), const Color(0xFF4338CA)],
-          screen: const FinancePayrollInputsScreen(),
+          screen: const FinancePayrollScreen(showAppBar: true),
         ),
         SubModuleItem(
           name: 'Payments',
           description: 'Disbursements and bank transfer orders',
           icon: Icons.send_rounded,
           colors: [const Color(0xFF6366F1), const Color(0xFF4338CA)],
-          screen: const FinancePaymentsScreen(),
+          screen: const FinancePaymentsScreen(showAppBar: true),
         ),
         SubModuleItem(
           name: 'Finance Approvals',
           description: 'Review pending financial approval workflows',
           icon: Icons.how_to_reg_rounded,
           colors: [const Color(0xFF6366F1), const Color(0xFF4338CA)],
-          screen: const FinanceApprovalsScreen(),
+          screen: const FinanceApprovalsScreen(showAppBar: true),
         ),
         SubModuleItem(
           name: 'Finance Reports',
           description: 'Comprehensive financial reports & analytics',
           icon: Icons.bar_chart_rounded,
           colors: [const Color(0xFF6366F1), const Color(0xFF4338CA)],
-          screen: const FinanceReportsScreen(),
+          screen: const FinanceReportsScreen(showAppBar: true),
         ),
         SubModuleItem(
           name: 'Benefit Dashboard',
           description: 'Overview of company benefit metrics',
           icon: Icons.dashboard_rounded,
           colors: [const Color(0xFF6366F1), const Color(0xFF4338CA)],
-          screen: FinanceBenefitDashboardScreen(onViewPayments: () {}, onViewClaims: () {}, onViewReports: () {}),
+          screen: const FinanceBenefitDashboardScreen(showAppBar: true),
         ),
         SubModuleItem(
           name: 'Benefit Claims',
           description: 'Review employee benefit claim requests',
           icon: Icons.receipt_rounded,
           colors: [const Color(0xFF6366F1), const Color(0xFF4338CA)],
-          screen: const FinanceBenefitsScreen(),
+          screen: const FinanceBenefitsScreen(showAppBar: true),
         ),
         SubModuleItem(
           name: 'Benefit Payments',
           description: 'Disburse verified benefit claims',
           icon: Icons.credit_card_rounded,
           colors: [const Color(0xFF6366F1), const Color(0xFF4338CA)],
-          screen: FinanceBenefitPaymentsScreen(onViewDashboard: () {}, onViewClaims: () {}, onViewReports: () {}),
+          screen: const FinanceBenefitPaymentsScreen(showAppBar: true),
         ),
         SubModuleItem(
           name: 'Benefit Reports',
           description: 'Analytics and reports on benefit costs',
           icon: Icons.pie_chart_rounded,
           colors: [const Color(0xFF6366F1), const Color(0xFF4338CA)],
-          screen: FinanceBenefitReportsScreen(onViewDashboard: () {}, onViewPayments: () {}),
+          screen: const FinanceBenefitReportsScreen(showAppBar: true),
         ),
         SubModuleItem(
           name: 'Employee Salaries',
           description: 'Manage individual employee salaries',
           icon: Icons.badge_rounded,
           colors: [const Color(0xFF6366F1), const Color(0xFF4338CA)],
-          screen: const FinanceEmployeeSalariesScreen(),
+          screen: const FinanceEmployeeSalariesScreen(showAppBar: true),
         ),
         SubModuleItem(
           name: 'Salary Revisions',
           description: 'Salary increments and revision history',
           icon: Icons.published_with_changes_rounded,
           colors: [const Color(0xFF6366F1), const Color(0xFF4338CA)],
-          screen: const FinanceSalaryRevisionsScreen(),
+          screen: const FinanceSalaryRevisionsScreen(showAppBar: true),
         ),
         SubModuleItem(
           name: 'Payroll Inputs',
           description: 'Payroll variables and manual adjustments',
           icon: Icons.tune_rounded,
           colors: [const Color(0xFF6366F1), const Color(0xFF4338CA)],
-          screen: const FinancePayrollInputsScreen(),
+          screen: const FinancePayrollScreen(showAppBar: true),
         ),
         SubModuleItem(
           name: 'Salary Components',
           description: 'Earnings, allowances, and deductions',
           icon: Icons.list_alt_rounded,
           colors: [const Color(0xFF6366F1), const Color(0xFF4338CA)],
-          screen: const FinanceSalaryComponentsScreen(),
+          screen: const FinanceSalaryComponentsScreen(showAppBar: true),
         ),
         SubModuleItem(
           name: 'Pay Cycles',
           description: 'Configure pay cycle schedules',
           icon: Icons.date_range_rounded,
           colors: [const Color(0xFF6366F1), const Color(0xFF4338CA)],
-          screen: const FinancePayCyclesScreen(),
-        ),
-      ],
-    ),
-    ParentModuleItem(
-      title: 'Resources',
-      description: 'Company holidays and announcements',
-      icon: Icons.folder_open_rounded,
-      colors: [const Color(0xFF14B8A6), const Color(0xFF0F766E)],
-      submodules: [
-        SubModuleItem(
-          name: 'Holidays',
-          description: 'Company holiday calendar',
-          icon: Icons.calendar_today_rounded,
-          colors: [const Color(0xFF14B8A6), const Color(0xFF0F766E)],
-          screen: const HolidaysScreen(),
-        ),
-        SubModuleItem(
-          name: 'Announcements',
-          description: 'Company announcements and news',
-          icon: Icons.campaign_rounded,
-          colors: [const Color(0xFF14B8A6), const Color(0xFF0F766E)],
-          screen: const AnnouncementsScreen(),
+          screen: const FinancePayCyclesScreen(showAppBar: true),
         ),
       ],
     ),
@@ -283,32 +347,152 @@ class _FinanceMoreScreenState extends ConsumerState<FinanceMoreScreen> {
       ],
     ),
     ParentModuleItem(
-      title: 'HR Helpdesk',
-      description: 'Support dashboard, tickets, knowledge base & AI',
-      icon: Icons.headset_mic_rounded,
+      title: 'My Payroll',
+      description: 'Personal payslips and salary breakdown',
+      icon: Icons.wallet_rounded,
+      colors: [const Color(0xFF8B5CF6), const Color(0xFF6D28D9)],
+      submodules: [
+        SubModuleItem(
+          name: 'My Payslips',
+          description: 'View and download your monthly payslips',
+          icon: Icons.receipt_long_rounded,
+          colors: [const Color(0xFF8B5CF6), const Color(0xFF6D28D9)],
+          screen: const MyPayslipsScreen(showAppBar: true),
+        ),
+        SubModuleItem(
+          name: 'My Salary',
+          description: 'View your salary breakdown and details',
+          icon: Icons.account_balance_wallet_rounded,
+          colors: [const Color(0xFF8B5CF6), const Color(0xFF6D28D9)],
+          screen: const MySalaryScreen(showAppBar: true),
+        ),
+      ],
+    ),
+    ParentModuleItem(
+      title: 'Performance & Growth',
+      description: 'Performance reviews, goals, and appraisals',
+      icon: Icons.trending_up_rounded,
+      colors: [const Color(0xFFF59E0B), const Color(0xFFD97706)],
+      submodules: [
+        SubModuleItem(
+          name: 'Performance',
+          description: 'Employee performance reviews and feedback',
+          icon: Icons.star_rounded,
+          colors: [const Color(0xFFF59E0B), const Color(0xFFD97706)],
+          screen: const AdminPerformanceScreen(),
+        ),
+      ],
+    ),
+    ParentModuleItem(
+      title: 'Resources',
+      description: 'Company holiday calendar and announcements',
+      icon: Icons.folder_open_rounded,
+      colors: [const Color(0xFF14B8A6), const Color(0xFF0F766E)],
+      submodules: [
+        SubModuleItem(
+          name: 'Holidays',
+          description: 'Company holiday calendar',
+          icon: Icons.calendar_today_rounded,
+          colors: [const Color(0xFF14B8A6), const Color(0xFF0F766E)],
+          screen: const HolidaysScreen(),
+        ),
+        SubModuleItem(
+          name: 'Announcements',
+          description: 'Company announcements and news',
+          icon: Icons.campaign_rounded,
+          colors: [const Color(0xFF14B8A6), const Color(0xFF0F766E)],
+          screen: const AnnouncementsScreen(),
+        ),
+      ],
+    ),
+    ParentModuleItem(
+      title: 'My Resources',
+      description: 'Personal documents and files',
+      icon: Icons.folder_shared_rounded,
+      colors: [const Color(0xFF0284C7), const Color(0xFF0369A1)],
+      submodules: [
+        SubModuleItem(
+          name: 'My Documents',
+          description: 'View and manage your personal documents',
+          icon: Icons.description_rounded,
+          colors: [const Color(0xFF0284C7), const Color(0xFF0369A1)],
+          screen: const MyDocumentsScreen(showAppBar: true),
+        ),
+      ],
+    ),
+    ParentModuleItem(
+      title: 'My Assets',
+      description: 'Company assigned assets and equipment',
+      icon: Icons.devices_rounded,
+      colors: [const Color(0xFF0284C7), const Color(0xFF0369A1)],
+      submodules: [
+        SubModuleItem(
+          name: 'My Assets',
+          description: 'View and track your assigned company assets',
+          icon: Icons.laptop_mac_rounded,
+          colors: [const Color(0xFF0284C7), const Color(0xFF0369A1)],
+          screen: const MyAssetsScreen(showAppBar: true),
+        ),
+      ],
+    ),
+    ParentModuleItem(
+      title: 'Reports',
+      description: 'Financial reports, audit ledgers, payroll summaries & statements',
+      icon: Icons.bar_chart_rounded,
       colors: [const Color(0xFF0EA5E9), const Color(0xFF0369A1)],
       submodules: [
         SubModuleItem(
-          name: 'Helpdesk Dashboard',
-          description: 'Support tickets overview and metrics',
-          icon: Icons.dashboard_rounded,
+          name: 'Reports',
+          description: 'Financial reports and audit analytics',
+          icon: Icons.bar_chart_rounded,
           colors: [const Color(0xFF0EA5E9), const Color(0xFF0369A1)],
-          screen: const HelpdeskDashboardScreen(showAppBar: true),
+          screen: const FinanceReportsScreen(showAppBar: true),
+        ),
+      ],
+    ),
+    ParentModuleItem(
+      title: 'IT Operations',
+      description: 'Asset requests, software licenses, security and IT audits',
+      icon: Icons.computer_rounded,
+      colors: [const Color(0xFF3B82F6), const Color(0xFF1E40AF)],
+      submodules: [
+        SubModuleItem(
+          name: 'Asset Requests',
+          description: 'Request and track hardware or software assets',
+          icon: Icons.assignment_rounded,
+          colors: [const Color(0xFF3B82F6), const Color(0xFF1E40AF)],
+          screen: const ItAssetRequestsScreen(showAppBar: true),
         ),
         SubModuleItem(
-          name: 'Helpdesk Tickets',
-          description: 'Manage and resolve support tickets',
-          icon: Icons.confirmation_number_rounded,
-          colors: [const Color(0xFF0EA5E9), const Color(0xFF0369A1)],
-          screen: const HelpdeskTicketsScreen(showAppBar: true),
+          name: 'Security & Audit',
+          description: 'IT security policies, compliance and audit logs',
+          icon: Icons.security_rounded,
+          colors: [const Color(0xFF3B82F6), const Color(0xFF1E40AF)],
+          screen: const ItSecurityScreen(showAppBar: true),
         ),
+      ],
+    ),
+    ParentModuleItem(
+      title: 'Employee Benefits',
+      description: 'Employee benefit plans and enrollment',
+      icon: Icons.card_giftcard_rounded,
+      colors: [const Color(0xFFEC4899), const Color(0xFFBE185D)],
+      submodules: [
         SubModuleItem(
-          name: 'Knowledge Base',
-          description: 'FAQs, articles, and financial guides',
-          icon: Icons.auto_stories_rounded,
-          colors: [const Color(0xFF0EA5E9), const Color(0xFF0369A1)],
-          screen: const HelpdeskKnowledgeBaseScreen(showAppBar: true),
+          name: 'My Benefits',
+          description: 'View and manage your employee benefits',
+          icon: Icons.favorite_rounded,
+          colors: [const Color(0xFFEC4899), const Color(0xFFBE185D)],
+          screen: const MyBenefitsScreen(showAppBar: true),
         ),
+      ],
+    ),
+    ParentModuleItem(
+      title: 'HR Helpdesk',
+      description: 'Chat with AI assistant for queries',
+      icon: Icons.headset_mic_rounded,
+      colors: [const Color(0xFF0EA5E9), const Color(0xFF0369A1)],
+      submodules: [
         SubModuleItem(
           name: 'AI Assistant',
           description: 'Chat with AI assistant for queries',
@@ -319,7 +503,7 @@ class _FinanceMoreScreenState extends ConsumerState<FinanceMoreScreen> {
       ],
     ),
     ParentModuleItem(
-      title: 'Settings',
+      title: 'Settings & Governance',
       description: 'Personal application preferences and account settings',
       icon: Icons.settings_rounded,
       colors: [const Color(0xFF64748B), const Color(0xFF334155)],
@@ -357,7 +541,6 @@ class _FinanceMoreScreenState extends ConsumerState<FinanceMoreScreen> {
           onChanged: (val) => setState(() => _searchQuery = val),
           onClear: () => setState(() => _searchQuery = ''),
         ),
-        const SectionLabel("FINANCE MODULES"),
         if (isSearching && filteredParents.isEmpty)
           Center(
             child: Padding(
@@ -388,7 +571,6 @@ class _FinanceMoreScreenState extends ConsumerState<FinanceMoreScreen> {
               icon: parent.icon,
               gradientColors: parent.colors,
               title: parent.title,
-              subtitle: parent.description,
               count: parent.submodules.length,
               onPress: () {
                 Navigator.push(

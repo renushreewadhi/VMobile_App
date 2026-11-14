@@ -4,11 +4,16 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/api/api_client.dart';
 import '../../core/api/api_endpoints.dart';
 import '../../core/theme/app_colors.dart';
+import '../../core/widgets/glass_header.dart';
+import '../../core/widgets/glass_scaffold.dart';
 import '../../shared/widgets/app_card.dart';
+import '../../shared/widgets/empty_state_widget.dart';
+import '../../shared/widgets/error_state_widget.dart';
 import '../../shared/widgets/loading_shimmer.dart';
 
 class FinanceReportsScreen extends ConsumerStatefulWidget {
-  const FinanceReportsScreen({super.key});
+  final bool? showAppBar;
+  const FinanceReportsScreen({super.key, this.showAppBar = false});
 
   @override
   ConsumerState<FinanceReportsScreen> createState() => _FinanceReportsScreenState();
@@ -19,6 +24,7 @@ class _FinanceReportsScreenState extends ConsumerState<FinanceReportsScreen> {
   String _selectedCategory = 'All'; // 'All', 'Payroll', 'Taxation', 'Expenses', 'Loans & Advances', 'Audit Logs'
   String _selectedFormat = 'All'; // 'All', 'PDF', 'Excel', 'CSV'
   bool _isLoading = true;
+  String? _errorMessage;
 
   List<Map<String, dynamic>> _reports = [];
 
@@ -39,16 +45,18 @@ class _FinanceReportsScreenState extends ConsumerState<FinanceReportsScreen> {
   ];
 
   final List<Map<String, String>> _scheduledExports = [
-    {'title': 'Monthly Finance & Payroll Audit', 'recurrence': 'Monthly (1st)', 'recipients': 'finance-team@company.com', 'format': 'Excel'},
-    {'title': 'Quarterly TDS & Statutory Return', 'recurrence': 'Quarterly', 'recipients': 'compliance@company.com', 'format': 'PDF'},
-    {'title': 'Weekly Expense Claims Breakdown', 'recurrence': 'Weekly (Mon)', 'recipients': 'accounts@company.com', 'format': 'CSV'},
-    {'title': 'Annual Balance Sheet & Ledger', 'recurrence': 'Yearly (End FY)', 'recipients': 'auditors@company.com', 'format': 'PDF'},
+    {'title': 'Monthly Finance & Payroll Audit', 'recurrence': 'Monthly (1st) • Sent to finance-team@company.com', 'format': 'Excel'},
+    {'title': 'Quarterly TDS & Statutory Return', 'recurrence': 'Quarterly • Sent to compliance@company.com', 'format': 'PDF'},
+    {'title': 'Weekly Expense Claims Breakdown', 'recurrence': 'Weekly (Mon) • Sent to accounts@company.com', 'format': 'CSV'},
+    {'title': 'Annual Balance Sheet & Ledger', 'recurrence': 'Yearly (End FY) • Sent to auditors@company.com', 'format': 'PDF'},
   ];
 
   @override
   void initState() {
     super.initState();
-    _loadReports();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _loadReports();
+    });
   }
 
   @override
@@ -58,32 +66,35 @@ class _FinanceReportsScreenState extends ConsumerState<FinanceReportsScreen> {
   }
 
   Future<void> _loadReports() async {
-    setState(() => _isLoading = true);
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
     final apiClient = ref.read(apiClientProvider);
 
     try {
-      final res = await apiClient.get(ApiEndpoints.financeReports).catchError((_) => null);
+      final res = await apiClient.get(ApiEndpoints.financeReports);
 
       if (mounted) {
         List<dynamic> items = [];
         if (res is List) {
           items = res;
-        } else if (res is Map<String, dynamic> && res['data'] is List) {
-          items = res['data'];
+        } else if (res is Map<String, dynamic>) {
+          final data = res['data'] ?? res['items'] ?? res['result'] ?? res['reports'];
+          if (data is List) {
+            items = data;
+          }
         }
 
-        if (items.isNotEmpty) {
-          _reports = items.map((r) => _mapReportItem(r)).toList();
-        } else {
-          _reports = _getMockReports();
-        }
+        _reports = items.map((r) => _mapReportItem(r)).toList();
         _isLoading = false;
         setState(() {});
       }
-    } catch (_) {
+    } catch (e) {
       if (mounted) {
         setState(() {
-          _reports = _getMockReports();
+          _reports = [];
+          _errorMessage = e.toString().replaceFirst('Exception: ', '').replaceFirst('ApiException: ', '');
           _isLoading = false;
         });
       }
@@ -93,93 +104,40 @@ class _FinanceReportsScreenState extends ConsumerState<FinanceReportsScreen> {
   Map<String, dynamic> _mapReportItem(dynamic r) {
     final Map<String, dynamic> map = r is Map<String, dynamic> ? r : {};
     return {
-      'id': map['id'] ?? 'RPT-101',
-      'title': map['title'] ?? 'Financial Statement',
-      'category': map['category'] ?? 'Payroll',
+      'id': map['id'] ?? map['reportId'] ?? map['code'] ?? 'RPT-101',
+      'title': map['title'] ?? map['name'] ?? 'Financial Statement',
+      'category': map['category'] ?? map['type'] ?? 'Payroll',
       'desc': map['desc'] ?? map['description'] ?? 'Detailed financial audit report and summary statement.',
       'totalDisbursed': (map['totalDisbursed'] ?? 0) as num,
       'totalPending': (map['totalPending'] ?? 0) as num,
       'totalRecords': ((map['totalRecords'] ?? 0) as num).toInt(),
-      'lastGenerated': map['lastGenerated'] ?? 'Oct 14, 2026',
-      'format': map['format'] ?? 'PDF',
+      'lastGenerated': map['lastGenerated'] ?? map['createdAt'] ?? 'Oct 14, 2026',
+      'format': map['format'] ?? map['exportFormat'] ?? 'Excel',
       'fileSize': map['fileSize'] ?? '2.4 MB',
-      'icon': map['icon'] ?? Icons.file_present,
+      'icon': _getIconForCategory(map['category']),
     };
   }
 
-  List<Map<String, dynamic>> _getMockReports() {
-    return [
-      {
-        'id': 'RPT-PAY-101',
-        'title': 'Payroll Monthly Summary & Tax Ledger',
-        'category': 'Payroll',
-        'desc': 'Comprehensive monthly salary breakdown, gross pay, net pay disbursements, and statutory deductions.',
-        'totalDisbursed': 1850000,
-        'totalPending': 0,
-        'totalRecords': 142,
-        'lastGenerated': 'Oct 01, 2026',
-        'format': 'PDF',
-        'fileSize': '4.2 MB',
-        'icon': Icons.payments,
-      },
-      {
-        'id': 'RPT-TAX-202',
-        'title': 'Income Tax & Form 24Q TDS Statement',
-        'category': 'Taxation',
-        'desc': 'Quarterly tax deduction certificate log, employee PAN verifications, and challan deposit history.',
-        'totalDisbursed': 425000,
-        'totalPending': 35000,
-        'totalRecords': 65,
-        'lastGenerated': 'Sep 30, 2026',
-        'format': 'Excel',
-        'fileSize': '2.8 MB',
-        'icon': Icons.assignment_turned_in,
-      },
-      {
-        'id': 'RPT-EXP-303',
-        'title': 'Employee Expense Claims & Travel Report',
-        'category': 'Expenses',
-        'desc': 'Itemized expense submissions, receipt audit status, policy compliance checks, and approval timelines.',
-        'totalDisbursed': 384000,
-        'totalPending': 52000,
-        'totalRecords': 94,
-        'lastGenerated': 'Oct 14, 2026',
-        'format': 'Excel',
-        'fileSize': '3.1 MB',
-        'icon': Icons.receipt_long,
-      },
-      {
-        'id': 'RPT-LON-404',
-        'title': 'Staff Loans & Salary Advance Balance',
-        'category': 'Loans & Advances',
-        'desc': 'Active loan portfolio, monthly EMI recovery schedule, interest calculations, and principal balances.',
-        'totalDisbursed': 280000,
-        'totalPending': 124000,
-        'totalRecords': 22,
-        'lastGenerated': 'Oct 10, 2026',
-        'format': 'PDF',
-        'fileSize': '1.9 MB',
-        'icon': Icons.volunteer_activism,
-      },
-      {
-        'id': 'RPT-AUD-505',
-        'title': 'Corporate Payment & Audit Ledger',
-        'category': 'Audit Logs',
-        'desc': 'Complete audit log of all bank disbursements, vendor invoices, wire transfers, and account reconciliations.',
-        'totalDisbursed': 1250000,
-        'totalPending': 84000,
-        'totalRecords': 86,
-        'lastGenerated': 'Oct 15, 2026',
-        'format': 'CSV',
-        'fileSize': '3.1 MB',
-        'icon': Icons.account_balance,
-      },
-    ];
+  IconData _getIconForCategory(dynamic category) {
+    final c = (category ?? '').toString().toLowerCase();
+    if (c.contains('expense')) return Icons.receipt_long;
+    if (c.contains('loan')) return Icons.payments;
+    if (c.contains('audit') || c.contains('pay')) return Icons.account_balance;
+    if (c.contains('tax')) return Icons.gavel;
+    return Icons.description;
   }
 
-  int _getCategoryCount(String label) {
-    if (label == 'All') return _reports.length;
-    return _reports.where((r) => r['category'] == label).length;
+  num get _totalDisbursedSum {
+    return _reports.fold<num>(0, (sum, r) => sum + ((r['totalDisbursed'] as num?) ?? 0));
+  }
+
+  num get _totalPendingSum {
+    return _reports.fold<num>(0, (sum, r) => sum + ((r['totalPending'] as num?) ?? 0));
+  }
+
+  int _getCategoryCount(String categoryLabel) {
+    if (categoryLabel == 'All') return _reports.length;
+    return _reports.where((r) => r['category'] == categoryLabel).length;
   }
 
   List<Map<String, dynamic>> get _filteredReports {
@@ -191,25 +149,18 @@ class _FinanceReportsScreenState extends ConsumerState<FinanceReportsScreen> {
 
       final matchesSearch = _searchTerm.isEmpty || title.contains(search) || cat.contains(search) || id.contains(search);
       final matchesCategory = _selectedCategory == 'All' || item['category'] == _selectedCategory;
-      final matchesFormat = _selectedFormat == 'All' || item['format'] == _selectedFormat;
+      final fmtStr = (item['format'] ?? '').toString().toLowerCase();
+      final matchesFormat = _selectedFormat == 'All' || fmtStr.contains(_selectedFormat.toLowerCase());
 
       return matchesSearch && matchesCategory && matchesFormat;
     }).toList();
-  }
-
-  num get _totalDisbursedSum {
-    return _reports.fold<num>(0, (sum, r) => sum + ((r['totalDisbursed'] as num?) ?? 0));
-  }
-
-  num get _totalPendingSum {
-    return _reports.fold<num>(0, (sum, r) => sum + ((r['totalPending'] as num?) ?? 0));
   }
 
   String _formatCurrency(num amount) {
     final str = amount.toInt().toString();
     final RegExp reg = RegExp(r'(\d+?)(?=(\d{3})+(?!\d))');
     final String result = str.replaceAllMapped(reg, (Match m) => '${m[1]},');
-    return '₹ $result';
+    return '₹$result';
   }
 
   void _downloadReport(Map<String, dynamic> report) {
@@ -301,7 +252,13 @@ class _FinanceReportsScreenState extends ConsumerState<FinanceReportsScreen> {
                   children: const [
                     Icon(Icons.add_circle_outline, color: AppColors.primary),
                     SizedBox(width: 8),
-                    Text('Generate Custom Report', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('Generate Custom Report', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
+                        Text('Build on-demand audit statement or ledger', style: TextStyle(fontSize: 11, color: AppColors.lightSecondaryText)),
+                      ],
+                    ),
                   ],
                 ),
                 IconButton(
@@ -341,11 +298,11 @@ class _FinanceReportsScreenState extends ConsumerState<FinanceReportsScreen> {
                                 border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
                               ),
                               items: const [
-                                DropdownMenuItem(value: 'Payroll', child: Text('Payroll', style: TextStyle(fontSize: 12))),
-                                DropdownMenuItem(value: 'Taxation', child: Text('Taxation', style: TextStyle(fontSize: 12))),
-                                DropdownMenuItem(value: 'Expenses', child: Text('Expenses', style: TextStyle(fontSize: 12))),
-                                DropdownMenuItem(value: 'Loans & Advances', child: Text('Loans', style: TextStyle(fontSize: 12))),
-                                DropdownMenuItem(value: 'Audit Logs', child: Text('Audit Logs', style: TextStyle(fontSize: 12))),
+                                DropdownMenuItem(value: 'Payroll', child: Text('Payroll', style: TextStyle(fontSize: 11))),
+                                DropdownMenuItem(value: 'Taxation', child: Text('Taxation', style: TextStyle(fontSize: 11))),
+                                DropdownMenuItem(value: 'Expenses', child: Text('Expenses', style: TextStyle(fontSize: 11))),
+                                DropdownMenuItem(value: 'Loans & Advances', child: Text('Loans', style: TextStyle(fontSize: 11))),
+                                DropdownMenuItem(value: 'Audit Logs', child: Text('Audit Logs', style: TextStyle(fontSize: 11))),
                               ],
                               onChanged: (val) {
                                 if (val != null) setModalState(() => _newCategory = val);
@@ -359,7 +316,7 @@ class _FinanceReportsScreenState extends ConsumerState<FinanceReportsScreen> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            const Text('Format', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.lightSecondaryText)),
+                            const Text('Export Format', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.lightSecondaryText)),
                             const SizedBox(height: 4),
                             DropdownButtonFormField<String>(
                               value: _newFormat,
@@ -368,9 +325,9 @@ class _FinanceReportsScreenState extends ConsumerState<FinanceReportsScreen> {
                                 border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
                               ),
                               items: const [
-                                DropdownMenuItem(value: 'PDF', child: Text('PDF', style: TextStyle(fontSize: 12))),
-                                DropdownMenuItem(value: 'Excel', child: Text('Excel', style: TextStyle(fontSize: 12))),
-                                DropdownMenuItem(value: 'CSV', child: Text('CSV', style: TextStyle(fontSize: 12))),
+                                DropdownMenuItem(value: 'PDF', child: Text('PDF', style: TextStyle(fontSize: 11))),
+                                DropdownMenuItem(value: 'Excel', child: Text('Excel', style: TextStyle(fontSize: 11))),
+                                DropdownMenuItem(value: 'CSV', child: Text('CSV', style: TextStyle(fontSize: 11))),
                               ],
                               onChanged: (val) {
                                 if (val != null) setModalState(() => _newFormat = val);
@@ -392,10 +349,10 @@ class _FinanceReportsScreenState extends ConsumerState<FinanceReportsScreen> {
                       border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
                     ),
                     items: const [
-                      DropdownMenuItem(value: 'Current Month (Oct 2026)', child: Text('Current Month (Oct 2026)')),
-                      DropdownMenuItem(value: 'Previous Month (Sep 2026)', child: Text('Previous Month (Sep 2026)')),
-                      DropdownMenuItem(value: 'Quarter 3 (Q3 FY2026)', child: Text('Quarter 3 (Q3 FY2026)')),
-                      DropdownMenuItem(value: 'Full Financial Year (FY2025-26)', child: Text('Full Financial Year')),
+                      DropdownMenuItem(value: 'Current Month (Oct 2026)', child: Text('Current Month (Oct 2026)', style: TextStyle(fontSize: 12))),
+                      DropdownMenuItem(value: 'Previous Month (Sep 2026)', child: Text('Previous Month (Sep 2026)', style: TextStyle(fontSize: 12))),
+                      DropdownMenuItem(value: 'Quarter 3 (Q3 FY2026)', child: Text('Quarter 3 (Q3 FY2026)', style: TextStyle(fontSize: 12))),
+                      DropdownMenuItem(value: 'Full Financial Year (FY2025-26)', child: Text('Full Financial Year', style: TextStyle(fontSize: 12))),
                     ],
                     onChanged: (val) {
                       if (val != null) setModalState(() => _newDateRange = val);
@@ -408,7 +365,7 @@ class _FinanceReportsScreenState extends ConsumerState<FinanceReportsScreen> {
                     contentPadding: EdgeInsets.zero,
                     controlAffinity: ListTileControlAffinity.leading,
                     title: const Text(
-                      'Include detailed line-item transactions & digital SHA-256 signature',
+                      'Include detailed line-item transactions & digital SHA-256 audit signature',
                       style: TextStyle(fontSize: 11, color: AppColors.lightSecondaryText),
                     ),
                     onChanged: (val) {
@@ -448,32 +405,52 @@ class _FinanceReportsScreenState extends ConsumerState<FinanceReportsScreen> {
     );
   }
 
-  void _saveGeneratedReport() {
+  Future<void> _saveGeneratedReport() async {
     final title = _titleController.text.trim();
     final newRpt = {
       'id': 'RPT-CUST-${100 + (DateTime.now().millisecondsSinceEpoch % 899)}',
       'title': title,
       'category': _newCategory,
       'desc': 'Custom generated report for period $_newDateRange. Includes detailed audit rows.',
-      'totalDisbursed': 350000,
-      'totalPending': 12000,
-      'totalRecords': 45,
+      'totalDisbursed': 0,
+      'totalPending': 0,
+      'totalRecords': 0,
       'lastGenerated': '15 Oct 2026',
       'format': _newFormat,
       'fileSize': '1.5 MB',
       'icon': Icons.file_copy,
     };
 
-    setState(() {
-      _reports.insert(0, newRpt);
-    });
+    final apiClient = ref.read(apiClientProvider);
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Custom report "$title" generated successfully'),
-        backgroundColor: AppColors.success,
-      ),
-    );
+    try {
+      await apiClient.post(ApiEndpoints.financeReports, data: {
+        'title': title,
+        'category': _newCategory,
+        'format': _newFormat,
+        'period': _newDateRange,
+        'includeDetails': _includeDetails,
+      }).catchError((_) => null);
+
+      if (mounted) {
+        setState(() {
+          _reports.insert(0, newRpt);
+        });
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Custom report "$title" generated successfully'),
+            backgroundColor: AppColors.success,
+          ),
+        );
+      }
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          _reports.insert(0, newRpt);
+        });
+      }
+    }
   }
 
   Widget _buildDetailRow(String label, String val, {bool isBold = false, bool isAmount = false, bool isPending = false, bool isPrimary = false}) {
@@ -501,398 +478,6 @@ class _FinanceReportsScreenState extends ConsumerState<FinanceReportsScreen> {
             ),
           ),
         ],
-      ),
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    if (_isLoading) return const DashboardSkeleton();
-
-    final filteredList = _filteredReports;
-
-    return RefreshIndicator(
-      onRefresh: _loadReports,
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        physics: const AlwaysScrollableScrollPhysics(),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Top Header Card
-            AppCard(
-              backgroundColor: AppColors.darkPrimary,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      const CircleAvatar(
-                        radius: 24,
-                        backgroundColor: Colors.white24,
-                        child: Icon(Icons.pie_chart, color: Colors.white, size: 26),
-                      ),
-                      const SizedBox(width: 14),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: const [
-                            Text(
-                              'Financial Reports & Analytics',
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontSize: 18,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                            SizedBox(height: 4),
-                            Text(
-                              'Audit ledgers, payroll summaries, tax compliance, & expense reports',
-                              style: TextStyle(color: Colors.white70, fontSize: 12),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-
-                  ElevatedButton.icon(
-                    onPressed: _showGenerateModal,
-                    icon: const Icon(Icons.add, size: 16),
-                    label: const Text('Generate Custom Report'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.white,
-                      foregroundColor: AppColors.darkPrimary,
-                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                      textStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 16),
-
-            // Stat Cards Grid
-            GridView.count(
-              crossAxisCount: 2,
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              crossAxisSpacing: 12,
-              mainAxisSpacing: 12,
-              childAspectRatio: 1.5,
-              children: [
-                _buildStatCard(
-                  label: 'Available Reports',
-                  value: '${_reports.length}',
-                  sub: 'Ready for export',
-                  icon: Icons.file_present,
-                  bgColor: const Color(0xFFEFF6FF),
-                  iconColor: const Color(0xFF2563EB),
-                ),
-                _buildStatCard(
-                  label: 'Total YTD Disbursed',
-                  value: _formatCurrency(_totalDisbursedSum),
-                  sub: 'Across all ledgers',
-                  icon: Icons.check_circle_outline,
-                  bgColor: const Color(0xFFF0FDF4),
-                  iconColor: const Color(0xFF16A34A),
-                ),
-                _buildStatCard(
-                  label: 'Total Pending Audit',
-                  value: _formatCurrency(_totalPendingSum),
-                  sub: 'Awaiting clearance',
-                  icon: Icons.schedule,
-                  bgColor: const Color(0xFFFFF7ED),
-                  iconColor: const Color(0xFFEA580C),
-                ),
-                _buildStatCard(
-                  label: 'Automated Schedules',
-                  value: '4 Active',
-                  sub: 'Recurring exports',
-                  icon: Icons.sync,
-                  bgColor: const Color(0xFFEFF6FF),
-                  iconColor: const Color(0xFF2563EB),
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-
-            // Search & Filter Card
-            AppCard(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  TextField(
-                    onChanged: (val) => setState(() => _searchTerm = val),
-                    decoration: InputDecoration(
-                      hintText: 'Search report title, category, or report ID...',
-                      hintStyle: const TextStyle(fontSize: 13, color: AppColors.lightMutedText),
-                      prefixIcon: const Icon(Icons.search, size: 20, color: AppColors.lightSecondaryText),
-                      filled: true,
-                      fillColor: AppColors.lightInputBackground,
-                      contentPadding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide(color: Colors.grey.shade300),
-                      ),
-                      enabledBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide(color: Colors.grey.shade300),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-
-                  Row(
-                    children: [
-                      const Icon(Icons.file_copy, size: 18, color: AppColors.lightSecondaryText),
-                      const SizedBox(width: 6),
-                      Expanded(
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 10),
-                          decoration: BoxDecoration(
-                            border: Border.all(color: Colors.grey.shade300),
-                            borderRadius: BorderRadius.circular(10),
-                            color: Colors.white,
-                          ),
-                          child: DropdownButtonHideUnderline(
-                            child: DropdownButton<String>(
-                              value: _selectedFormat,
-                              isExpanded: true,
-                              icon: const Icon(Icons.arrow_drop_down, color: AppColors.primary),
-                              style: const TextStyle(fontSize: 12, color: AppColors.lightPrimaryText, fontWeight: FontWeight.w500),
-                              items: const [
-                                DropdownMenuItem(value: 'All', child: Text('All Formats')),
-                                DropdownMenuItem(value: 'PDF', child: Text('PDF Document')),
-                                DropdownMenuItem(value: 'Excel', child: Text('Excel (XLSX)')),
-                                DropdownMenuItem(value: 'CSV', child: Text('CSV Data')),
-                              ],
-                              onChanged: (val) {
-                                if (val != null) setState(() => _selectedFormat = val);
-                              },
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-
-                  SingleChildScrollView(
-                    scrollDirection: Axis.horizontal,
-                    child: Row(
-                      children: _categories.map((cat) {
-                        return Padding(
-                          padding: const EdgeInsets.only(right: 8),
-                          child: _buildTabChip(cat, cat, _getCategoryCount(cat)),
-                        );
-                      }).toList(),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 16),
-
-            // Available Reports Header & Cards
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Row(
-                  children: const [
-                    Icon(Icons.folder_outlined, color: AppColors.primary, size: 20),
-                    SizedBox(width: 8),
-                    Text(
-                      'Financial Audit & Ledger Statements',
-                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
-                    ),
-                  ],
-                ),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: AppColors.lightPrimary,
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Text(
-                    '${filteredList.length} Reports',
-                    style: const TextStyle(
-                      color: AppColors.primary,
-                      fontSize: 12,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 10),
-
-            if (filteredList.isEmpty)
-              AppCard(
-                child: Padding(
-                  padding: const EdgeInsets.all(32),
-                  child: Column(
-                    children: const [
-                      CircleAvatar(
-                        radius: 26,
-                        backgroundColor: AppColors.lightSecondarySurface,
-                        child: Icon(Icons.picture_as_pdf_outlined, size: 28, color: AppColors.lightSecondaryText),
-                      ),
-                      SizedBox(height: 12),
-                      Text(
-                        'No matching financial reports found',
-                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
-                      ),
-                      SizedBox(height: 4),
-                      Text(
-                        'Try resetting your search query or selecting a different report category.',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(fontSize: 12, color: AppColors.lightSecondaryText),
-                      ),
-                    ],
-                  ),
-                ),
-              )
-            else
-              ListView.builder(
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                itemCount: filteredList.length,
-                itemBuilder: (context, index) {
-                  final report = filteredList[index];
-                  return _buildReportCard(report);
-                },
-              ),
-
-            const SizedBox(height: 24),
-
-            // Scheduled Automated Reports Card
-            AppCard(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Row(
-                        children: const [
-                          Icon(Icons.schedule, color: AppColors.primary, size: 18),
-                          SizedBox(width: 8),
-                          Text(
-                            'Scheduled Automated Reports',
-                            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
-                          ),
-                        ],
-                      ),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                        decoration: BoxDecoration(
-                          color: AppColors.lightInputBackground,
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        child: const Text(
-                          'Auto Recurrent',
-                          style: TextStyle(fontSize: 11, color: AppColors.lightSecondaryText, fontWeight: FontWeight.w600),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const Divider(height: 20),
-                  ..._scheduledExports.map((s) {
-                    return Container(
-                      margin: const EdgeInsets.only(bottom: 10),
-                      padding: const EdgeInsets.all(10),
-                      decoration: BoxDecoration(
-                        color: AppColors.lightInputBackground,
-                        borderRadius: BorderRadius.circular(10),
-                        border: Border.all(color: Colors.grey.shade200),
-                      ),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(s['title']!, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-                                const SizedBox(height: 2),
-                                Text('${s['recurrence']} • Sent to ${s['recipients']}', style: const TextStyle(fontSize: 11, color: AppColors.lightSecondaryText)),
-                              ],
-                            ),
-                          ),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                            decoration: BoxDecoration(
-                              color: AppColors.lightPrimary,
-                              borderRadius: BorderRadius.circular(6),
-                            ),
-                            child: Text(
-                              s['format']!,
-                              style: const TextStyle(fontSize: 11, color: AppColors.primary, fontWeight: FontWeight.bold),
-                            ),
-                          ),
-                        ],
-                      ),
-                    );
-                  }),
-                ],
-              ),
-            ),
-            const SizedBox(height: 12),
-
-            // Data Security & Encryption Card
-            AppCard(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Row(
-                        children: const [
-                          Icon(Icons.shield, color: AppColors.success, size: 18),
-                          SizedBox(width: 8),
-                          Text(
-                            'Data Security & Encryption Standard',
-                            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
-                          ),
-                        ],
-                      ),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                        decoration: BoxDecoration(
-                          color: AppColors.successBg,
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        child: const Text(
-                          'SOC2 Certified',
-                          style: TextStyle(fontSize: 11, color: AppColors.success, fontWeight: FontWeight.bold),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const Divider(height: 20),
-                  _buildSecurityItem(
-                    icon: Icons.lock,
-                    iconColor: AppColors.success,
-                    title: '256-bit AES Password Protection',
-                    description: 'Confidential payroll & tax PDFs encrypted with employee PIN and corporate key.',
-                  ),
-                  const SizedBox(height: 10),
-                  _buildSecurityItem(
-                    icon: Icons.fingerprint,
-                    iconColor: AppColors.primary,
-                    title: 'Digital Hash Verification & Audit Trail',
-                    description: 'SHA-256 digital signature embedded on every generated report for audit compliance.',
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 20),
-          ],
-        ),
       ),
     );
   }
@@ -939,7 +524,7 @@ class _FinanceReportsScreenState extends ConsumerState<FinanceReportsScreen> {
                   label,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.lightSecondaryText),
+                  style: const TextStyle(fontSize: 10.5, fontWeight: FontWeight.w600, color: AppColors.lightSecondaryText),
                 ),
               ),
             ],
@@ -952,6 +537,8 @@ class _FinanceReportsScreenState extends ConsumerState<FinanceReportsScreen> {
           Text(
             sub,
             style: const TextStyle(fontSize: 10, color: AppColors.lightMutedText),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
           ),
         ],
       ),
@@ -967,7 +554,7 @@ class _FinanceReportsScreenState extends ConsumerState<FinanceReportsScreen> {
           mainAxisSize: MainAxisSize.min,
           children: [
             Text(
-              label == 'All' ? 'All Reports' : label,
+              label,
               style: TextStyle(
                 fontSize: 12,
                 fontWeight: FontWeight.bold,
@@ -999,56 +586,433 @@ class _FinanceReportsScreenState extends ConsumerState<FinanceReportsScreen> {
     );
   }
 
-  Widget _buildReportCard(Map<String, dynamic> report) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
-      child: AppCard(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Top Row: Title, ID & Category
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+  Widget _buildReportCard(Map<String, dynamic> item) {
+    final format = item['format'] as String? ?? 'Excel';
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.grey.shade200),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.03),
+            blurRadius: 8,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: AppColors.lightInputBackground,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text(
+                  item['category'] ?? 'Expenses',
+                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 11, color: AppColors.primary),
+                ),
+              ),
+              Text(item['id'] ?? '', style: const TextStyle(fontSize: 11, color: AppColors.lightMutedText, fontWeight: FontWeight.bold)),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              CircleAvatar(
+                radius: 16,
+                backgroundColor: AppColors.lightPrimary,
+                child: Icon((item['icon'] as IconData?) ?? Icons.description, color: AppColors.primary, size: 16),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  item['title'] as String? ?? '',
+                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Text(
+            item['desc'] as String? ?? '',
+            style: const TextStyle(fontSize: 11, color: AppColors.lightSecondaryText),
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+          ),
+          const SizedBox(height: 12),
+
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: AppColors.lightInputBackground,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceAround,
               children: [
-                Expanded(
-                  child: Row(
+                _buildMetricColumn('Total Disbursed', _formatCurrency(item['totalDisbursed'] ?? 0), AppColors.success),
+                _buildMetricColumn('Pending Clearance', _formatCurrency(item['totalPending'] ?? 0), AppColors.warning),
+                _buildMetricColumn('Records Count', '${item['totalRecords'] ?? 0}', AppColors.primary),
+              ],
+            ),
+          ),
+          const SizedBox(height: 12),
+
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Expanded(
+                child: Text(
+                  'Last Generated: ${item['lastGenerated']} • $format (${item['fileSize']})',
+                  style: const TextStyle(fontSize: 10.5, color: AppColors.lightMutedText),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              Row(
+                children: [
+                  InkWell(
+                    onTap: () => _runLiveQuery(item),
+                    child: const Padding(
+                      padding: EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+                      child: Text('Run Live Query', style: TextStyle(fontSize: 11, color: AppColors.primary, fontWeight: FontWeight.bold)),
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  ElevatedButton.icon(
+                    onPressed: () => _downloadReport(item),
+                    icon: const Icon(Icons.download, size: 14),
+                    label: Text('Download $format'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.primary,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      textStyle: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMetricColumn(String label, String value, Color color) {
+    return Expanded(
+      child: Column(
+        children: [
+          Text(label, style: const TextStyle(fontSize: 10, color: AppColors.lightSecondaryText), maxLines: 1, overflow: TextOverflow.ellipsis),
+          const SizedBox(height: 2),
+          Text(value, style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: color), maxLines: 1, overflow: TextOverflow.ellipsis),
+        ],
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_isLoading) return const DashboardSkeleton();
+    if (_errorMessage != null) {
+      return ErrorStateWidget(
+        errorMessage: _errorMessage!,
+        onRetry: _loadReports,
+      );
+    }
+
+    final filteredList = _filteredReports;
+    final bool showHeader = widget.showAppBar ?? false;
+
+    final content = DefaultTabController(
+      length: 2,
+      child: Column(
+        children: [
+          // Tab Header Bar
+          Container(
+            margin: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+            decoration: BoxDecoration(
+              color: AppColors.lightSecondarySurface,
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: TabBar(
+              labelColor: Colors.white,
+              unselectedLabelColor: AppColors.lightSecondaryText,
+              indicator: BoxDecoration(
+                color: AppColors.primary,
+                borderRadius: BorderRadius.circular(10),
+              ),
+              indicatorSize: TabBarIndicatorSize.tab,
+              dividerColor: Colors.transparent,
+              padding: const EdgeInsets.all(4),
+              tabs: const [
+                Tab(text: 'Overview'),
+                Tab(text: 'Report Directory'),
+              ],
+            ),
+          ),
+
+          // Tab Views
+          Expanded(
+            child: TabBarView(
+              children: [
+                // Tab 1: Overview
+                SingleChildScrollView(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Container(
-                        padding: const EdgeInsets.all(8),
-                        decoration: BoxDecoration(
-                          color: AppColors.lightPrimary,
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        child: Icon(report['icon'] as IconData? ?? Icons.file_present, color: AppColors.primary, size: 20),
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
+                      AppCard(
+                        backgroundColor: AppColors.darkPrimary,
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text(
-                              report['title'] ?? '',
-                              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
-                            ),
                             Row(
                               children: [
-                                Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
-                                  decoration: BoxDecoration(
-                                    color: AppColors.lightInputBackground,
-                                    borderRadius: BorderRadius.circular(4),
-                                  ),
-                                  child: Text(
-                                    report['category'] ?? '',
-                                    style: const TextStyle(fontSize: 10, color: AppColors.lightSecondaryText, fontWeight: FontWeight.bold),
-                                  ),
+                                const CircleAvatar(
+                                  radius: 24,
+                                  backgroundColor: Colors.white24,
+                                  child: Icon(Icons.bar_chart, color: Colors.white, size: 26),
                                 ),
-                                const SizedBox(width: 6),
-                                Text(
-                                  report['id'] ?? '',
-                                  style: const TextStyle(fontFamily: 'monospace', fontSize: 11, color: AppColors.lightMutedText),
+                                const SizedBox(width: 14),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: const [
+                                      Text(
+                                        'Financial Reports & Audit Analytics',
+                                        style: TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 18,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                      SizedBox(height: 4),
+                                      Text(
+                                        'Generate, view, and export financial audit ledgers, payroll summaries, and expense statements',
+                                        style: TextStyle(color: Colors.white70, fontSize: 12),
+                                      ),
+                                    ],
+                                  ),
                                 ),
                               ],
+                            ),
+                            const SizedBox(height: 16),
+                            ElevatedButton.icon(
+                              onPressed: _showGenerateModal,
+                              icon: const Icon(Icons.add, size: 16),
+                              label: const Text('Generate Custom Report'),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.white,
+                                foregroundColor: AppColors.darkPrimary,
+                                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                                textStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+
+                      GridView.count(
+                        crossAxisCount: 2,
+                        shrinkWrap: true,
+                        physics: const NeverScrollableScrollPhysics(),
+                        crossAxisSpacing: 12,
+                        mainAxisSpacing: 12,
+                        childAspectRatio: 1.5,
+                        children: [
+                          _buildStatCard(
+                            label: 'AVAILABLE REPORTS',
+                            value: '${_reports.length}',
+                            sub: 'Ready for export',
+                            icon: Icons.picture_as_pdf_outlined,
+                            bgColor: const Color(0xFFFFF7ED),
+                            iconColor: const Color(0xFFEA580C),
+                          ),
+                          _buildStatCard(
+                            label: 'TOTAL YTD DISBURSED',
+                            value: _formatCurrency(_totalDisbursedSum),
+                            sub: 'Across all ledgers',
+                            icon: Icons.check_circle_outline,
+                            bgColor: const Color(0xFFF0FDF4),
+                            iconColor: const Color(0xFF16A34A),
+                          ),
+                          _buildStatCard(
+                            label: 'TOTAL PENDING AUDIT',
+                            value: _formatCurrency(_totalPendingSum),
+                            sub: 'Awaiting clearance',
+                            icon: Icons.schedule,
+                            bgColor: const Color(0xFFFFF7ED),
+                            iconColor: const Color(0xFFEA580C),
+                          ),
+                          _buildStatCard(
+                            label: 'AUTOMATED SCHEDULES',
+                            value: '4 Active',
+                            sub: 'Recurring exports',
+                            icon: Icons.sync,
+                            bgColor: const Color(0xFFEFF6FF),
+                            iconColor: const Color(0xFF2563EB),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+
+                      // Scheduled Automated Reports Card
+                      AppCard(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: const [
+                                Expanded(
+                                  child: Row(
+                                    children: [
+                                      Icon(Icons.schedule, color: AppColors.primary, size: 18),
+                                      SizedBox(width: 8),
+                                      Expanded(
+                                        child: Text(
+                                          'Scheduled Automated Reports',
+                                          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13.5),
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                SizedBox(width: 8),
+                                Text('Auto Recurrent', style: TextStyle(fontSize: 11, color: AppColors.lightSecondaryText)),
+                              ],
+                            ),
+                            const Divider(height: 20),
+                            ..._scheduledExports.map((sch) {
+                              return Container(
+                                margin: const EdgeInsets.only(bottom: 10),
+                                padding: const EdgeInsets.all(10),
+                                decoration: BoxDecoration(
+                                  color: AppColors.lightInputBackground,
+                                  borderRadius: BorderRadius.circular(10),
+                                  border: Border.all(color: Colors.grey.shade200),
+                                ),
+                                child: Row(
+                                  children: [
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Text(sch['title']!, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12.5)),
+                                          const SizedBox(height: 2),
+                                          Text(sch['recurrence']!, style: const TextStyle(fontSize: 10.5, color: AppColors.lightSecondaryText)),
+                                        ],
+                                      ),
+                                    ),
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                      decoration: BoxDecoration(
+                                        border: Border.all(color: Colors.grey.shade300),
+                                        borderRadius: BorderRadius.circular(6),
+                                        color: Colors.white,
+                                      ),
+                                      child: Text(
+                                        sch['format']!,
+                                        style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: AppColors.primary),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              );
+                            }),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+
+                      // Data Security Card
+                      AppCard(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: const [
+                                Expanded(
+                                  child: Row(
+                                    children: [
+                                      Icon(Icons.shield, color: AppColors.primary, size: 18),
+                                      SizedBox(width: 8),
+                                      Expanded(
+                                        child: Text(
+                                          'Data Security & Encryption Standard',
+                                          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13.5),
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                SizedBox(width: 8),
+                                Text('SOC2 Certified', style: TextStyle(fontSize: 11, color: AppColors.lightSecondaryText)),
+                              ],
+                            ),
+                            const Divider(height: 20),
+                            Container(
+                              padding: const EdgeInsets.all(10),
+                              margin: const EdgeInsets.only(bottom: 8),
+                              decoration: BoxDecoration(
+                                color: AppColors.lightInputBackground,
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              child: Row(
+                                children: const [
+                                  Icon(Icons.lock, color: AppColors.primary, size: 20),
+                                  SizedBox(width: 10),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text('256-bit AES Password Protection', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                                        Text('Confidential payroll & tax PDFs encrypted with employee PIN and corporate key.', style: TextStyle(fontSize: 10.5, color: AppColors.lightSecondaryText)),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            Container(
+                              padding: const EdgeInsets.all(10),
+                              decoration: BoxDecoration(
+                                color: AppColors.lightInputBackground,
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              child: Row(
+                                children: const [
+                                  Icon(Icons.verified, color: AppColors.primary, size: 20),
+                                  SizedBox(width: 10),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text('Digital Hash Verification & Audit Trail', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                                        Text('SHA-256 digital signature embedded on every generated report for audit compliance.', style: TextStyle(fontSize: 10.5, color: AppColors.lightSecondaryText)),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ),
                           ],
                         ),
@@ -1056,144 +1020,189 @@ class _FinanceReportsScreenState extends ConsumerState<FinanceReportsScreen> {
                     ],
                   ),
                 ),
-              ],
-            ),
-            const SizedBox(height: 8),
 
-            Text(
-              report['desc'] ?? '',
-              style: const TextStyle(fontSize: 12, color: AppColors.lightSecondaryText),
-            ),
-            const SizedBox(height: 10),
+                // Tab 2: Report Directory
+                SingleChildScrollView(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      AppCard(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            TextField(
+                              onChanged: (val) => setState(() => _searchTerm = val),
+                              decoration: InputDecoration(
+                                hintText: 'Search report title, category, or report ID...',
+                                hintStyle: const TextStyle(fontSize: 13, color: AppColors.lightMutedText),
+                                prefixIcon: const Icon(Icons.search, size: 20, color: AppColors.lightSecondaryText),
+                                filled: true,
+                                fillColor: AppColors.lightInputBackground,
+                                contentPadding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                  borderSide: BorderSide(color: Colors.grey.shade300),
+                                ),
+                                enabledBorder: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                  borderSide: BorderSide(color: Colors.grey.shade300),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 12),
 
-            // Financial Metrics Bar
-            Container(
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(
-                color: AppColors.lightInputBackground,
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: Colors.grey.shade200),
-              ),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Column(
-                      children: [
-                        const Text('Total Disbursed', style: TextStyle(fontSize: 10, color: AppColors.lightMutedText)),
-                        const SizedBox(height: 2),
-                        Text(_formatCurrency(report['totalDisbursed'] ?? 0), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: AppColors.success)),
-                      ],
-                    ),
-                  ),
-                  Container(height: 20, width: 1, color: Colors.grey.shade300),
-                  Expanded(
-                    child: Column(
-                      children: [
-                        const Text('Pending Clearance', style: TextStyle(fontSize: 10, color: AppColors.lightMutedText)),
-                        const SizedBox(height: 2),
-                        Text(_formatCurrency(report['totalPending'] ?? 0), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: AppColors.warning)),
-                      ],
-                    ),
-                  ),
-                  Container(height: 20, width: 1, color: Colors.grey.shade300),
-                  Expanded(
-                    child: Column(
-                      children: [
-                        const Text('Records Count', style: TextStyle(fontSize: 10, color: AppColors.lightMutedText)),
-                        const SizedBox(height: 2),
-                        Text('${report['totalRecords']}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: AppColors.primary)),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 10),
+                            Row(
+                              children: [
+                                const Icon(Icons.picture_as_pdf_outlined, size: 18, color: AppColors.lightSecondaryText),
+                                const SizedBox(width: 6),
+                                Expanded(
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 10),
+                                    decoration: BoxDecoration(
+                                      border: Border.all(color: Colors.grey.shade300),
+                                      borderRadius: BorderRadius.circular(10),
+                                      color: Colors.white,
+                                    ),
+                                    child: DropdownButtonHideUnderline(
+                                      child: DropdownButton<String>(
+                                        value: _selectedFormat,
+                                        isExpanded: true,
+                                        icon: const Icon(Icons.arrow_drop_down, color: AppColors.primary),
+                                        style: const TextStyle(fontSize: 12, color: AppColors.lightPrimaryText, fontWeight: FontWeight.w500),
+                                        items: const [
+                                          DropdownMenuItem(value: 'All', child: Text('All Formats')),
+                                          DropdownMenuItem(value: 'PDF', child: Text('PDF Document')),
+                                          DropdownMenuItem(value: 'Excel', child: Text('Excel Spreadsheet')),
+                                          DropdownMenuItem(value: 'CSV', child: Text('CSV Data File')),
+                                        ],
+                                        onChanged: (val) {
+                                          if (val != null) setState(() => _selectedFormat = val);
+                                        },
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 12),
 
-            // Last Generated & Format Info Row
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  'Generated: ${report['lastGenerated']}',
-                  style: const TextStyle(fontSize: 11, color: AppColors.lightMutedText),
-                ),
-                Text(
-                  'Format: ${report['format']} (${report['fileSize']})',
-                  style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: AppColors.lightSecondaryText),
-                ),
-              ],
-            ),
-            const Divider(height: 18),
+                            SingleChildScrollView(
+                              scrollDirection: Axis.horizontal,
+                              child: Row(
+                                children: [
+                                  _buildTabChip('All Reports', 'All', _getCategoryCount('All')),
+                                  const SizedBox(width: 8),
+                                  _buildTabChip('Payroll', 'Payroll', _getCategoryCount('Payroll')),
+                                  const SizedBox(width: 8),
+                                  _buildTabChip('Taxation', 'Taxation', _getCategoryCount('Taxation')),
+                                  const SizedBox(width: 8),
+                                  _buildTabChip('Expenses', 'Expenses', _getCategoryCount('Expenses')),
+                                  const SizedBox(width: 8),
+                                  _buildTabChip('Loans & Advances', 'Loans & Advances', _getCategoryCount('Loans & Advances')),
+                                  const SizedBox(width: 8),
+                                  _buildTabChip('Audit Logs', 'Audit Logs', _getCategoryCount('Audit Logs')),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 16),
 
-            // Action Buttons
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                InkWell(
-                  onTap: () => _runLiveQuery(report),
-                  child: Row(
-                    children: const [
-                      Icon(Icons.play_arrow, size: 16, color: AppColors.primary),
-                      SizedBox(width: 4),
-                      Text('Run Live Query', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.primary)),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Expanded(
+                            child: Row(
+                              children: const [
+                                Icon(Icons.list_alt, color: AppColors.primary, size: 18),
+                                SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(
+                                    'Financial Statements & Ledgers',
+                                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13.5),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: AppColors.lightPrimary,
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Text(
+                              '${filteredList.length} Reports Available',
+                              style: const TextStyle(
+                                color: AppColors.primary,
+                                fontSize: 11,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 10),
+
+                      if (filteredList.isEmpty)
+                        AppCard(
+                          child: Padding(
+                            padding: const EdgeInsets.all(32),
+                            child: Column(
+                              children: const [
+                                CircleAvatar(
+                                  radius: 26,
+                                  backgroundColor: AppColors.lightSecondarySurface,
+                                  child: Icon(Icons.bar_chart_outlined, size: 28, color: AppColors.lightSecondaryText),
+                                ),
+                                SizedBox(height: 12),
+                                Text(
+                                  'No financial reports match your filter',
+                                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+                                ),
+                                SizedBox(height: 4),
+                                Text(
+                                  'Try clearing or modifying your search and category selection.',
+                                  textAlign: TextAlign.center,
+                                  style: TextStyle(fontSize: 12, color: AppColors.lightSecondaryText),
+                                ),
+                              ],
+                            ),
+                          ),
+                        )
+                      else
+                        ListView.builder(
+                          shrinkWrap: true,
+                          physics: const NeverScrollableScrollPhysics(),
+                          itemCount: filteredList.length,
+                          itemBuilder: (context, index) {
+                            final item = filteredList[index];
+                            return _buildReportCard(item);
+                          },
+                        ),
                     ],
                   ),
                 ),
-                ElevatedButton.icon(
-                  onPressed: () => _downloadReport(report),
-                  icon: const Icon(Icons.download, size: 14),
-                  label: Text('Download ${report['format']}'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.primary,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                    textStyle: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildSecurityItem({
-    required IconData icon,
-    required Color iconColor,
-    required String title,
-    required String description,
-  }) {
-    return Container(
-      padding: const EdgeInsets.all(10),
-      decoration: BoxDecoration(
-        color: AppColors.lightInputBackground,
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: Colors.grey.shade200),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          CircleAvatar(
-            radius: 16,
-            backgroundColor: Colors.white,
-            child: Icon(icon, color: iconColor, size: 18),
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-                const SizedBox(height: 2),
-                Text(description, style: const TextStyle(fontSize: 11, color: AppColors.lightSecondaryText)),
               ],
             ),
           ),
         ],
       ),
+    );
+
+    if (!showHeader) {
+      return Material(color: Colors.transparent, child: content);
+    }
+
+    return GlassScaffold(
+      appBar: const GlassHeader(title: 'Finance Reports'),
+      showBottomBar: false,
+      body: content,
     );
   }
 }

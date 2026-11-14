@@ -28,7 +28,7 @@ class _FinanceRoleShellState extends State<FinanceRoleShell> {
     ];
 
     final titles = [
-      'Finance Dashboard',
+      '',
       'Payroll Management',
       'Reimbursements',
       'Finance Approvals',

@@ -68,7 +68,7 @@ class _ItRoleShellState extends State<ItRoleShell> {
     ];
 
     final titles = [
-      'IT Dashboard',
+      '',
       'Asset Inventory',
       'Asset Requests',
       'Software Licenses',

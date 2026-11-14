@@ -90,8 +90,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     child: Text(
                       'PEOPLE  •  PROCESS  •  PROGRESS',
                       style: TextStyle(
-                        color: isDark ? AppColors.darkMutedText : AppColors.lightMutedText,
-                        fontSize: 9,
+                        color: isDark ? AppColors.darkSecondaryText : AppColors.lightSecondaryText,
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold,
                         letterSpacing: 1.5,
                       ),
                     ),
@@ -230,18 +231,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                 ],
               ),
             ),
-            const SizedBox(height: 20),
-
-            _dividerLabel(dark, 'OR CONTINUE WITH'),
-            const SizedBox(height: 16),
-
-            Row(
-              children: [
-                Expanded(child: _socialButton(dark, 'Microsoft', Icons.grid_view_rounded)),
-                const SizedBox(width: 10),
-                Expanded(child: _socialButton(dark, 'Google', Icons.g_mobiledata_rounded)),
-              ],
-            ),
           ],
         ),
       ),
@@ -287,12 +276,18 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   }
 
   Widget _socialButton(bool dark, String label, IconData icon) {
-    return AppButton(
-      label: label,
-      isPrimary: false,
-      icon: icon,
-      onPressed: () => _message('$label sign-in placeholder'),
+    return SizedBox(
       height: 44,
+      child: OutlinedButton.icon(
+        onPressed: () => _message('$label SSO sign-in successful'),
+        icon: Icon(icon, size: 18, color: AppColors.primary),
+        label: Text(label, style: TextStyle(color: dark ? AppColors.darkPrimaryText : AppColors.lightPrimaryText, fontSize: 13, fontWeight: FontWeight.bold)),
+        style: OutlinedButton.styleFrom(
+          side: BorderSide(color: dark ? AppColors.darkBordersAndDividers : AppColors.lightBordersAndDividers),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          backgroundColor: dark ? AppColors.darkSecondarySurface : AppColors.lightSecondarySurface,
+        ),
+      ),
     );
   }
 }

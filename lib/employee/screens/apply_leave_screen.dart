@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/api/api_client.dart';
 import '../../core/api/api_endpoints.dart';
+import '../../core/api/leave_service.dart';
 import '../../core/auth/auth_service.dart';
 import '../../core/theme/app_colors.dart';
 import '../../shared/widgets/app_card.dart';
@@ -31,15 +32,7 @@ class _ApplyLeaveScreenState extends ConsumerState<ApplyLeaveScreen> {
   bool _submitting = false;
   String? _error;
 
-  Map<String, String> _leaveTypeOptions = {
-    'Earned Leave': 'Earned Leave (0 days remaining)',
-    'Sick Leave': 'Sick Leave (7 days remaining)',
-    'Paid Leave': 'Paid Leave (4 days remaining)',
-    'Casual Leave': 'Casual Leave (12 days remaining)',
-    'Compensatory Leave': 'Compensatory Leave (5 days remaining)',
-    'Unpaid Leave': 'Unpaid Leave (0 days remaining)',
-    'Personal Leave': 'Personal Leave (5 days remaining)',
-  };
+  Map<String, String> _leaveTypeOptions = {};
 
   static const List<String> _durationOptions = [
     'Full Day(s)',
@@ -85,84 +78,64 @@ class _ApplyLeaveScreenState extends ConsumerState<ApplyLeaveScreen> {
   }
 
   Future<void> _loadBalances() async {
-    setState(() => _loadingBalances = true);
-    final apiClient = ref.read(apiClientProvider);
+    setState(() {
+      _loadingBalances = true;
+      _error = null;
+    });
+    final leaveService = ref.read(leaveServiceProvider);
     try {
-      final res = await apiClient.get(ApiEndpoints.leaveBalances).catchError((_) => null);
-      if (mounted) {
-        List<dynamic> rawBalances = [];
-        if (res is List) {
-          rawBalances = res;
-        } else if (res is Map<String, dynamic> && res['data'] is List) {
-          rawBalances = res['data'];
-        }
+      final res = await leaveService.getLeaveBalances();
+      if (!mounted) return;
 
-        final mappedBalances = <String, Map<String, dynamic>>{};
-
-        for (final b in rawBalances) {
-          if (b is Map) {
-            final rawType = (b['leaveType'] ?? b['type'] ?? '').toString();
-            if (_isExcludedBalanceType(rawType)) continue;
-
-            final normName = _normalizeBalanceType(rawType);
-            final total = int.tryParse(b['entitled']?.toString() ?? b['total']?.toString() ?? '0') ?? 0;
-            final used = int.tryParse(b['taken']?.toString() ?? b['used']?.toString() ?? '0') ?? 0;
-            final rem = (b['remaining'] != null)
-                ? (int.tryParse(b['remaining'].toString()) ?? 0)
-                : (total - used).clamp(0, 9999);
-
-            mappedBalances[normName] = {
-              'key': normName,
-              'rawType': rawType.isNotEmpty ? rawType : normName,
-              'remaining': rem < 0 ? 0 : rem,
-              'display': '$normName ($rem days remaining)',
-            };
-          }
-        }
-
-        final requiredDefaults = [
-          {'type': 'Earned Leave', 'rawType': 'EARNED_LEAVE', 'remaining': 0},
-          {'type': 'Sick Leave', 'rawType': 'SICK_LEAVE', 'remaining': 7},
-          {'type': 'Paid Leave', 'rawType': 'PAID_HOLIDAY', 'remaining': 4},
-          {'type': 'Casual Leave', 'rawType': 'CASUAL_LEAVE', 'remaining': 12},
-          {'type': 'Compensatory Leave', 'rawType': 'COMPENSATORY', 'remaining': 5},
-          {'type': 'Unpaid Leave', 'rawType': 'UNPAID', 'remaining': 0},
-          {'type': 'Personal Leave', 'rawType': 'PERSONAL', 'remaining': 5},
-        ];
-
-        for (final req in requiredDefaults) {
-          final t = req['type'] as String;
-          final raw = req['rawType'] as String;
-          final rem = req['remaining'] as int;
-          if (!mappedBalances.containsKey(t)) {
-            mappedBalances[t] = {
-              'key': t,
-              'rawType': raw,
-              'remaining': rem,
-              'display': '$t ($rem days remaining)',
-            };
-          }
-        }
-
-        final order = ['Earned Leave', 'Sick Leave', 'Paid Leave', 'Casual Leave', 'Compensatory Leave', 'Unpaid Leave', 'Personal Leave'];
-        final updatedOptions = <String, String>{};
-        for (final name in order) {
-          if (mappedBalances.containsKey(name)) {
-            final item = mappedBalances[name]!;
-            updatedOptions[item['key']] = item['display'];
-          }
-        }
-
-        setState(() {
-          _leaveTypeOptions = updatedOptions;
-          if (!_leaveTypeOptions.containsKey(_selectedLeaveTypeKey)) {
-            _selectedLeaveTypeKey = _leaveTypeOptions.keys.first;
-          }
-          _loadingBalances = false;
-        });
+      List<dynamic> rawBalances = [];
+      if (res is List) {
+        rawBalances = res;
+      } else if (res is Map<String, dynamic> && res['data'] is List) {
+        rawBalances = res['data'];
       }
-    } catch (_) {
-      if (mounted) setState(() => _loadingBalances = false);
+
+      final mappedBalances = <String, Map<String, dynamic>>{};
+
+      for (final b in rawBalances) {
+        if (b is Map) {
+          final rawType = (b['leaveType'] ?? b['type'] ?? '').toString();
+          if (_isExcludedBalanceType(rawType)) continue;
+
+          final normName = _normalizeBalanceType(rawType);
+          final total = int.tryParse(b['entitled']?.toString() ?? b['total']?.toString() ?? '0') ?? 0;
+          final used = int.tryParse(b['taken']?.toString() ?? b['used']?.toString() ?? '0') ?? 0;
+          final rem = (b['remaining'] != null)
+              ? (int.tryParse(b['remaining'].toString()) ?? 0)
+              : (total - used).clamp(0, 9999);
+
+          mappedBalances[normName] = {
+            'key': normName,
+            'rawType': rawType.isNotEmpty ? rawType : normName,
+            'remaining': rem < 0 ? 0 : rem,
+            'display': '$normName ($rem days remaining)',
+          };
+        }
+      }
+
+      final updatedOptions = <String, String>{};
+      for (final item in mappedBalances.values) {
+        updatedOptions[item['key']] = item['display'];
+      }
+
+      setState(() {
+        _leaveTypeOptions = updatedOptions;
+        if (_leaveTypeOptions.isNotEmpty && !_leaveTypeOptions.containsKey(_selectedLeaveTypeKey)) {
+          _selectedLeaveTypeKey = _leaveTypeOptions.keys.first;
+        }
+        _loadingBalances = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _loadingBalances = false;
+        _error = 'Failed to load leave balances from server: ${e.toString()}';
+        _leaveTypeOptions = {};
+      });
     }
   }
 
@@ -229,6 +202,10 @@ class _ApplyLeaveScreenState extends ConsumerState<ApplyLeaveScreen> {
       _message('End Date cannot be before Start Date.');
       return;
     }
+    if (_leaveTypeOptions.isEmpty || !_leaveTypeOptions.containsKey(_selectedLeaveTypeKey)) {
+      _message('Leave balances are unavailable or selected leave type is invalid.');
+      return;
+    }
 
     setState(() {
       _submitting = true;
@@ -250,10 +227,10 @@ class _ApplyLeaveScreenState extends ConsumerState<ApplyLeaveScreen> {
       'reason': rawReason,
     };
 
-    final apiClient = ref.read(apiClientProvider);
+    final leaveService = ref.read(leaveServiceProvider);
 
     try {
-      await apiClient.post(ApiEndpoints.leaveApply, body: payload);
+      await leaveService.applyLeave(payload);
 
       if (!mounted) return;
 
@@ -271,9 +248,15 @@ class _ApplyLeaveScreenState extends ConsumerState<ApplyLeaveScreen> {
       final err = e.toString().replaceFirst('ApiException: ', '').replaceFirst('Exception: ', '');
       setState(() {
         _submitting = false;
+        _error = err;
       });
 
-      _showSuccessDialog(); // Fallback for local testing / demo UX
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Failed to submit leave request: $err'),
+          backgroundColor: Colors.red.shade700,
+        ),
+      );
     }
   }
 
@@ -487,7 +470,52 @@ class _ApplyLeaveScreenState extends ConsumerState<ApplyLeaveScreen> {
                       const SizedBox(height: 6),
                       Builder(
                         builder: (context) {
-                          final validLeaveTypeValue = _leaveTypeOptions.containsKey(_selectedLeaveTypeKey) ? _selectedLeaveTypeKey : (_leaveTypeOptions.isNotEmpty ? _leaveTypeOptions.keys.first : null);
+                          if (_loadingBalances) {
+                            return Container(
+                              padding: const EdgeInsets.all(14),
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(color: isDark ? AppColors.darkBordersAndDividers : AppColors.lightBordersAndDividers),
+                              ),
+                              child: const Row(
+                                children: [
+                                  SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)),
+                                  SizedBox(width: 12),
+                                  Text('Loading available leave balances...'),
+                                ],
+                              ),
+                            );
+                          }
+
+                          if (_leaveTypeOptions.isEmpty) {
+                            return Container(
+                              padding: const EdgeInsets.all(14),
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(color: Colors.redAccent.withValues(alpha: 0.5)),
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const Text(
+                                    'No leave balances available or server unavailable.',
+                                    style: TextStyle(color: Colors.redAccent, fontSize: 12, fontWeight: FontWeight.w600),
+                                  ),
+                                  const SizedBox(height: 8),
+                                  TextButton.icon(
+                                    onPressed: _loadBalances,
+                                    icon: const Icon(Icons.refresh_rounded, size: 16),
+                                    label: const Text('Retry Loading Balances'),
+                                  ),
+                                ],
+                              ),
+                            );
+                          }
+
+                          final validLeaveTypeValue = _leaveTypeOptions.containsKey(_selectedLeaveTypeKey)
+                              ? _selectedLeaveTypeKey
+                              : _leaveTypeOptions.keys.first;
+
                           return DropdownButtonFormField<String>(
                             value: validLeaveTypeValue,
                             isExpanded: true,
@@ -657,7 +685,7 @@ class _ApplyLeaveScreenState extends ConsumerState<ApplyLeaveScreen> {
                         width: double.infinity,
                         height: 48,
                         child: ElevatedButton.icon(
-                          onPressed: _submitting ? null : _submit,
+                          onPressed: (_loadingBalances || _leaveTypeOptions.isEmpty || _submitting) ? null : _submit,
                           icon: _submitting
                               ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
                               : const Icon(Icons.send_rounded, size: 18, color: Colors.white),

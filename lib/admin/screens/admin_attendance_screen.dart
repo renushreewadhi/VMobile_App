@@ -4,6 +4,7 @@ import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:intl/intl.dart';
 import '../../core/api/api_client.dart';
 import '../../core/api/api_endpoints.dart';
+import '../../core/config/app_config.dart';
 import '../../core/auth/auth_service.dart';
 import '../../core/errors/api_exception.dart';
 import '../../core/models/user_model.dart';
@@ -73,7 +74,7 @@ class AttendanceRecordModel {
       date: json['date']?.toString() ?? json['attendanceDate']?.toString(),
       checkIn: checkInVal,
       checkOut: checkOutVal,
-      workHours: json['workHours']?.toString() ?? json['workingHours']?.toString(),
+      workHours: _parseWorkHours(json),
       breakDuration: json['breakDuration']?.toString() ?? json['breakDurationMinutes']?.toString(),
       status: json['status']?.toString(),
       location: json['location']?.toString() ?? json['workMode']?.toString(),
@@ -81,6 +82,45 @@ class AttendanceRecordModel {
       isCheckedIn: checkInVal != null && checkInVal.isNotEmpty && (checkOutVal == null || checkOutVal.isEmpty),
       isOnBreak: json['isOnBreak'] is bool ? json['isOnBreak'] as bool : false,
     );
+  }
+
+  static String? _parseWorkHours(Map<String, dynamic> json) {
+    final raw = json['workHours'] ?? json['workingHours'] ?? json['totalHours'] ?? json['hoursWorked'] ?? json['loggedHours'];
+    if (raw != null) {
+      final str = raw.toString().trim();
+      if (str.isNotEmpty && str != 'null' && str != '0' && str != '0.0' && str != '0h') {
+        final asNum = double.tryParse(str);
+        if (asNum != null) {
+          final totalMins = (asNum * 60).round();
+          final h = totalMins ~/ 60;
+          final m = totalMins % 60;
+          if (h > 0 && m > 0) return '${h}h ${m}m';
+          if (h > 0) return '${h}h';
+          return '${m}m';
+        }
+        return str;
+      }
+    }
+
+    final checkIn = json['checkInTime']?.toString() ?? json['checkIn']?.toString();
+    final checkOut = json['checkOutTime']?.toString() ?? json['checkOut']?.toString();
+    if (checkIn != null && checkIn.isNotEmpty) {
+      try {
+        final inDt = DateTime.parse(checkIn);
+        final outDt = (checkOut != null && checkOut.isNotEmpty && checkOut != 'Working') ? DateTime.parse(checkOut) : DateTime.now();
+        final diff = outDt.difference(inDt);
+        if (!diff.isNegative) {
+          final h = diff.inHours;
+          final m = diff.inMinutes % 60;
+          final s = diff.inSeconds % 60;
+          if (h > 0 && m > 0) return '${h}h ${m}m ${s}s';
+          if (h > 0) return '${h}h ${m}m';
+          if (m > 0) return '${m}m';
+          return '${s}s';
+        }
+      } catch (_) {}
+    }
+    return null;
   }
 }
 
@@ -284,6 +324,14 @@ class AdminAttendanceScreen extends ConsumerStatefulWidget {
 }
 
 class _AdminAttendanceScreenState extends ConsumerState<AdminAttendanceScreen> {
+  String _normalizeImageUrl(String? path) {
+    if (path == null || path.isEmpty) return '';
+    if (path.startsWith('http://') || path.startsWith('https://')) return path;
+    String cleanPath = path.replaceFirst(RegExp(r'^file://+'), '');
+    if (!cleanPath.startsWith('/')) cleanPath = '/$cleanPath';
+    final rootDomain = AppConfig.apiBaseUrl.replaceAll('/api', '');
+    return '$rootDomain$cleanPath';
+  }
   late String _activeModule;
   bool _isLoading = true;
   String? _errorMessage;
@@ -636,56 +684,6 @@ class _AdminAttendanceScreenState extends ConsumerState<AdminAttendanceScreen> {
         }
       } catch (e) {
         debugPrint('[AdminAttendance] Rules fetch warning: $e');
-      }
-
-      if (rules.isEmpty) {
-        rules = [
-          AttendanceRuleModel(
-            id: 'rule-01',
-            name: 'Standard Office Policy',
-            description: 'Default attendance policy for all employees',
-            roleScope: 'General Staff',
-            lateThresholdTime: 'Shift Start + 15m',
-            graceMinutes: 15,
-            minWorkHours: 8.0,
-            maxBreakMinutes: 60,
-            overtimeThresholdHours: 8.0,
-            overtimePolicy: 'DAILY (>8h)',
-            autoMarkAbsent: true,
-            isActive: true,
-            isDefault: true,
-          ),
-          AttendanceRuleModel(
-            id: 'rule-02',
-            name: 'Flexible Shift Policy',
-            description: 'Optional flexible working hours policy',
-            roleScope: 'Engineering, Product & Design',
-            lateThresholdTime: 'Shift Start + 20m',
-            graceMinutes: 20,
-            minWorkHours: 7.0,
-            maxBreakMinutes: 45,
-            overtimeThresholdHours: 8.0,
-            overtimePolicy: 'NONE (>8h)',
-            autoMarkAbsent: false,
-            isActive: true,
-            isDefault: false,
-          ),
-          AttendanceRuleModel(
-            id: 'rule-03',
-            name: 'Test Policy',
-            description: 'Flexible working hours for senior leadership and department heads',
-            roleScope: 'Managers & Executives',
-            lateThresholdTime: 'Shift Start + 15m',
-            graceMinutes: 15,
-            minWorkHours: 8.0,
-            maxBreakMinutes: 60,
-            overtimeThresholdHours: 8.0,
-            overtimePolicy: 'DAILY (>8h)',
-            autoMarkAbsent: true,
-            isActive: true,
-            isDefault: false,
-          ),
-        ];
       }
 
       List<AttendanceSummaryRowModel> summaryRows = [];
@@ -1171,7 +1169,7 @@ class _AdminAttendanceScreenState extends ConsumerState<AdminAttendanceScreen> {
                   color: const Color(0xFF15803D),
                   borderRadius: BorderRadius.circular(14),
                   image: r.faceImagePath != null && r.faceImagePath!.isNotEmpty
-                      ? DecorationImage(image: NetworkImage(r.faceImagePath!), fit: BoxFit.cover)
+                      ? DecorationImage(image: NetworkImage(_normalizeImageUrl(r.faceImagePath)), fit: BoxFit.cover)
                       : null,
                 ),
                 alignment: Alignment.bottomCenter,
@@ -1184,19 +1182,29 @@ class _AdminAttendanceScreenState extends ConsumerState<AdminAttendanceScreen> {
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Row(
-                        children: [
-                          const Icon(Icons.access_time_rounded, size: 14, color: Color(0xFF2563EB)),
-                          const SizedBox(width: 4),
-                          Text('Time: ${r.checkIn ?? '12:30 PM'}', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
-                        ],
+                      Expanded(
+                        child: Row(
+                          children: [
+                            const Icon(Icons.access_time_rounded, size: 14, color: Color(0xFF2563EB)),
+                            const SizedBox(width: 4),
+                            Expanded(
+                              child: Text('Time: ${r.checkIn ?? '12:30 PM'}', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold), overflow: TextOverflow.ellipsis),
+                            ),
+                          ],
+                        ),
                       ),
-                      Row(
-                        children: [
-                          const Icon(Icons.location_on_rounded, size: 14, color: Color(0xFFDC2626)),
-                          const SizedBox(width: 4),
-                          Text(r.location ?? 'GPS Verified', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
-                        ],
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.end,
+                          children: [
+                            const Icon(Icons.location_on_rounded, size: 14, color: Color(0xFFDC2626)),
+                            const SizedBox(width: 4),
+                            Expanded(
+                              child: Text(r.location ?? 'GPS Verified', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold), overflow: TextOverflow.ellipsis, textAlign: TextAlign.right),
+                            ),
+                          ],
+                        ),
                       ),
                     ],
                   ),
@@ -1875,7 +1883,7 @@ class _AdminAttendanceScreenState extends ConsumerState<AdminAttendanceScreen> {
                           ],
                         ),
                         InkWell(
-                          onTap: () => _showVerificationDialog(r),
+                          onTap: () => _showCorrectionRequestDialog(),
                           borderRadius: BorderRadius.circular(8),
                           child: Container(
                             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
@@ -1883,9 +1891,9 @@ class _AdminAttendanceScreenState extends ConsumerState<AdminAttendanceScreen> {
                             child: Row(
                               mainAxisSize: MainAxisSize.min,
                               children: const [
-                                Icon(Icons.verified_user_rounded, size: 14, color: Color(0xFF2563EB)),
+                                Icon(Icons.edit_calendar_rounded, size: 14, color: Color(0xFF2563EB)),
                                 SizedBox(width: 4),
-                                Text('Verify Selfie', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Color(0xFF2563EB))),
+                                Text('Correction Request', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Color(0xFF2563EB))),
                               ],
                             ),
                           ),

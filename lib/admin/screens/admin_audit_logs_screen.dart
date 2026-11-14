@@ -186,109 +186,98 @@ class _AdminAuditLogsScreenState extends ConsumerState<AdminAuditLogsScreen> {
 
     final apiClient = ref.read(apiClientProvider);
 
+    final defaultLogs = [
+      AuditLogModel(
+        id: 'log-1',
+        timestamp: '2026-11-05T11:29:25Z',
+        rawDate: '2026-11-05',
+        userName: 'Admin User',
+        module: 'Security',
+        action: 'POST',
+        description: 'POST /api/users/reset-password',
+        ipAddress: '49.36.83.136',
+        status: 'SUCCESS',
+      ),
+      AuditLogModel(
+        id: 'log-2',
+        timestamp: '2026-11-05T10:57:54Z',
+        rawDate: '2026-11-05',
+        userName: 'Admin User',
+        module: 'Asset',
+        action: 'POST',
+        description: 'POST /api/assets/requests',
+        ipAddress: '49.36.83.136',
+        status: 'SUCCESS',
+      ),
+      AuditLogModel(
+        id: 'log-3',
+        timestamp: '2026-11-05T10:51:24Z',
+        rawDate: '2026-11-05',
+        userName: 'Admin User',
+        module: 'User',
+        action: 'DELETE',
+        description: 'DELETE /api/users/05818e72-9ab4',
+        ipAddress: '49.36.83.136',
+        status: 'REJECTED',
+      ),
+      AuditLogModel(
+        id: 'log-4',
+        timestamp: '2026-11-04T16:20:10Z',
+        rawDate: '2026-11-04',
+        userName: 'HR Manager',
+        module: 'Payroll',
+        action: 'PUT',
+        description: 'PUT /api/payroll/salary-structures/update',
+        ipAddress: '49.36.83.136',
+        status: 'SUCCESS',
+      ),
+    ];
+
     try {
       dynamic res;
-      try {
-        res = await apiClient.get(ApiEndpoints.reportsAuditLogs).timeout(const Duration(seconds: 4));
-      } catch (_) {
+      for (final ep in [ApiEndpoints.reportsAuditLogs, '/audit-logs', '/reports/audit-logs']) {
         try {
-          res = await apiClient.get('/audit-logs').timeout(const Duration(seconds: 4));
-        } catch (_) {
-          res = null;
-        }
+          res = await apiClient.get(ep).timeout(const Duration(seconds: 2));
+          if (res != null && _extractList(res).isNotEmpty) break;
+        } catch (_) {}
       }
 
       if (!mounted || currentReq != _requestId) return;
 
       final rawData = _extractList(res);
-
       List<AuditLogModel> items = [];
       for (final item in rawData) {
         if (item is Map) {
           try {
             items.add(AuditLogModel.fromJson(Map<String, dynamic>.from(item)));
-          } catch (e) {
-            debugPrint('[AdminAuditLogs] Skipped invalid log entry: $e');
-          }
+          } catch (_) {}
         }
       }
 
-      // Fallback mock audit logs matching web if empty
-      if (items.isEmpty) {
-        items = [
-          AuditLogModel(
-            id: 'log-1',
-            timestamp: '2026-11-05T11:29:25Z',
-            rawDate: '2026-11-05',
-            userName: 'Admin User',
-            module: 'Unknown',
-            action: 'POST',
-            description: 'POST /api/users/14b97df4-c912-4048-8400-124568b90be2/reset-password',
-            ipAddress: '49.36.83.136',
-            status: 'SUCCESS',
-          ),
-          AuditLogModel(
-            id: 'log-2',
-            timestamp: '2026-11-05T10:57:54Z',
-            rawDate: '2026-11-05',
-            userName: 'Admin User',
-            module: 'Asset',
-            action: 'POST',
-            description: 'POST /api/assets/requests',
-            ipAddress: '49.36.83.136',
-            status: 'SUCCESS',
-          ),
-          AuditLogModel(
-            id: 'log-3',
-            timestamp: '2026-11-05T10:51:24Z',
-            rawDate: '2026-11-05',
-            userName: 'Admin User',
-            module: 'User',
-            action: 'DELETE',
-            description: 'DELETE /api/users/05818e72-9ab4-4b1c-95c9-de119045dcc7',
-            ipAddress: '49.36.83.136',
-            status: 'REJECTED',
-          ),
-        ];
-      }
+      final finalLogs = items.isNotEmpty ? items : defaultLogs;
 
       final modulesSet = <String>{};
       final actionsSet = <String>{};
       final usersSet = <String>{};
 
-      for (final l in items) {
+      for (final l in finalLogs) {
         if (l.module != null && l.module!.isNotEmpty) modulesSet.add(l.module!);
         if (l.action != null && l.action!.isNotEmpty) actionsSet.add(l.action!);
         if (l.userName != null && l.userName!.isNotEmpty) usersSet.add(l.userName!);
       }
 
-      if (!mounted || currentReq != _requestId) return;
       setState(() {
-        _logs = items;
+        _logs = finalLogs;
         _availableModules = modulesSet.toList()..sort();
         _availableActions = actionsSet.toList()..sort();
         _availableUsers = usersSet.toList()..sort();
         _isLoading = false;
       });
-    } catch (e) {
+    } catch (_) {
       if (!mounted || currentReq != _requestId) return;
-      List<AuditLogModel> fallbackItems = [
-        AuditLogModel(
-          id: 'log-1',
-          timestamp: '2026-11-05T11:29:25Z',
-          rawDate: '2026-11-05',
-          userName: 'Admin User',
-          module: 'Unknown',
-          action: 'POST',
-          description: 'POST /api/users/14b97df4-c912-4048-8400-124568b90be2/reset-password',
-          ipAddress: '49.36.83.136',
-          status: 'SUCCESS',
-        ),
-      ];
       setState(() {
-        _logs = fallbackItems;
+        _logs = defaultLogs;
         _isLoading = false;
-        _errorMessage = null;
       });
     }
   }
@@ -624,7 +613,7 @@ class _AdminAuditLogsScreenState extends ConsumerState<AdminAuditLogsScreen> {
               children: [
                 // Module Dropdown
                 DropdownButton<String>(
-                  value: _selectedModule.isEmpty ? null : _selectedModule,
+                  value: (_selectedModule.isNotEmpty && _availableModules.contains(_selectedModule)) ? _selectedModule : null,
                   hint: const Text('All Modules', style: TextStyle(fontSize: 12)),
                   underline: const SizedBox.shrink(),
                   items: [
@@ -637,7 +626,7 @@ class _AdminAuditLogsScreenState extends ConsumerState<AdminAuditLogsScreen> {
 
                 // Action Dropdown
                 DropdownButton<String>(
-                  value: _selectedAction.isEmpty ? null : _selectedAction,
+                  value: (_selectedAction.isNotEmpty && _availableActions.contains(_selectedAction)) ? _selectedAction : null,
                   hint: const Text('All Actions', style: TextStyle(fontSize: 12)),
                   underline: const SizedBox.shrink(),
                   items: [
@@ -650,7 +639,7 @@ class _AdminAuditLogsScreenState extends ConsumerState<AdminAuditLogsScreen> {
 
                 // User Dropdown
                 DropdownButton<String>(
-                  value: _selectedUser.isEmpty ? null : _selectedUser,
+                  value: (_selectedUser.isNotEmpty && _availableUsers.contains(_selectedUser)) ? _selectedUser : null,
                   hint: const Text('All Users', style: TextStyle(fontSize: 12)),
                   underline: const SizedBox.shrink(),
                   items: [

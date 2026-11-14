@@ -17,6 +17,7 @@ import '../widgets/metric_tile.dart';
 import '../widgets/post_shift_banner.dart';
 import '../widgets/primary_action_button.dart';
 import 'location_check_screen.dart';
+import '../../../../shared/widgets/loading_shimmer.dart';
 
 class PunchInOutScreen extends ConsumerStatefulWidget {
   const PunchInOutScreen({super.key});
@@ -109,75 +110,128 @@ class _PunchHomeState extends ConsumerState<PunchInOutScreen> {
   void _showEarlyCheckoutOverrideDialog() {
     final state = ref.read(punchControllerProvider);
     final workDuration = state.workDuration(DateTime.now());
+    bool applyLeave = false;
+    String selectedLeaveType = 'Unpaid Leave';
+
     showDialog(
       context: context,
-      builder: (dialogCtx) => AlertDialog(
-        title: const Row(
-          children: [
-            Icon(Icons.shield_outlined, color: AppColors.primary, size: 22),
-            SizedBox(width: 8),
-            Expanded(
-              child: Text(
-                'Early / Half-Day Check-Out Override',
-                style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
+      builder: (dialogCtx) => StatefulBuilder(
+        builder: (ctx, setDialogState) => AlertDialog(
+          title: const Row(
+            children: [
+              Icon(Icons.shield_outlined, color: AppColors.primary, size: 22),
+              SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'Early / Incomplete Shift Options',
+                  style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
+                ),
               ),
-            ),
-          ],
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Container(
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(
-                color: Colors.orange.withOpacity(0.12),
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: Colors.orange.withOpacity(0.3)),
-              ),
-              child: Text(
-                'Server Policy: Net work duration is under 8.0 hours (${workDuration.inHours}h ${workDuration.inMinutes.remainder(60)}m worked).\n\nChoose an override option below:',
-                style: const TextStyle(fontSize: 11.5, height: 1.35),
-              ),
-            ),
-            const SizedBox(height: 14),
-            ElevatedButton.icon(
-              onPressed: () async {
-                Navigator.pop(dialogCtx);
-                final controller = ref.read(punchControllerProvider.notifier);
-                await controller.clockOut(isHalfDayOverride: true);
-              },
-              icon: const Icon(Icons.check_circle_outline, size: 18),
-              label: const Text('Clock Out as Half-Day'),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.primary,
-                foregroundColor: Colors.white,
-                minimumSize: const Size(double.infinity, 44),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-              ),
-            ),
-            const SizedBox(height: 8),
-            OutlinedButton.icon(
-              onPressed: () {
-                Navigator.pop(dialogCtx);
-                _openRegularizationModal();
-              },
-              icon: const Icon(Icons.edit_calendar_rounded, size: 18),
-              label: const Text('Submit Instant Regularization'),
-              style: OutlinedButton.styleFrom(
-                minimumSize: const Size(double.infinity, 44),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-              ),
-            ),
-          ],
-        ),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogCtx),
-            child: const Text('Cancel'),
+            ],
           ),
-        ],
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: Colors.orange.withOpacity(0.12),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: Colors.orange.withOpacity(0.3)),
+                  ),
+                  child: Text(
+                    'Net work duration: ${workDuration.inHours}h ${workDuration.inMinutes.remainder(60)}m worked (Required: 8h). Choose how you would like to clock out:',
+                    style: const TextStyle(fontSize: 11.5, height: 1.35),
+                  ),
+                ),
+                const SizedBox(height: 14),
+                // Option 1: Temporary Clock Out (Stepping Out)
+                ElevatedButton.icon(
+                  onPressed: () async {
+                    Navigator.pop(dialogCtx);
+                    final controller = ref.read(punchControllerProvider.notifier);
+                    await controller.clockOut(isTemporary: true);
+                  },
+                  icon: const Icon(Icons.access_time_rounded, size: 18),
+                  label: const Text('Temporary Clock Out (Stepping Out)'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.amber.shade800,
+                    foregroundColor: Colors.white,
+                    minimumSize: const Size(double.infinity, 44),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                // Option 2: Apply Leave for Deficit
+                CheckboxListTile(
+                  value: applyLeave,
+                  onChanged: (val) => setDialogState(() => applyLeave = val ?? false),
+                  title: const Text('Charge pending hours to leave', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
+                  subtitle: const Text('Deduct deficit hours from leave balance / payroll', style: TextStyle(fontSize: 11)),
+                  controlAffinity: ListTileControlAffinity.leading,
+                  contentPadding: EdgeInsets.zero,
+                ),
+                if (applyLeave) ...[
+                  const SizedBox(height: 6),
+                  DropdownButtonFormField<String>(
+                    value: selectedLeaveType,
+                    decoration: InputDecoration(
+                      labelText: 'Leave Type',
+                      isDense: true,
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                    ),
+                    items: const [
+                      DropdownMenuItem(value: 'Unpaid Leave', child: Text('Unpaid Leave (LWP)')),
+                      DropdownMenuItem(value: 'Casual Leave', child: Text('Casual Leave')),
+                      DropdownMenuItem(value: 'Sick Leave', child: Text('Sick Leave')),
+                    ],
+                    onChanged: (val) => setDialogState(() => selectedLeaveType = val ?? 'Unpaid Leave'),
+                  ),
+                  const SizedBox(height: 10),
+                  ElevatedButton.icon(
+                    onPressed: () async {
+                      Navigator.pop(dialogCtx);
+                      final controller = ref.read(punchControllerProvider.notifier);
+                      await controller.clockOut(applyLeave: true, leaveType: selectedLeaveType);
+                    },
+                    icon: const Icon(Icons.check_circle_outline, size: 18),
+                    label: const Text('Clock Out & Apply Leave'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.error,
+                      foregroundColor: Colors.white,
+                      minimumSize: const Size(double.infinity, 44),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    ),
+                  ),
+                ],
+                const SizedBox(height: 8),
+                // Option 3: Half Day
+                OutlinedButton.icon(
+                  onPressed: () async {
+                    Navigator.pop(dialogCtx);
+                    final controller = ref.read(punchControllerProvider.notifier);
+                    await controller.clockOut(isHalfDayOverride: true);
+                  },
+                  icon: const Icon(Icons.hourglass_bottom, size: 18),
+                  label: const Text('Clock Out as Half-Day'),
+                  style: OutlinedButton.styleFrom(
+                    minimumSize: const Size(double.infinity, 44),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogCtx),
+              child: const Text('Cancel'),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -206,6 +260,13 @@ class _PunchHomeState extends ConsumerState<PunchInOutScreen> {
     final tickerAsync = ref.watch(clockTickerProvider);
     final now = tickerAsync.value ?? DateTime.now();
 
+    if (state.isLoading && state.todayRecord.isEmpty) {
+      return const GlassScaffold(
+        title: 'Punch In / Out',
+        body: DashboardSkeleton(),
+      );
+    }
+
     ref.listen(punchMessageProvider, (_, next) {
       next.whenData((msg) {
         _showMessage(msg.text, isError: msg.isError);
@@ -221,12 +282,11 @@ class _PunchHomeState extends ConsumerState<PunchInOutScreen> {
 
     return GlassScaffold(
       title: 'Punch In / Out',
-      body: SafeArea(
-        child: RefreshIndicator(
-          onRefresh: () => ref.read(punchControllerProvider.notifier).loadAllData(),
-          child: SingleChildScrollView(
-            physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
-            padding: const EdgeInsets.all(16),
+      body: RefreshIndicator(
+        onRefresh: () => ref.read(punchControllerProvider.notifier).loadAllData(),
+        child: SingleChildScrollView(
+          physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
+          padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -235,19 +295,43 @@ class _PunchHomeState extends ConsumerState<PunchInOutScreen> {
                     padding: EdgeInsets.only(bottom: 12),
                     child: LinearProgressIndicator(minHeight: 2),
                   ),
-                if (state.error != null)
-                  Padding(
-                    padding: EdgeInsets.only(bottom: 12),
-                    child: Container(
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: Colors.red.withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: Colors.red.withOpacity(0.3)),
-                      ),
-                      child: Text(state.error!, style: TextStyle(color: textColor, fontSize: 12)),
-                    ),
-                  ),
+                AnimatedSize(
+                  duration: const Duration(milliseconds: 250),
+                  child: state.error != null
+                      ? Padding(
+                          padding: const EdgeInsets.only(bottom: 12),
+                          child: Container(
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: Colors.red.withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(color: Colors.red.withOpacity(0.3)),
+                            ),
+                            child: Row(
+                              children: [
+                                const Icon(Icons.error_outline_rounded, color: Colors.red, size: 18),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(
+                                    state.error!,
+                                    style: TextStyle(color: textColor, fontSize: 12, fontWeight: FontWeight.bold),
+                                  ),
+                                ),
+                                IconButton(
+                                  icon: const Icon(Icons.close_rounded, size: 16, color: Colors.red),
+                                  onPressed: () {
+                                    ref.read(punchControllerProvider.notifier).state =
+                                        ref.read(punchControllerProvider).copyWith(clearError: true);
+                                  },
+                                  constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                                  padding: EdgeInsets.zero,
+                                ),
+                              ],
+                            ),
+                          ),
+                        )
+                      : const SizedBox.shrink(),
+                ),
 
                 if (state.isPostShiftWarning30m(now)) ...[
                   PostShiftBanner(
@@ -255,6 +339,44 @@ class _PunchHomeState extends ConsumerState<PunchInOutScreen> {
                     text: textColor,
                     shiftEndTime: state.shiftEndTime,
                     onCheckOutPressed: _openClockOutModal,
+                  ),
+                  const SizedBox(height: 14),
+                ],
+
+                if (state.isTemporaryClockOut) ...[
+                  Container(
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      color: Colors.amber.withOpacity(0.12),
+                      borderRadius: BorderRadius.circular(18),
+                      border: Border.all(color: Colors.amber.withOpacity(0.4)),
+                    ),
+                    child: Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: const BoxDecoration(color: Colors.amber, shape: BoxShape.circle),
+                          child: const Icon(Icons.access_time_rounded, color: Colors.white, size: 20),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                '⚠️ Shift Incomplete (Stepped Out)',
+                                style: TextStyle(color: textColor, fontWeight: FontWeight.bold, fontSize: 12),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                'You clocked out early without leave. Clock in before shift end (${state.shiftEndTime}) to resume work.',
+                                style: TextStyle(color: textColor.withOpacity(0.8), fontSize: 11),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                   const SizedBox(height: 14),
                 ],
@@ -278,6 +400,7 @@ class _PunchHomeState extends ConsumerState<PunchInOutScreen> {
                   surface: surfaceColor,
                   border: borderColor,
                   onTap: _openLocationCheck,
+                  onRetry: () => ref.read(punchControllerProvider.notifier).refreshGps(),
                 ),
                 const SizedBox(height: 14),
 
@@ -309,8 +432,7 @@ class _PunchHomeState extends ConsumerState<PunchInOutScreen> {
             ),
           ),
         ),
-      ),
-    );
+      );
   }
 
   Widget _buildMetricsSection(bool dark, Color text, Color muted, Color surface, Color border, DateTime now, PunchState state) {
@@ -477,7 +599,7 @@ class _PunchHomeState extends ConsumerState<PunchInOutScreen> {
   }
 
   Widget _buildPrimaryActionArea(PunchState state) {
-    if (state.checkOutAt != null) {
+    if (state.checkOutAt != null && !state.isTemporaryClockOut) {
       return Container(
         width: double.infinity,
         padding: const EdgeInsets.all(16),
@@ -491,6 +613,16 @@ class _PunchHomeState extends ConsumerState<PunchInOutScreen> {
           textAlign: TextAlign.center,
           style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
         ),
+      );
+    }
+
+    if (state.isTemporaryClockOut) {
+      return PrimaryActionButton(
+        title: 'Clock In (Resume Shift)',
+        subtitle: 'Continue tracking today\'s shift',
+        icon: Icons.login_rounded,
+        isLoading: state.isActionInProgress,
+        onPressed: _openLocationCheck,
       );
     }
 

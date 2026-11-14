@@ -468,30 +468,8 @@ class _AdminShiftAssignmentsScreenState extends ConsumerState<AdminShiftAssignme
           );
 
     return GlassScaffold(
-      appBar: GlassHeader(
+      appBar: const GlassHeader(
         title: 'Employee Shift Assignments',
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.download_rounded, size: 20, color: AppColors.primary),
-            tooltip: 'Export CSV',
-            onPressed: _exportCsv,
-          ),
-          Container(
-            margin: const EdgeInsets.only(right: 8),
-            child: ElevatedButton.icon(
-              onPressed: _showAssignShiftDialog,
-              icon: const Icon(Icons.person_add_rounded, size: 16),
-              label: const Text('Assign Shift', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.primary,
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                elevation: 0,
-              ),
-            ),
-          ),
-        ],
       ),
       body: mainContent,
     );
@@ -533,6 +511,36 @@ class _AdminShiftAssignmentsScreenState extends ConsumerState<AdminShiftAssignme
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // Action Buttons Row (Inside Body)
+          Row(
+            mainAxisAlignment: MainAxisAlignment.end,
+            children: [
+              OutlinedButton.icon(
+                onPressed: _exportCsv,
+                icon: const Icon(Icons.download_rounded, size: 16, color: AppColors.primary),
+                label: const Text('Export', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                style: OutlinedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                ),
+              ),
+              const SizedBox(width: 8),
+              ElevatedButton.icon(
+                onPressed: _showAssignShiftDialog,
+                icon: const Icon(Icons.person_add_rounded, size: 16),
+                label: const Text('Assign Shift', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.primary,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  elevation: 0,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+
           // Filter & Search Bar
           Container(
             decoration: BoxDecoration(

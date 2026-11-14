@@ -110,7 +110,7 @@ class _AdminEmployeeManagementScreenState extends ConsumerState<AdminEmployeeMan
 
     try {
       final queryParam = _selectedRole != 'ALL' ? '?role=$_selectedRole' : '';
-      final res = await apiClient.get('${ApiEndpoints.employees}$queryParam').catchError((_) => null);
+      final res = await apiClient.get('${ApiEndpoints.employeesAll}$queryParam').catchError((_) => null);
       if (!mounted || currentReq != _requestId) return;
 
       dynamic rawData = res;

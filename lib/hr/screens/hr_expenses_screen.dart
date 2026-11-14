@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import '../../core/api/api_client.dart';
 import '../../core/api/api_endpoints.dart';
+import '../../core/api/expense_service.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/widgets/glass_header.dart';
 import '../../core/widgets/glass_scaffold.dart';
@@ -138,10 +139,10 @@ class _HrExpensesScreenState extends ConsumerState<HrExpensesScreen> {
 
   Future<void> _loadExpenses() async {
     setState(() => _isLoading = true);
-    final apiClient = ref.read(apiClientProvider);
+    final expenseService = ref.read(expenseServiceProvider);
 
     try {
-      final res = await apiClient.get(ApiEndpoints.expenseAll).catchError((_) => null);
+      final res = await expenseService.getAllExpenses().catchError((_) => null);
       List<dynamic> rawItems = [];
       if (res is List) {
         rawItems = res;
@@ -155,44 +156,6 @@ class _HrExpensesScreenState extends ConsumerState<HrExpensesScreen> {
         if (item is Map<String, dynamic>) {
           items.add(HrExpenseItemModel.fromJson(item, i));
         }
-      }
-
-      // Fallback mock items if empty
-      if (items.isEmpty) {
-        items = [
-          HrExpenseItemModel(
-            id: '101',
-            reqCode: 'EXP-2026-891',
-            employeeName: 'Ananya Sharma',
-            expenseDate: '2026-09-12',
-            category: 'TRAVEL',
-            description: 'Flight tickets & taxi cab to Mumbai client site meeting',
-            amount: 14500,
-            paymentMode: 'Corporate Card',
-            expenseLocation: 'Mumbai, MH',
-            status: 'TL_APPROVED',
-            tlRemarks: 'Verified flight invoices and client visit confirmation letter.',
-            initials: 'AS',
-            avatarBg: const Color(0xFFEFF6FF),
-            avatarColor: const Color(0xFF2563EB),
-          ),
-          HrExpenseItemModel(
-            id: '102',
-            reqCode: 'EXP-2026-892',
-            employeeName: 'Vikramaditya Roy',
-            expenseDate: '2026-09-10',
-            category: 'HOTEL',
-            description: 'Hotel Stay at Taj Gateway (3 nights) for Product Launch',
-            amount: 22800,
-            paymentMode: 'Personal Credit Card',
-            expenseLocation: 'Bengaluru, KA',
-            status: 'TL_APPROVED',
-            tlRemarks: 'Lodging within VP corporate expense limits.',
-            initials: 'VR',
-            avatarBg: const Color(0xFFF0FDF4),
-            avatarColor: const Color(0xFF16A34A),
-          ),
-        ];
       }
 
       if (mounted) {
@@ -268,13 +231,13 @@ class _HrExpensesScreenState extends ConsumerState<HrExpensesScreen> {
   Future<void> _submitReview(String newStatus) async {
     if (_reviewingExpense == null) return;
     setState(() => _isSubmittingReview = true);
-    final apiClient = ref.read(apiClientProvider);
+    final expenseService = ref.read(expenseServiceProvider);
 
     final expenseId = _reviewingExpense!.id;
     final remarksText = _remarksController.text.trim();
 
     try {
-      await apiClient.post('${ApiEndpoints.expenseAll}/$expenseId/review', body: {
+      await expenseService.reviewExpense(expenseId, {
         'status': newStatus,
         'remarks': remarksText,
       });

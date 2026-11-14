@@ -22,7 +22,7 @@ class AdminRolesPermissionsScreen extends ConsumerStatefulWidget {
 }
 
 class _AdminRolesPermissionsScreenState extends ConsumerState<AdminRolesPermissionsScreen> {
-  bool get _showAppBar => widget.showAppBar ?? false;
+  bool get _showAppBar => widget.showAppBar ?? true;
   bool _isLoading = true;
   String? _errorMessage;
   List<dynamic> _roles = [];

@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/api/api_client.dart';
 import '../../core/api/api_endpoints.dart';
+import '../../core/api/leave_service.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/widgets/glass_header.dart';
 import '../../core/widgets/glass_scaffold.dart';
@@ -63,12 +64,13 @@ class _TlReportsScreenState extends ConsumerState<TlReportsScreen> {
   Future<void> _loadReportData() async {
     setState(() => _isLoading = true);
     final apiClient = ref.read(apiClientProvider);
+    final leaveService = ref.read(leaveServiceProvider);
 
     try {
       final results = await Future.wait<dynamic>(<Future<dynamic>>[
         apiClient.get(ApiEndpoints.attendanceTeam).catchError((_) => null),
         apiClient.get(ApiEndpoints.myTasks).catchError((_) => null),
-        apiClient.get(ApiEndpoints.leavePending).catchError((_) => null),
+        leaveService.getPendingLeaves().catchError((_) => null),
         apiClient.get(ApiEndpoints.employees).catchError((_) => null),
       ]);
 

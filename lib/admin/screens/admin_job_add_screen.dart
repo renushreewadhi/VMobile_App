@@ -172,7 +172,10 @@ class _AdminJobAddScreenState extends ConsumerState<AdminJobAddScreen> {
     if (req.isNotEmpty) _reqController.text = req;
 
     final empType = data['employmentType']?.toString();
-    if (empType != null && _employmentTypes.contains(empType)) {
+    if (empType != null && empType.isNotEmpty) {
+      if (!_employmentTypes.contains(empType)) {
+        _employmentTypes.add(empType);
+      }
       _employmentType = empType;
     }
 
@@ -368,6 +371,7 @@ class _AdminJobAddScreenState extends ConsumerState<AdminJobAddScreen> {
                   Expanded(
                     child: DropdownButtonFormField<String>(
                       value: _selectedDepartmentId,
+                      isExpanded: true,
                       decoration: InputDecoration(
                         labelText: 'Department *',
                         border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
@@ -375,7 +379,7 @@ class _AdminJobAddScreenState extends ConsumerState<AdminJobAddScreen> {
                       items: _departments.map((dept) {
                         return DropdownMenuItem<String>(
                           value: dept['id']!,
-                          child: Text(dept['name']!),
+                          child: Text(dept['name']!, overflow: TextOverflow.ellipsis),
                         );
                       }).toList(),
                       onChanged: _isSaving ? null : (val) => setState(() => _selectedDepartmentId = val),
@@ -386,6 +390,7 @@ class _AdminJobAddScreenState extends ConsumerState<AdminJobAddScreen> {
                   Expanded(
                     child: DropdownButtonFormField<String>(
                       value: _selectedDesignationId,
+                      isExpanded: true,
                       decoration: InputDecoration(
                         labelText: 'Designation',
                         border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
@@ -393,7 +398,7 @@ class _AdminJobAddScreenState extends ConsumerState<AdminJobAddScreen> {
                       items: _designations.map((des) {
                         return DropdownMenuItem<String>(
                           value: des['id']!,
-                          child: Text(des['title']!),
+                          child: Text(des['title']!, overflow: TextOverflow.ellipsis),
                         );
                       }).toList(),
                       onChanged: _isSaving ? null : (val) => setState(() => _selectedDesignationId = val),
@@ -409,6 +414,7 @@ class _AdminJobAddScreenState extends ConsumerState<AdminJobAddScreen> {
                   Expanded(
                     child: DropdownButtonFormField<String>(
                       value: _selectedBranchId,
+                      isExpanded: true,
                       decoration: InputDecoration(
                         labelText: 'Branch / Location',
                         border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
@@ -416,7 +422,7 @@ class _AdminJobAddScreenState extends ConsumerState<AdminJobAddScreen> {
                       items: _branches.map((b) {
                         return DropdownMenuItem<String>(
                           value: b['id']!,
-                          child: Text(b['name']!),
+                          child: Text(b['name']!, overflow: TextOverflow.ellipsis),
                         );
                       }).toList(),
                       onChanged: _isSaving ? null : (val) => setState(() => _selectedBranchId = val),
@@ -426,6 +432,7 @@ class _AdminJobAddScreenState extends ConsumerState<AdminJobAddScreen> {
                   Expanded(
                     child: DropdownButtonFormField<String>(
                       value: _employmentType,
+                      isExpanded: true,
                       decoration: InputDecoration(
                         labelText: 'Employment Type',
                         border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
@@ -433,7 +440,7 @@ class _AdminJobAddScreenState extends ConsumerState<AdminJobAddScreen> {
                       items: _employmentTypes.map((type) {
                         return DropdownMenuItem<String>(
                           value: type,
-                          child: Text(type),
+                          child: Text(type, overflow: TextOverflow.ellipsis),
                         );
                       }).toList(),
                       onChanged: _isSaving ? null : (val) => setState(() => _employmentType = val ?? 'Full-time'),

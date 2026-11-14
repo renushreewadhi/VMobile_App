@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/api/api_client.dart';
+import '../../core/api/recruitment_service.dart';
 import '../../core/auth/auth_service.dart';
 import '../../core/theme/app_colors.dart';
 import '../../shared/widgets/app_card.dart';
@@ -44,10 +45,10 @@ class _JobBoardScreenState extends ConsumerState<JobBoardScreen> {
       _error = null;
     });
 
-    final apiClient = ref.read(apiClientProvider);
+    final recruitmentService = ref.read(recruitmentServiceProvider);
 
     try {
-      final res = await apiClient.get('/jobs').catchError((_) => null);
+      final res = await recruitmentService.getJobs().catchError((_) => null);
       if (!mounted) return;
 
       final list = res is List ? res : (res is Map && res['data'] is List ? res['data'] as List : []);

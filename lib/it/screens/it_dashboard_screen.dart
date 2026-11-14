@@ -5,6 +5,8 @@ import 'package:intl/intl.dart';
 
 import '../../core/api/api_client.dart';
 import '../../core/api/api_endpoints.dart';
+import '../../core/api/asset_service.dart';
+import '../../core/api/it_service.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/glass_theme.dart';
 import '../../shared/widgets/app_card.dart';
@@ -35,14 +37,15 @@ class _ItDashboardScreenState extends ConsumerState<ItDashboardScreen> {
 
   Future<void> _fetchItDashboard() async {
     setState(() => _isLoading = true);
-    final apiClient = ref.read(apiClientProvider);
+    final itService = ref.read(itServiceProvider);
+    final assetService = ref.read(assetServiceProvider);
 
     try {
-      final statsRes = await apiClient.get(ApiEndpoints.itDashboard).catchError((_) => null);
-      final assetsRes = await apiClient.get(ApiEndpoints.itAssets).catchError((_) => null);
-      final ticketsRes = await apiClient.get(ApiEndpoints.itTickets).catchError((_) => null);
-      final licensesRes = await apiClient.get(ApiEndpoints.itSoftware).catchError((_) => null);
-      final requestsRes = await apiClient.get(ApiEndpoints.assetRequests).catchError((_) => null);
+      final statsRes = await itService.getItDashboard().catchError((_) => null);
+      final assetsRes = await assetService.getItAssets().catchError((_) => null);
+      final ticketsRes = await itService.getItTickets().catchError((_) => null);
+      final licensesRes = await itService.getItSoftware().catchError((_) => null);
+      final requestsRes = await assetService.getAssetRequests().catchError((_) => null);
 
       if (mounted) {
         setState(() {

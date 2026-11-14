@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 
 import '../../core/api/api_client.dart';
 import '../../core/api/api_endpoints.dart';
+import '../../core/api/asset_service.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/glass_theme.dart';
 import '../../core/widgets/glass_scaffold.dart';
@@ -50,88 +51,97 @@ class _ItAssetsScreenState extends ConsumerState<ItAssetsScreen> {
     super.dispose();
   }
 
+  List<dynamic> _extractList(dynamic res) {
+    if (res == null) return [];
+    if (res is List) return res;
+    if (res is Map) {
+      if (res['data'] is List) return res['data'] as List;
+      if (res['assets'] is List) return res['assets'] as List;
+      if (res['items'] is List) return res['items'] as List;
+      if (res['requests'] is List) return res['requests'] as List;
+      if (res['result'] is List) return res['result'] as List;
+      if (res['value'] is List) return res['value'] as List;
+      if (res['content'] is List) return res['content'] as List;
+      if (res['data'] is Map) {
+        final inner = res['data'] as Map;
+        if (inner['items'] is List) return inner['items'] as List;
+        if (inner['assets'] is List) return inner['assets'] as List;
+        if (inner['requests'] is List) return inner['requests'] as List;
+        if (inner['content'] is List) return inner['content'] as List;
+        if (inner['result'] is List) return inner['result'] as List;
+      }
+    }
+    return [];
+  }
+
   Future<void> _fetchAssetsData() async {
     setState(() => _isLoading = true);
-    final apiClient = ref.read(apiClientProvider);
+    final assetService = ref.read(assetServiceProvider);
 
     try {
-      // 1. Fetch assets
-      dynamic res = await apiClient.get('/assets').catchError((_) => null);
-      if (res == null) {
-        res = await apiClient.get(ApiEndpoints.itAssets).catchError((_) => null);
-      }
+      // 1. Assets (single endpoint, no guessing)
+      final res = await assetService.getItAssets();
 
-      // 2. Fetch stats
-      final statsRes = await apiClient.get('/assets/stats').catchError((_) => null);
-
-      // 3. Fetch employees for assignment dropdown
-      dynamic empRes = await apiClient.get(ApiEndpoints.employeesAll).catchError((_) => null);
-      if (empRes == null) {
-        empRes = await apiClient.get('/employees/all').catchError((_) => null);
-      }
-      if (empRes == null) {
-        empRes = await apiClient.get(ApiEndpoints.employees).catchError((_) => null);
-      }
-      if (empRes == null) {
-        empRes = await apiClient.get('/employees').catchError((_) => null);
+      // 2. Employees for the assignment dropdown (failure is non-fatal)
+      dynamic empRes;
+      try {
+        empRes = await assetService.rawGet(ApiEndpoints.employeesAll);
+      } catch (e) {
+        debugPrint('[ItAssets] employees load failed: $e');
       }
 
       if (mounted) {
+        List<dynamic> assetList = _extractList(res);
         setState(() {
-          if (res is List) {
-            _assets = res;
-          } else if (res is Map<String, dynamic> && res['data'] is List) {
-            _assets = res['data'];
-          }
+          _assets = assetList;
+          _employees = _extractList(empRes);
 
-          if (empRes is List) {
-            _employees = empRes;
-          } else if (empRes is Map<String, dynamic>) {
-            if (empRes['data'] is List) {
-              _employees = empRes['data'];
-            } else if (empRes['employees'] is List) {
-              _employees = empRes['employees'];
-            } else if (empRes['result'] is List) {
-              _employees = empRes['result'];
-            }
-          }
-
-          if (statsRes is Map<String, dynamic>) {
-            if (statsRes['data'] is Map<String, dynamic>) {
-              _stats = statsRes['data'];
-            } else {
-              _stats = statsRes;
-            }
-          } else {
-            _stats = {
-              'total': _assets.length,
-              'assigned': _assets.where((a) => (a['status'] ?? '').toString().toUpperCase() == 'ASSIGNED').length,
-              'available': _assets.where((a) => (a['status'] ?? '').toString().toUpperCase() == 'AVAILABLE').length,
-              'underRepair': _assets.where((a) => (a['status'] ?? '').toString().toUpperCase() == 'UNDER_REPAIR').length,
-            };
-          }
+          _stats = {
+            'total': _assets.length,
+            'assigned': _assets.where((a) => (a['status'] ?? '').toString().toUpperCase() == 'ASSIGNED').length,
+            'available': _assets.where((a) => (a['status'] ?? '').toString().toUpperCase() == 'AVAILABLE').length,
+            'underRepair': _assets.where((a) => (a['status'] ?? '').toString().toUpperCase() == 'UNDER_REPAIR').length,
+          };
 
           _isLoading = false;
         });
       }
-    } catch (_) {
-      if (mounted) setState(() => _isLoading = false);
+    } catch (e) {
+      debugPrint('[ItAssets] load failed: $e');
+      if (mounted) {
+        setState(() {
+          _assets = [];
+          _isLoading = false;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to load assets: ${e.toString().replaceFirst("ApiException: ", "")}'), backgroundColor: Colors.red),
+        );
+      }
     }
   }
 
   String _employeeName(Map<String, dynamic> asset) {
-    // 1. First check if currentAssigneeName is present directly in the API response
-    final apiAssigneeName = (asset['currentAssigneeName'] ?? asset['assigneeName'] ?? '').toString().trim();
+    final apiAssigneeName = (asset['currentAssigneeName'] ?? asset['assigneeName'] ?? asset['assignedToName'] ?? asset['employeeName'] ?? '').toString().trim();
     if (apiAssigneeName.isNotEmpty) {
       return apiAssigneeName;
     }
 
-    // 2. Fallback to currentAssigneeId lookup in _employees list
-    final assigneeId = asset['currentAssigneeId'] ?? asset['assigneeId'];
+    if (asset['assignedTo'] is Map) {
+      final map = asset['assignedTo'] as Map;
+      final name = (map['name'] ?? '${map['firstName'] ?? ''} ${map['lastName'] ?? ''}').toString().trim();
+      if (name.isNotEmpty) return name;
+    }
+    if (asset['employee'] is Map) {
+      final map = asset['employee'] as Map;
+      final name = (map['name'] ?? '${map['firstName'] ?? ''} ${map['lastName'] ?? ''}').toString().trim();
+      if (name.isNotEmpty) return name;
+    }
+
+    final assigneeId = asset['currentAssigneeId'] ?? asset['assigneeId'] ?? asset['assignedToId'] ?? asset['employeeId'];
     if (assigneeId == null || assigneeId.toString().isEmpty) return 'Unassigned';
     final idStr = assigneeId.toString();
     final emp = _employees.firstWhere(
-      (e) => (e['id'] ?? e['employeeId'] ?? '').toString() == idStr,
+          (e) => (e['id'] ?? e['employeeId'] ?? e['_id'] ?? '').toString() == idStr,
       orElse: () => null,
     );
     if (emp == null) return 'Unassigned';
@@ -618,46 +628,47 @@ class _ItAssetsScreenState extends ConsumerState<ItAssetsScreen> {
                             onPressed: isAssigning
                                 ? null
                                 : () async {
-                                    if (selectedEmpId.isEmpty) {
-                                      ScaffoldMessenger.of(context).showSnackBar(
-                                        const SnackBar(content: Text('Please select an employee.')),
-                                      );
-                                      return;
-                                    }
+                              if (selectedEmpId.isEmpty) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(content: Text('Please select an employee.')),
+                                );
+                                return;
+                              }
 
-                                    setModalState(() => isAssigning = true);
-                                    final apiClient = ref.read(apiClientProvider);
-                                    final payload = {
-                                      'employeeId': selectedEmpId,
-                                      'issueDate': DateFormat('yyyy-MM-dd').format(issueDate),
-                                      'condition': condition,
-                                      'notes': notesController.text.trim(),
-                                    };
+                              setModalState(() => isAssigning = true);
+                              final apiClient = ref.read(apiClientProvider);
+                              final payload = {
+                                'employeeId': selectedEmpId,
+                                'issueDate': DateFormat('yyyy-MM-dd').format(issueDate),
+                                'condition': condition,
+                                'notes': notesController.text.trim(),
+                              };
 
-                                    try {
-                                      await apiClient.post('/assets/$assetId/assign', body: payload);
-                                      if (context.mounted) {
-                                        Navigator.pop(context);
-                                        ScaffoldMessenger.of(context).showSnackBar(
-                                          const SnackBar(
-                                            content: Text('Asset assigned successfully.'),
-                                            backgroundColor: AppColors.success,
-                                          ),
-                                        );
-                                        _fetchAssetsData();
-                                      }
-                                    } catch (e) {
-                                      if (context.mounted) {
-                                        setModalState(() => isAssigning = false);
-                                        ScaffoldMessenger.of(context).showSnackBar(
-                                          SnackBar(
-                                            content: Text('Failed to assign asset: ${e.toString()}'),
-                                            backgroundColor: AppColors.error,
-                                          ),
-                                        );
-                                      }
-                                    }
-                                  },
+                              try {
+                                final assetService = ref.read(assetServiceProvider);
+                                await assetService.assignAsset(assetId, payload);
+                                if (context.mounted) {
+                                  Navigator.pop(context);
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                      content: Text('Asset assigned successfully.'),
+                                      backgroundColor: AppColors.success,
+                                    ),
+                                  );
+                                  _fetchAssetsData();
+                                }
+                              } catch (e) {
+                                if (context.mounted) {
+                                  setModalState(() => isAssigning = false);
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: Text('Failed to assign asset: ${e.toString()}'),
+                                      backgroundColor: AppColors.error,
+                                    ),
+                                  );
+                                }
+                              }
+                            },
                             style: ElevatedButton.styleFrom(
                               backgroundColor: AppColors.primary,
                               foregroundColor: Colors.white,
@@ -666,10 +677,10 @@ class _ItAssetsScreenState extends ConsumerState<ItAssetsScreen> {
                             ),
                             child: isAssigning
                                 ? const SizedBox(
-                                    width: 18,
-                                    height: 18,
-                                    child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
-                                  )
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                            )
                                 : const Text('Assign'),
                           ),
                         ],
@@ -706,10 +717,10 @@ class _ItAssetsScreenState extends ConsumerState<ItAssetsScreen> {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final glass = context.glass;
 
-    final totalCount = _stats['total'] ?? _assets.length;
-    final assignedCount = _stats['assigned'] ?? _assets.where((a) => (a['status'] ?? '').toString().toUpperCase() == 'ASSIGNED').length;
-    final availableCount = _stats['available'] ?? _assets.where((a) => (a['status'] ?? '').toString().toUpperCase() == 'AVAILABLE').length;
-    final repairCount = _stats['underRepair'] ?? _assets.where((a) => (a['status'] ?? '').toString().toUpperCase() == 'UNDER_REPAIR').length;
+    final totalCount = _stats['total'] ?? _stats['totalAssets'] ?? _stats['count'] ?? _stats['total_assets'] ?? _assets.length;
+    final assignedCount = _stats['assigned'] ?? _stats['assignedAssets'] ?? _stats['assigned_assets'] ?? _assets.where((a) => (a['status'] ?? '').toString().toUpperCase() == 'ASSIGNED').length;
+    final availableCount = _stats['available'] ?? _stats['availableAssets'] ?? _stats['available_assets'] ?? _assets.where((a) => (a['status'] ?? '').toString().toUpperCase() == 'AVAILABLE').length;
+    final repairCount = _stats['underRepair'] ?? _stats['underRepairAssets'] ?? _stats['inRepair'] ?? _stats['repair'] ?? _stats['under_repair'] ?? _assets.where((a) => (a['status'] ?? '').toString().toUpperCase() == 'UNDER_REPAIR').length;
 
     final filtered = _assets.where((a) {
       final name = (a['name'] ?? a['assetName'] ?? '').toString().toLowerCase();

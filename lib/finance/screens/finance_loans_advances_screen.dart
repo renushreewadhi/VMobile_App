@@ -4,11 +4,14 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/api/api_client.dart';
 import '../../core/api/api_endpoints.dart';
 import '../../core/theme/app_colors.dart';
+import '../../core/widgets/glass_header.dart';
+import '../../core/widgets/glass_scaffold.dart';
 import '../../shared/widgets/app_card.dart';
 import '../../shared/widgets/loading_shimmer.dart';
 
 class FinanceLoansAdvancesScreen extends ConsumerStatefulWidget {
-  const FinanceLoansAdvancesScreen({super.key});
+  final bool? showAppBar;
+  const FinanceLoansAdvancesScreen({super.key, this.showAppBar = false});
 
   @override
   ConsumerState<FinanceLoansAdvancesScreen> createState() => _FinanceLoansAdvancesScreenState();
@@ -40,7 +43,9 @@ class _FinanceLoansAdvancesScreenState extends ConsumerState<FinanceLoansAdvance
   @override
   void initState() {
     super.initState();
-    _loadLoans();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _loadLoans();
+    });
   }
 
   @override
@@ -59,17 +64,20 @@ class _FinanceLoansAdvancesScreenState extends ConsumerState<FinanceLoansAdvance
       final res = await apiClient.get(ApiEndpoints.financeLoans).catchError((_) => null);
 
       if (mounted) {
-        List<dynamic> items = [];
-        if (res is List) {
-          items = res;
-        } else if (res is Map<String, dynamic> && res['data'] is List) {
-          items = res['data'];
-        }
+        if (res != null) {
+          List<dynamic> items = [];
+          if (res is List) {
+            items = res;
+          } else if (res is Map<String, dynamic>) {
+            final data = res['data'] ?? res['items'] ?? res['result'] ?? res['loans'];
+            if (data is List) {
+              items = data;
+            }
+          }
 
-        if (items.isNotEmpty) {
           _loans = items.map((l) => _mapLoanItem(l)).toList();
         } else {
-          _loans = _getMockLoans();
+          _loans = [];
         }
         _isLoading = false;
         setState(() {});
@@ -77,7 +85,7 @@ class _FinanceLoansAdvancesScreenState extends ConsumerState<FinanceLoansAdvance
     } catch (_) {
       if (mounted) {
         setState(() {
-          _loans = _getMockLoans();
+          _loans = [];
           _isLoading = false;
         });
       }
@@ -86,7 +94,7 @@ class _FinanceLoansAdvancesScreenState extends ConsumerState<FinanceLoansAdvance
 
   Map<String, dynamic> _mapLoanItem(dynamic l) {
     final Map<String, dynamic> map = l is Map<String, dynamic> ? l : {};
-    final empName = map['employeeName'] ?? map['empName'] ?? 'Employee';
+    final empName = map['employeeName'] ?? map['empName'] ?? map['requestedBy'] ?? map['userName'] ?? 'Employee';
     final rawStatus = (map['status'] ?? 'Pending').toString();
 
     return {
@@ -95,7 +103,7 @@ class _FinanceLoansAdvancesScreenState extends ConsumerState<FinanceLoansAdvance
       'empName': empName,
       'dept': map['departmentName'] ?? map['dept'] ?? 'Engineering',
       'type': map['loanType'] ?? map['type'] ?? 'Personal Loan',
-      'totalAmount': (map['requestedAmount'] ?? map['totalAmount'] ?? 0) as num,
+      'totalAmount': (map['requestedAmount'] ?? map['totalAmount'] ?? map['amount'] ?? 0) as num,
       'balance': (map['outstandingAmount'] ?? map['balance'] ?? 0) as num,
       'monthlyDeduction': (map['monthlyEMI'] ?? map['monthlyDeduction'] ?? 0) as num,
       'term': '${map['tenureMonths'] ?? 12} Months',
@@ -112,63 +120,6 @@ class _FinanceLoansAdvancesScreenState extends ConsumerState<FinanceLoansAdvance
     if (upper == 'CLOSED' || upper == 'REPAID' || upper == 'PAID OFF') return 'Paid Off';
     if (upper == 'REJECTED') return 'Rejected';
     return 'Pending';
-  }
-
-  List<Map<String, dynamic>> _getMockLoans() {
-    return [
-      {
-        'loanId': 'LN-2026-101',
-        'rawId': '1',
-        'empName': 'Sarah Jenkins',
-        'dept': 'Product Design',
-        'type': 'Personal Loan',
-        'totalAmount': 100000,
-        'balance': 65000,
-        'monthlyDeduction': 8333,
-        'term': '12 Months',
-        'status': 'Active',
-        'avatar': 'SJ',
-      },
-      {
-        'loanId': 'LN-2026-102',
-        'rawId': '2',
-        'empName': 'David Miller',
-        'dept': 'Engineering',
-        'type': 'Salary Advance',
-        'totalAmount': 30000,
-        'balance': 10000,
-        'monthlyDeduction': 10000,
-        'term': '3 Months',
-        'status': 'Active',
-        'avatar': 'DM',
-      },
-      {
-        'loanId': 'LN-2026-103',
-        'rawId': '3',
-        'empName': 'Emily Watson',
-        'dept': 'Human Resources',
-        'type': 'Emergency Medical',
-        'totalAmount': 50000,
-        'balance': 50000,
-        'monthlyDeduction': 4166,
-        'term': '12 Months',
-        'status': 'Pending',
-        'avatar': 'EW',
-      },
-      {
-        'loanId': 'LN-2026-104',
-        'rawId': '4',
-        'empName': 'Alex Rivera',
-        'dept': 'Sales Operations',
-        'type': 'Education Support',
-        'totalAmount': 80000,
-        'balance': 0,
-        'monthlyDeduction': 6666,
-        'term': '12 Months',
-        'status': 'Paid Off',
-        'avatar': 'AR',
-      },
-    ];
   }
 
   String _getInitials(String name) {
@@ -531,294 +482,6 @@ class _FinanceLoansAdvancesScreenState extends ConsumerState<FinanceLoansAdvance
     );
   }
 
-  @override
-  Widget build(BuildContext context) {
-    if (_isLoading) return const DashboardSkeleton();
-
-    final filteredList = _filteredLoans;
-
-    return RefreshIndicator(
-      onRefresh: _loadLoans,
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        physics: const AlwaysScrollableScrollPhysics(),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Top Header Card
-            AppCard(
-              backgroundColor: AppColors.darkPrimary,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      const CircleAvatar(
-                        radius: 24,
-                        backgroundColor: Colors.white24,
-                        child: Icon(Icons.volunteer_activism, color: Colors.white, size: 26),
-                      ),
-                      const SizedBox(width: 14),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: const [
-                            Text(
-                              'Loans & Salary Advances',
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontSize: 18,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                            SizedBox(height: 4),
-                            Text(
-                              'Track loan applications, salary advances, & EMI recovery',
-                              style: TextStyle(color: Colors.white70, fontSize: 12),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-
-                  // Action Buttons
-                  Row(
-                    children: [
-                      OutlinedButton.icon(
-                        onPressed: () {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text('Exporting loan records to Excel...'),
-                              backgroundColor: AppColors.primary,
-                            ),
-                          );
-                        },
-                        icon: const Icon(Icons.table_chart_outlined, size: 16),
-                        label: const Text('Export Excel'),
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: Colors.white,
-                          side: const BorderSide(color: Colors.white54),
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                          textStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      ElevatedButton.icon(
-                        onPressed: _showCreateLoanModal,
-                        icon: const Icon(Icons.add, size: 16),
-                        label: const Text('New Loan Request'),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.white,
-                          foregroundColor: AppColors.darkPrimary,
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                          textStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 16),
-
-            // Stat Cards Grid
-            GridView.count(
-              crossAxisCount: 3,
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              crossAxisSpacing: 10,
-              mainAxisSpacing: 10,
-              childAspectRatio: 1.25,
-              children: [
-                _buildStatCard(
-                  label: 'Total Active Loans',
-                  value: '$_activeCount',
-                  sub: '${_formatCurrency(_totalOutstanding)} Outstanding',
-                  icon: Icons.volunteer_activism,
-                  bgColor: const Color(0xFFEFF6FF),
-                  iconColor: const Color(0xFF2563EB),
-                ),
-                _buildStatCard(
-                  label: 'Pending Requests',
-                  value: '$_pendingCount',
-                  sub: 'Awaiting Review',
-                  icon: Icons.schedule,
-                  bgColor: const Color(0xFFFFF7ED),
-                  iconColor: const Color(0xFFEA580C),
-                ),
-                _buildStatCard(
-                  label: 'Paid Off / Closed',
-                  value: '$_paidOffCount',
-                  sub: 'Fully Repaid',
-                  icon: Icons.check_circle_outline,
-                  bgColor: const Color(0xFFF0FDF4),
-                  iconColor: const Color(0xFF16A34A),
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-
-            // Search & Filter Card
-            AppCard(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  TextField(
-                    onChanged: (val) => setState(() => _searchTerm = val),
-                    decoration: InputDecoration(
-                      hintText: 'Search loan ID, employee...',
-                      hintStyle: const TextStyle(fontSize: 13, color: AppColors.lightMutedText),
-                      prefixIcon: const Icon(Icons.search, size: 20, color: AppColors.lightSecondaryText),
-                      filled: true,
-                      fillColor: AppColors.lightInputBackground,
-                      contentPadding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide(color: Colors.grey.shade300),
-                      ),
-                      enabledBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide(color: Colors.grey.shade300),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-
-                  Row(
-                    children: [
-                      const Icon(Icons.filter_list, size: 18, color: AppColors.lightSecondaryText),
-                      const SizedBox(width: 6),
-                      Expanded(
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 10),
-                          decoration: BoxDecoration(
-                            border: Border.all(color: Colors.grey.shade300),
-                            borderRadius: BorderRadius.circular(10),
-                            color: Colors.white,
-                          ),
-                          child: DropdownButtonHideUnderline(
-                            child: DropdownButton<String>(
-                              value: _selectedType,
-                              isExpanded: true,
-                              icon: const Icon(Icons.arrow_drop_down, color: AppColors.primary),
-                              style: const TextStyle(fontSize: 12, color: AppColors.lightPrimaryText, fontWeight: FontWeight.w500),
-                              items: _loanTypes.map((t) {
-                                return DropdownMenuItem<String>(
-                                  value: t,
-                                  child: Text(t == 'All' ? 'All Types' : t),
-                                );
-                              }).toList(),
-                              onChanged: (val) {
-                                if (val != null) setState(() => _selectedType = val);
-                              },
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-
-                  SingleChildScrollView(
-                    scrollDirection: Axis.horizontal,
-                    child: Row(
-                      children: [
-                        _buildTabChip('All Loans', 'All', _getStatusCount('All')),
-                        const SizedBox(width: 8),
-                        _buildTabChip('Active', 'Active', _activeCount),
-                        const SizedBox(width: 8),
-                        _buildTabChip('Pending', 'Pending', _pendingCount),
-                        const SizedBox(width: 8),
-                        _buildTabChip('Paid Off', 'Paid Off', _paidOffCount),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 16),
-
-            // Loan Records List Header & Cards
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Row(
-                  children: const [
-                    Icon(Icons.format_list_bulleted, color: AppColors.primary, size: 20),
-                    SizedBox(width: 8),
-                    Text(
-                      'Loans & Advances Register',
-                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
-                    ),
-                  ],
-                ),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: AppColors.lightPrimary,
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Text(
-                    '${filteredList.length} Listed',
-                    style: const TextStyle(
-                      color: AppColors.primary,
-                      fontSize: 12,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 10),
-
-            if (filteredList.isEmpty)
-              AppCard(
-                child: Padding(
-                  padding: const EdgeInsets.all(32),
-                  child: Column(
-                    children: const [
-                      CircleAvatar(
-                        radius: 26,
-                        backgroundColor: AppColors.lightSecondarySurface,
-                        child: Icon(Icons.volunteer_activism_outlined, size: 28, color: AppColors.lightSecondaryText),
-                      ),
-                      SizedBox(height: 12),
-                      Text(
-                        'No loan records match your search filter',
-                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
-                      ),
-                      SizedBox(height: 4),
-                      Text(
-                        'Try clearing or modifying your search and filter options.',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(fontSize: 12, color: AppColors.lightSecondaryText),
-                      ),
-                    ],
-                  ),
-                ),
-              )
-            else
-              ListView.builder(
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                itemCount: filteredList.length,
-                itemBuilder: (context, index) {
-                  final item = filteredList[index];
-                  return _buildLoanCard(item);
-                },
-              ),
-
-            const SizedBox(height: 20),
-          ],
-        ),
-      ),
-    );
-  }
-
   Widget _buildStatCard({
     required String label,
     required String value,
@@ -828,90 +491,80 @@ class _FinanceLoansAdvancesScreenState extends ConsumerState<FinanceLoansAdvance
     required Color iconColor,
   }) {
     return Container(
-      padding: const EdgeInsets.all(10),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(12),
         border: Border.all(color: Colors.grey.shade200),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withOpacity(0.02),
-            blurRadius: 8,
+            blurRadius: 6,
             offset: const Offset(0, 2),
           ),
         ],
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Container(
-            padding: const EdgeInsets.all(5),
-            decoration: BoxDecoration(
-              color: bgColor,
-              borderRadius: BorderRadius.circular(8),
+      child: SingleChildScrollView(
+        physics: const NeverScrollableScrollPhysics(),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisAlignment: MainAxisAlignment.center,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Row(
+              children: [
+                CircleAvatar(
+                  radius: 10,
+                  backgroundColor: bgColor,
+                  child: Icon(icon, size: 11, color: iconColor),
+                ),
+                const SizedBox(width: 4),
+                Expanded(
+                  child: Text(
+                    label,
+                    style: const TextStyle(fontSize: 9.5, fontWeight: FontWeight.bold, color: AppColors.lightPrimaryText),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
             ),
-            child: Icon(icon, color: iconColor, size: 16),
-          ),
-          const SizedBox(height: 6),
-          Text(
-            value,
-            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: AppColors.lightPrimaryText),
-          ),
-          Text(
-            label,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: AppColors.lightSecondaryText),
-          ),
-          Text(
-            sub,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(fontSize: 9, color: AppColors.lightMutedText),
-          ),
-        ],
+            const SizedBox(height: 4),
+            Text(
+              value,
+              style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w800),
+            ),
+            const SizedBox(height: 2),
+            Text(
+              sub,
+              style: const TextStyle(fontSize: 8.5, color: AppColors.lightSecondaryText),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ],
+        ),
       ),
     );
   }
 
   Widget _buildTabChip(String label, String value, int count) {
     final isActive = _selectedStatus == value;
-    return Material(
-      color: Colors.transparent,
-      child: ChoiceChip(
-        label: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              label,
-              style: TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.bold,
-                color: isActive ? Colors.white : AppColors.lightSecondaryText,
-              ),
-            ),
-            const SizedBox(width: 4),
-            Text(
-              '($count)',
-              style: TextStyle(
-                fontSize: 11,
-                fontWeight: FontWeight.w600,
-                color: isActive ? Colors.white70 : AppColors.lightMutedText,
-              ),
-            ),
-          ],
+    return ChoiceChip(
+      label: Text(
+        '$label ($count)',
+        style: TextStyle(
+          fontSize: 11,
+          fontWeight: FontWeight.bold,
+          color: isActive ? Colors.white : AppColors.lightSecondaryText,
         ),
-        selected: isActive,
-        selectedColor: AppColors.primary,
-        backgroundColor: AppColors.lightInputBackground,
-        onSelected: (_) => setState(() => _selectedStatus = value),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(20),
-          side: BorderSide(
-            color: isActive ? AppColors.primary : Colors.grey.shade300,
-          ),
-        ),
+      ),
+      selected: isActive,
+      selectedColor: AppColors.primary,
+      backgroundColor: AppColors.lightInputBackground,
+      onSelected: (_) => setState(() => _selectedStatus = value),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(20),
+        side: BorderSide(color: isActive ? AppColors.primary : Colors.grey.shade300),
       ),
     );
   }
@@ -919,220 +572,495 @@ class _FinanceLoansAdvancesScreenState extends ConsumerState<FinanceLoansAdvance
   Widget _buildLoanCard(Map<String, dynamic> item) {
     final status = item['status'] ?? 'Pending';
     final isPending = status == 'Pending';
-    final isActive = status == 'Active';
-    final isPaidOff = status == 'Paid Off';
 
-    Color statusBg = AppColors.warningBg;
-    Color statusFg = AppColors.warning;
-
-    if (isActive) {
-      statusBg = AppColors.successBg;
-      statusFg = AppColors.success;
-    } else if (isPaidOff) {
-      statusBg = AppColors.infoBg;
-      statusFg = AppColors.info;
+    Color statusBg = Colors.orange.shade50;
+    Color statusFg = Colors.orange.shade700;
+    if (status == 'Active') {
+      statusBg = Colors.green.shade50;
+      statusFg = Colors.green.shade700;
+    } else if (status == 'Paid Off') {
+      statusBg = Colors.blue.shade50;
+      statusFg = Colors.blue.shade700;
     } else if (status == 'Rejected') {
-      statusBg = AppColors.errorBg;
-      statusFg = AppColors.error;
+      statusBg = Colors.red.shade50;
+      statusFg = Colors.red.shade700;
     }
 
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
-      child: AppCard(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Loan ID & Status
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.grey.shade200),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.03),
+            blurRadius: 8,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: AppColors.lightInputBackground,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text(
+                  item['loanId'] ?? '',
+                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: AppColors.primary),
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: statusBg,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Text(status, style: TextStyle(color: statusFg, fontSize: 11, fontWeight: FontWeight.bold)),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              CircleAvatar(
+                radius: 16,
+                backgroundColor: AppColors.lightPrimary,
+                child: Text(
+                  item['avatar'] as String,
+                  style: const TextStyle(color: AppColors.primary, fontWeight: FontWeight.bold, fontSize: 12),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(item['empName'] as String, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                    const SizedBox(height: 2),
+                    Text('${item['dept']} • ${item['type']}', style: const TextStyle(fontSize: 11, color: AppColors.lightSecondaryText)),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: AppColors.lightInputBackground,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceAround,
               children: [
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                  decoration: BoxDecoration(
-                    color: AppColors.lightInputBackground,
-                    borderRadius: BorderRadius.circular(6),
-                    border: Border.all(color: Colors.grey.shade300),
-                  ),
-                  child: Text(
-                    item['loanId'] ?? '',
-                    style: const TextStyle(
-                      fontFamily: 'monospace',
-                      fontWeight: FontWeight.bold,
-                      fontSize: 12,
-                      color: AppColors.primary,
-                    ),
-                  ),
-                ),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
-                  decoration: BoxDecoration(
-                    color: statusBg,
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Text(
-                    status,
-                    style: TextStyle(
-                      color: statusFg,
-                      fontSize: 11,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
+                _buildMetricColumn('Sanctioned', _formatCurrency(item['totalAmount'] ?? 0), Colors.black87),
+                _buildMetricColumn('Balance', _formatCurrency(item['balance'] ?? 0), AppColors.error),
+                _buildMetricColumn('Monthly EMI', _formatCurrency(item['monthlyDeduction'] ?? 0), AppColors.primary),
               ],
             ),
-            const SizedBox(height: 10),
-
-            // Employee Avatar & Name
-            Row(
-              children: [
-                CircleAvatar(
-                  radius: 16,
-                  backgroundColor: AppColors.darkPrimary,
-                  child: Text(
-                    item['avatar'] ?? 'LN',
-                    style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 12),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                children: [
+                  const Icon(Icons.schedule, size: 14, color: AppColors.lightSecondaryText),
+                  const SizedBox(width: 4),
+                  Text('Tenure: ${item['term']}', style: const TextStyle(fontSize: 11, color: AppColors.lightSecondaryText)),
+                ],
+              ),
+              Row(
+                children: [
+                  if (isPending) ...[
+                    OutlinedButton(
+                      onPressed: () => _rejectLoan(item),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: AppColors.error,
+                        side: const BorderSide(color: AppColors.error),
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                        minimumSize: Size.zero,
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      ),
+                      child: const Text('Reject', style: TextStyle(fontSize: 11)),
+                    ),
+                    const SizedBox(width: 6),
+                    ElevatedButton(
+                      onPressed: () => _approveLoan(item),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.success,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                        minimumSize: Size.zero,
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      ),
+                      child: const Text('Approve', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+                    ),
+                    const SizedBox(width: 6),
+                  ],
+                  OutlinedButton.icon(
+                    onPressed: () => _viewLoanDetails(item),
+                    icon: const Icon(Icons.visibility_outlined, size: 14),
+                    label: const Text('View'),
+                    style: OutlinedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      textStyle: const TextStyle(fontSize: 11),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                    ),
                   ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
+                ],
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMetricColumn(String label, String value, Color color) {
+    return Column(
+      children: [
+        Text(label, style: const TextStyle(fontSize: 10, color: AppColors.lightSecondaryText)),
+        const SizedBox(height: 2),
+        Text(value, style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: color)),
+      ],
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_isLoading) return const DashboardSkeleton();
+
+    final filteredList = _filteredLoans;
+    final bool showHeader = widget.showAppBar ?? false;
+
+    final content = DefaultTabController(
+      length: 2,
+      child: Column(
+        children: [
+          // Tab Header
+          Container(
+            margin: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+            decoration: BoxDecoration(
+              color: AppColors.lightSecondarySurface,
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: TabBar(
+              labelColor: Colors.white,
+              unselectedLabelColor: AppColors.lightSecondaryText,
+              indicator: BoxDecoration(
+                color: AppColors.primary,
+                borderRadius: BorderRadius.circular(10),
+              ),
+              indicatorSize: TabBarIndicatorSize.tab,
+              dividerColor: Colors.transparent,
+              padding: const EdgeInsets.all(4),
+              tabs: const [
+                Tab(text: 'Overview'),
+                Tab(text: 'Loans Register'),
+              ],
+            ),
+          ),
+
+          // Tab Views
+          Expanded(
+            child: TabBarView(
+              children: [
+                // Tab 1: Overview
+                SingleChildScrollView(
+                  padding: const EdgeInsets.all(16),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        item['empName'] ?? '',
-                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                      AppCard(
+                        backgroundColor: AppColors.darkPrimary,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                const CircleAvatar(
+                                  radius: 24,
+                                  backgroundColor: Colors.white24,
+                                  child: Icon(Icons.volunteer_activism, color: Colors.white, size: 26),
+                                ),
+                                const SizedBox(width: 14),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: const [
+                                      Text(
+                                        'Loans & Salary Advances',
+                                        style: TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 18,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                      SizedBox(height: 4),
+                                      Text(
+                                        'Track loan applications, salary advances, & EMI recovery',
+                                        style: TextStyle(color: Colors.white70, fontSize: 12),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 16),
+                            Row(
+                              children: [
+                                OutlinedButton.icon(
+                                  onPressed: () {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(
+                                        content: Text('Exporting loan records to Excel...'),
+                                        backgroundColor: AppColors.primary,
+                                      ),
+                                    );
+                                  },
+                                  icon: const Icon(Icons.table_chart_outlined, size: 16),
+                                  label: const Text('Export Excel'),
+                                  style: OutlinedButton.styleFrom(
+                                    foregroundColor: Colors.white,
+                                    side: const BorderSide(color: Colors.white54),
+                                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                    textStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                ElevatedButton.icon(
+                                  onPressed: _showCreateLoanModal,
+                                  icon: const Icon(Icons.add, size: 16),
+                                  label: const Text('New Loan Request'),
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: Colors.white,
+                                    foregroundColor: AppColors.darkPrimary,
+                                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                    textStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
                       ),
-                      Row(
+                      const SizedBox(height: 16),
+                      GridView.count(
+                        crossAxisCount: 3,
+                        shrinkWrap: true,
+                        physics: const NeverScrollableScrollPhysics(),
+                        crossAxisSpacing: 8,
+                        mainAxisSpacing: 8,
+                        childAspectRatio: 0.78,
                         children: [
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
-                            decoration: BoxDecoration(
-                              color: AppColors.lightInputBackground,
-                              borderRadius: BorderRadius.circular(4),
-                            ),
-                            child: Text(
-                              item['dept'] ?? '',
-                              style: const TextStyle(fontSize: 10, color: AppColors.lightSecondaryText, fontWeight: FontWeight.w500),
-                            ),
+                          _buildStatCard(
+                            label: 'Total Active Loans',
+                            value: '$_activeCount',
+                            sub: '${_formatCurrency(_totalOutstanding)} Outstanding',
+                            icon: Icons.volunteer_activism,
+                            bgColor: const Color(0xFFEFF6FF),
+                            iconColor: const Color(0xFF2563EB),
                           ),
-                          const SizedBox(width: 6),
-                          Text(
-                            item['type'] ?? '',
-                            style: const TextStyle(fontSize: 11, color: AppColors.lightMutedText, fontWeight: FontWeight.w600),
+                          _buildStatCard(
+                            label: 'Pending Requests',
+                            value: '$_pendingCount',
+                            sub: 'Awaiting Review',
+                            icon: Icons.schedule,
+                            bgColor: const Color(0xFFFFF7ED),
+                            iconColor: const Color(0xFFEA580C),
+                          ),
+                          _buildStatCard(
+                            label: 'Paid Off / Closed',
+                            value: '$_paidOffCount',
+                            sub: 'Fully Repaid',
+                            icon: Icons.check_circle_outline,
+                            bgColor: const Color(0xFFF0FDF4),
+                            iconColor: const Color(0xFF16A34A),
                           ),
                         ],
                       ),
                     ],
                   ),
                 ),
-              ],
-            ),
-            const SizedBox(height: 12),
 
-            // Amount breakdown grid
-            Container(
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(
-                color: AppColors.lightInputBackground,
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: Colors.grey.shade200),
-              ),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Column(
-                      children: [
-                        const Text('Sanctioned', style: TextStyle(fontSize: 10, color: AppColors.lightMutedText)),
-                        const SizedBox(height: 2),
-                        Text(_formatCurrency(item['totalAmount'] ?? 0), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
-                      ],
-                    ),
-                  ),
-                  Container(height: 20, width: 1, color: Colors.grey.shade300),
-                  Expanded(
-                    child: Column(
-                      children: [
-                        const Text('Balance', style: TextStyle(fontSize: 10, color: AppColors.lightMutedText)),
-                        const SizedBox(height: 2),
-                        Text(_formatCurrency(item['balance'] ?? 0), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: AppColors.error)),
-                      ],
-                    ),
-                  ),
-                  Container(height: 20, width: 1, color: Colors.grey.shade300),
-                  Expanded(
-                    child: Column(
-                      children: [
-                        const Text('Monthly EMI', style: TextStyle(fontSize: 10, color: AppColors.lightMutedText)),
-                        const SizedBox(height: 2),
-                        Text(_formatCurrency(item['monthlyDeduction'] ?? 0), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: AppColors.primary)),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const Divider(height: 18),
-
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Row(
-                  children: [
-                    const Icon(Icons.schedule, size: 14, color: AppColors.lightMutedText),
-                    const SizedBox(width: 4),
-                    Text(
-                      'Tenure: ${item['term']}',
-                      style: const TextStyle(fontSize: 11, color: AppColors.lightSecondaryText, fontWeight: FontWeight.w500),
-                    ),
-                  ],
-                ),
-                if (isPending)
-                  Row(
+                // Tab 2: Loans Register
+                SingleChildScrollView(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      ElevatedButton.icon(
-                        onPressed: () => _approveLoan(item),
-                        icon: const Icon(Icons.check, size: 14),
-                        label: const Text('Approve'),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: AppColors.success,
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                          textStyle: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                      AppCard(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            TextField(
+                              onChanged: (val) => setState(() => _searchTerm = val),
+                              decoration: InputDecoration(
+                                hintText: 'Search loan ID, employee...',
+                                hintStyle: const TextStyle(fontSize: 13, color: AppColors.lightMutedText),
+                                prefixIcon: const Icon(Icons.search, size: 20, color: AppColors.lightSecondaryText),
+                                filled: true,
+                                fillColor: AppColors.lightInputBackground,
+                                contentPadding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                  borderSide: BorderSide(color: Colors.grey.shade300),
+                                ),
+                                enabledBorder: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                  borderSide: BorderSide(color: Colors.grey.shade300),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 12),
+                            Row(
+                              children: [
+                                const Icon(Icons.filter_list, size: 18, color: AppColors.lightSecondaryText),
+                                const SizedBox(width: 6),
+                                Expanded(
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 10),
+                                    decoration: BoxDecoration(
+                                      border: Border.all(color: Colors.grey.shade300),
+                                      borderRadius: BorderRadius.circular(10),
+                                      color: Colors.white,
+                                    ),
+                                    child: DropdownButtonHideUnderline(
+                                      child: DropdownButton<String>(
+                                        value: _selectedType,
+                                        isExpanded: true,
+                                        icon: const Icon(Icons.arrow_drop_down, color: AppColors.primary),
+                                        style: const TextStyle(fontSize: 12, color: AppColors.lightPrimaryText, fontWeight: FontWeight.w500),
+                                        items: _loanTypes.map((t) {
+                                          return DropdownMenuItem<String>(
+                                            value: t,
+                                            child: Text(t == 'All' ? 'All Types' : t),
+                                          );
+                                        }).toList(),
+                                        onChanged: (val) {
+                                          if (val != null) setState(() => _selectedType = val);
+                                        },
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 12),
+                            SingleChildScrollView(
+                              scrollDirection: Axis.horizontal,
+                              child: Row(
+                                children: [
+                                  _buildTabChip('All Loans', 'All', _getStatusCount('All')),
+                                  const SizedBox(width: 8),
+                                  _buildTabChip('Active', 'Active', _activeCount),
+                                  const SizedBox(width: 8),
+                                  _buildTabChip('Pending', 'Pending', _pendingCount),
+                                  const SizedBox(width: 8),
+                                  _buildTabChip('Paid Off', 'Paid Off', _paidOffCount),
+                                ],
+                              ),
+                            ),
+                          ],
                         ),
                       ),
-                      const SizedBox(width: 6),
-                      OutlinedButton.icon(
-                        onPressed: () => _rejectLoan(item),
-                        icon: const Icon(Icons.close, size: 14),
-                        label: const Text('Reject'),
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: AppColors.error,
-                          side: const BorderSide(color: AppColors.error),
-                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                          textStyle: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                        ),
+                      const SizedBox(height: 16),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Row(
+                            children: const [
+                              Icon(Icons.list_alt, color: AppColors.primary, size: 20),
+                              SizedBox(width: 8),
+                              Text(
+                                'Loans & Advances Register',
+                                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+                              ),
+                            ],
+                          ),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: AppColors.lightPrimary,
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Text(
+                              '${filteredList.length} Listed',
+                              style: const TextStyle(
+                                color: AppColors.primary,
+                                fontSize: 12,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
+                      const SizedBox(height: 10),
+                      if (filteredList.isEmpty)
+                        AppCard(
+                          child: Padding(
+                            padding: const EdgeInsets.all(32),
+                            child: Column(
+                              children: const [
+                                CircleAvatar(
+                                  radius: 26,
+                                  backgroundColor: AppColors.lightSecondarySurface,
+                                  child: Icon(Icons.volunteer_activism_outlined, size: 28, color: AppColors.lightSecondaryText),
+                                ),
+                                SizedBox(height: 12),
+                                Text(
+                                  'No loan records match your search filter.',
+                                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+                                ),
+                                SizedBox(height: 4),
+                                Text(
+                                  'Try adjusting your search term or loan type criteria.',
+                                  textAlign: TextAlign.center,
+                                  style: TextStyle(fontSize: 12, color: AppColors.lightSecondaryText),
+                                ),
+                              ],
+                            ),
+                          ),
+                        )
+                      else
+                        ListView.builder(
+                          shrinkWrap: true,
+                          physics: const NeverScrollableScrollPhysics(),
+                          itemCount: filteredList.length,
+                          itemBuilder: (context, index) {
+                            return _buildLoanCard(filteredList[index]);
+                          },
+                        ),
                     ],
-                  )
-                else
-                  OutlinedButton.icon(
-                    onPressed: () => _viewLoanDetails(item),
-                    icon: const Icon(Icons.visibility, size: 14),
-                    label: const Text('View'),
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: AppColors.primary,
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                      textStyle: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                    ),
                   ),
+                ),
               ],
             ),
-          ],
-        ),
+          ),
+        ],
       ),
+    );
+
+    if (!showHeader) {
+      return Material(color: Colors.transparent, child: content);
+    }
+
+    return GlassScaffold(
+      appBar: const GlassHeader(title: 'Loans & Advances'),
+      showBottomBar: false,
+      body: content,
     );
   }
 }

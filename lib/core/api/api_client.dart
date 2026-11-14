@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:http/http.dart' as http;
 import '../config/app_config.dart';
 import '../errors/api_exception.dart';
+import 'api_endpoints.dart';
 
 class ApiClient {
   final http.Client _httpClient;
@@ -38,38 +39,31 @@ class ApiClient {
       debugPrint('[ApiClient] Error: $e \n $st');
     }
     if (e is ApiException) return e;
+    if (e is SocketException || e is HttpException || e is http.ClientException) {
+      return ApiException('Unable to connect to server. Please check your internet connection or server availability.');
+    }
+    if (e is TimeoutException) {
+      return ApiException('Request timed out. Please try again.');
+    }
+    if (e is HandshakeException) {
+      return ApiException('Secure connection failed. Please check device date/time or network settings.');
+    }
     final errStr = e.toString();
-    if (errStr.contains('ClientException') ||
-        errStr.contains('SocketException') ||
-        errStr.contains('Failed host lookup') ||
+    if (errStr.contains('Failed host lookup') ||
         errStr.contains('Connection refused') ||
         errStr.contains('Network is unreachable')) {
       return ApiException('Unable to connect to server. Please check your internet connection or server availability.');
-    }
-    if (errStr.contains('TimeoutException') || errStr.contains('timed out')) {
-      return ApiException('Request timed out. Please try again.');
-    }
-    if (errStr.contains('HandshakeException')) {
-      return ApiException('Secure connection failed. Please check device date/time or network settings.');
     }
     return ApiException(errStr.replaceFirst('Exception: ', '').replaceFirst('ApiException: ', ''));
   }
 
   Future<dynamic> get(String endpoint, {Map<String, String>? queryParams, Map<String, String>? headers}) async {
     final uri = _buildUri(endpoint, queryParams);
-    final builtHeaders = _buildHeaders(headers);
-    if (kDebugMode) {
-      final tokenPresent = builtHeaders.containsKey('Authorization') && builtHeaders['Authorization']!.isNotEmpty;
-      debugPrint('[ApiClient] GET ${uri.toString()} | Token Present: $tokenPresent');
-    }
     try {
-      final response = await _httpClient
-          .get(uri, headers: builtHeaders)
-          .timeout(const Duration(seconds: AppConfig.requestTimeoutSeconds));
-      if (kDebugMode) {
-        debugPrint('[ApiClient] Response Status: ${response.statusCode} | Length: ${response.body.length}');
-      }
-      return _processResponse(response);
+      return await _retryWithTokenRefresh(
+        () => _httpClient.get(uri, headers: _buildHeaders(headers)).timeout(const Duration(seconds: AppConfig.requestTimeoutSeconds)),
+        endpoint,
+      );
     } catch (e, st) {
       throw _handleException(e, st);
     }
@@ -78,19 +72,17 @@ class ApiClient {
   Future<dynamic> post(String endpoint, {dynamic body, dynamic data, Map<String, String>? headers}) async {
     final payload = body ?? data;
     final uri = _buildUri(endpoint);
-    final builtHeaders = _buildHeaders(headers);
-    final hasAuth = builtHeaders.containsKey('Authorization');
-    debugPrint('[AuthDiag:ApiClient] POST ${uri.toString()} | Auth Header Present: $hasAuth');
     try {
-      final response = await _httpClient
-          .post(
-            uri,
-            headers: builtHeaders,
-            body: payload != null ? jsonEncode(payload) : null,
-          )
-          .timeout(const Duration(seconds: AppConfig.requestTimeoutSeconds));
-      debugPrint('[AuthDiag:ApiClient] POST Response Status: ${response.statusCode} | Length: ${response.body.length}');
-      return _processResponse(response);
+      return await _retryWithTokenRefresh(
+        () => _httpClient
+            .post(
+              uri,
+              headers: _buildHeaders(headers),
+              body: payload != null ? jsonEncode(payload) : null,
+            )
+            .timeout(const Duration(seconds: AppConfig.requestTimeoutSeconds)),
+        endpoint,
+      );
     } catch (e, st) {
       throw _handleException(e, st);
     }
@@ -100,14 +92,16 @@ class ApiClient {
     final payload = body ?? data;
     final uri = _buildUri(endpoint);
     try {
-      final response = await _httpClient
-          .put(
-            uri,
-            headers: _buildHeaders(headers),
-            body: payload != null ? jsonEncode(payload) : null,
-          )
-          .timeout(const Duration(seconds: AppConfig.requestTimeoutSeconds));
-      return _processResponse(response);
+      return await _retryWithTokenRefresh(
+        () => _httpClient
+            .put(
+              uri,
+              headers: _buildHeaders(headers),
+              body: payload != null ? jsonEncode(payload) : null,
+            )
+            .timeout(const Duration(seconds: AppConfig.requestTimeoutSeconds)),
+        endpoint,
+      );
     } catch (e, st) {
       throw _handleException(e, st);
     }
@@ -117,14 +111,16 @@ class ApiClient {
     final payload = body ?? data;
     final uri = _buildUri(endpoint);
     try {
-      final response = await _httpClient
-          .patch(
-            uri,
-            headers: _buildHeaders(headers),
-            body: payload != null ? jsonEncode(payload) : null,
-          )
-          .timeout(const Duration(seconds: AppConfig.requestTimeoutSeconds));
-      return _processResponse(response);
+      return await _retryWithTokenRefresh(
+        () => _httpClient
+            .patch(
+              uri,
+              headers: _buildHeaders(headers),
+              body: payload != null ? jsonEncode(payload) : null,
+            )
+            .timeout(const Duration(seconds: AppConfig.requestTimeoutSeconds)),
+        endpoint,
+      );
     } catch (e, st) {
       throw _handleException(e, st);
     }
@@ -133,10 +129,70 @@ class ApiClient {
   Future<dynamic> delete(String endpoint, {Map<String, String>? headers}) async {
     final uri = _buildUri(endpoint);
     try {
+      return await _retryWithTokenRefresh(
+        () => _httpClient
+            .delete(uri, headers: _buildHeaders(headers))
+            .timeout(const Duration(seconds: AppConfig.requestTimeoutSeconds)),
+        endpoint,
+      );
+    } catch (e, st) {
+      throw _handleException(e, st);
+    }
+  }
+
+  /// Sends a multipart HTTP request for file uploads (images, documents, receipts).
+  Future<dynamic> postMultipart(
+    String endpoint, {
+    Map<String, String>? fields,
+    List<http.MultipartFile>? files,
+    Map<String, String>? headers,
+    String method = 'POST',
+  }) async {
+    final uri = _buildUri(endpoint);
+    try {
+      return await _retryWithTokenRefresh(
+        () async {
+          final request = http.MultipartRequest(method, uri);
+          final builtHeaders = _buildHeaders(headers);
+          builtHeaders.remove('Content-Type');
+          request.headers.addAll(builtHeaders);
+
+          if (fields != null) {
+            request.fields.addAll(fields);
+          }
+          if (files != null) {
+            request.files.addAll(files);
+          }
+
+          final streamedResponse = await _httpClient
+              .send(request)
+              .timeout(const Duration(seconds: AppConfig.requestTimeoutSeconds));
+          return await http.Response.fromStream(streamedResponse);
+        },
+        endpoint,
+      );
+    } catch (e, st) {
+      throw _handleException(e, st);
+    }
+  }
+
+  /// Explicitly downloads binary content (PDF payslips, documents, images) as raw bytes.
+  Future<Uint8List> getBytes(
+    String endpoint, {
+    Map<String, String>? queryParams,
+    Map<String, String>? headers,
+  }) async {
+    final uri = _buildUri(endpoint, queryParams);
+    final builtHeaders = _buildHeaders(headers);
+    try {
       final response = await _httpClient
-          .delete(uri, headers: _buildHeaders(headers))
+          .get(uri, headers: builtHeaders)
           .timeout(const Duration(seconds: AppConfig.requestTimeoutSeconds));
-      return _processResponse(response);
+      if (response.statusCode >= 200 && response.statusCode < 300) {
+        return response.bodyBytes;
+      }
+      _processResponse(response, endpoint); // Will throw appropriate ApiException
+      return response.bodyBytes;
     } catch (e, st) {
       throw _handleException(e, st);
     }
@@ -148,7 +204,151 @@ class ApiClient {
     return Uri.parse(fullUrl).replace(queryParameters: queryParams);
   }
 
-  dynamic _processResponse(http.Response response) {
+  bool _isRefreshing = false;
+  final List<Completer<bool>> _refreshCompleters = [];
+  Future<bool> Function()? _onTokenRefresh;
+
+  void setTokenRefreshHandler(Future<bool> Function() refreshHandler) {
+    _onTokenRefresh = refreshHandler;
+  }
+
+  /// Downloads binary stream (PDF payslips, documents) directly to disk in chunks with magic header validation.
+  Future<File> getBinaryStreamToFile(
+    String endpoint, {
+    required File targetFile,
+    Map<String, String>? queryParams,
+    Map<String, String>? headers,
+  }) async {
+    final uri = _buildUri(endpoint, queryParams);
+    final request = http.Request('GET', uri);
+    request.headers.addAll(_buildHeaders(headers));
+
+    if (!targetFile.parent.existsSync()) {
+      await targetFile.parent.create(recursive: true);
+    }
+
+    final tempFile = File('${targetFile.path}.tmp');
+    if (await tempFile.exists()) await tempFile.delete();
+
+    try {
+      final streamedResponse = await _httpClient.send(request).timeout(
+        const Duration(seconds: AppConfig.requestTimeoutSeconds),
+      );
+
+      if (streamedResponse.statusCode < 200 || streamedResponse.statusCode >= 300) {
+        final responseBody = await streamedResponse.stream.bytesToString();
+        final dummyResponse = http.Response(responseBody, streamedResponse.statusCode, headers: streamedResponse.headers);
+        _processResponse(dummyResponse);
+        throw ApiException('Failed to download binary file (HTTP ${streamedResponse.statusCode}).');
+      }
+
+      final sink = tempFile.openWrite();
+      await streamedResponse.stream.pipe(sink);
+
+      final length = await tempFile.length();
+      if (length < 4) {
+        if (await tempFile.exists()) await tempFile.delete();
+        throw ApiException('Downloaded file is empty or invalid.');
+      }
+
+      final bytes = await tempFile.openRead(0, 4).first;
+      final isPdf = bytes.length >= 4 &&
+          bytes[0] == 0x25 &&
+          bytes[1] == 0x50 &&
+          bytes[2] == 0x44 &&
+          bytes[3] == 0x46;
+
+      if (!isPdf) {
+        if (await tempFile.exists()) await tempFile.delete();
+        throw ApiException('Downloaded file failed PDF magic header validation.');
+      }
+
+      if (await targetFile.exists()) {
+        await targetFile.delete();
+      }
+      return await tempFile.rename(targetFile.path);
+    } catch (e, st) {
+      if (await tempFile.exists()) {
+        try { await tempFile.delete(); } catch (_) {}
+      }
+      throw _handleException(e, st);
+    }
+  }
+
+  /// Handles 401 token expiry retry loop using race-free single refresh locking and completer queueing.
+  Future<dynamic> _retryWithTokenRefresh(Future<http.Response> Function() requestExec, String endpoint) async {
+    http.Response response = await requestExec();
+    if (response.statusCode == 401 &&
+        _onTokenRefresh != null &&
+        !endpoint.contains(ApiEndpoints.login) &&
+        !endpoint.contains(ApiEndpoints.refresh)) {
+
+      Completer<bool>? currentCompleter;
+      bool shouldRefresh = false;
+
+      if (_isRefreshing) {
+        currentCompleter = Completer<bool>();
+        _refreshCompleters.add(currentCompleter);
+      } else {
+        _isRefreshing = true;
+        shouldRefresh = true;
+      }
+
+      if (!shouldRefresh && currentCompleter != null) {
+        final refreshed = await currentCompleter.future;
+        if (refreshed) {
+          response = await requestExec();
+        }
+      } else if (shouldRefresh) {
+        bool success = false;
+        try {
+          success = await _onTokenRefresh!();
+        } catch (_) {
+          success = false;
+        } finally {
+          _isRefreshing = false;
+          final pending = List<Completer<bool>>.from(_refreshCompleters);
+          _refreshCompleters.clear();
+          for (final c in pending) {
+            if (!c.isCompleted) c.complete(success);
+          }
+        }
+
+        if (success) {
+          response = await requestExec();
+        }
+      }
+    }
+    return _processResponse(response, endpoint);
+  }
+
+  dynamic _processResponse(http.Response response, [String? endpoint]) {
+    if (kDebugMode) {
+      debugPrint('[ApiClient] Response [${response.statusCode}] for endpoint: ${endpoint ?? 'unknown'}. Body: ${response.body}');
+    }
+    final contentType = (response.headers['content-type'] ?? '').toLowerCase();
+    final isBinary = contentType.contains('application/pdf') ||
+        contentType.contains('octet-stream') ||
+        contentType.contains('image/') ||
+        contentType.contains('application/vnd.ms-excel') ||
+        contentType.contains('spreadsheetml') ||
+        contentType.contains('zip');
+
+    if (response.statusCode >= 200 && response.statusCode < 300) {
+      if (isBinary) {
+        return response.bodyBytes;
+      }
+      dynamic responseJson;
+      try {
+        if (response.body.isNotEmpty) {
+          responseJson = jsonDecode(response.body);
+        }
+      } catch (_) {
+        responseJson = response.body;
+      }
+      return responseJson;
+    }
+
     dynamic responseJson;
     try {
       if (response.body.isNotEmpty) {
@@ -156,10 +356,6 @@ class ApiClient {
       }
     } catch (_) {
       responseJson = response.body;
-    }
-
-    if (response.statusCode >= 200 && response.statusCode < 300) {
-      return responseJson;
     }
 
     String errorMessage = 'Request failed with status: ${response.statusCode}';
@@ -191,7 +387,15 @@ class ApiClient {
     }
 
     if (response.statusCode == 401) {
-      throw UnauthorizedException(errorMessage.contains('status: 401') ? 'Invalid work email or password.' : errorMessage);
+      final isLogin = endpoint != null && (endpoint.contains(ApiEndpoints.login) || endpoint.contains('login'));
+      final defaultMsg = isLogin
+          ? 'Invalid work email or password.'
+          : 'Session expired or unauthorized. Please log in again.';
+      throw UnauthorizedException(
+        (errorMessage.contains('status: 401') || errorMessage.isEmpty)
+            ? defaultMsg
+            : errorMessage,
+      );
     } else if (response.statusCode == 403) {
       throw ForbiddenException(errorMessage.contains('status: 403') ? 'Account access is restricted or forbidden.' : errorMessage);
     } else if (response.statusCode == 404) {

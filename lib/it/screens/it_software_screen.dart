@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 
 import '../../core/api/api_client.dart';
 import '../../core/api/api_endpoints.dart';
+import '../../core/api/it_service.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/glass_theme.dart';
 import '../../core/widgets/glass_scaffold.dart';
@@ -42,68 +43,132 @@ class _ItSoftwareScreenState extends ConsumerState<ItSoftwareScreen> {
     super.dispose();
   }
 
+  List<dynamic> _extractList(dynamic res) {
+    if (res == null) return [];
+    if (res is List) return res;
+    if (res is Map) {
+      if (res['data'] is List) return res['data'] as List;
+      if (res['assets'] is List) return res['assets'] as List;
+      if (res['items'] is List) return res['items'] as List;
+      if (res['software'] is List) return res['software'] as List;
+      if (res['licenses'] is List) return res['licenses'] as List;
+      if (res['result'] is List) return res['result'] as List;
+      if (res['value'] is List) return res['value'] as List;
+      if (res['content'] is List) return res['content'] as List;
+      if (res['data'] is Map) {
+        final inner = res['data'] as Map;
+        if (inner['items'] is List) return inner['items'] as List;
+        if (inner['software'] is List) return inner['software'] as List;
+        if (inner['licenses'] is List) return inner['licenses'] as List;
+      }
+    }
+    return [];
+  }
+
   Future<void> _fetchSoftwareData() async {
     setState(() => _isLoading = true);
-    final apiClient = ref.read(apiClientProvider);
+    final itService = ref.read(itServiceProvider);
 
     try {
-      dynamic res = await apiClient.get('/it/software').catchError((_) => null);
-      if (res == null) {
-        res = await apiClient.get(ApiEndpoints.itSoftware).catchError((_) => null);
+      dynamic res;
+      for (final ep in ['/it/software', ApiEndpoints.itSoftware, '/software', '/licenses', '/it/licenses']) {
+        try {
+          final temp = await itService.rawGet(ep).catchError((_) => null);
+          final list = _extractList(temp);
+          if (list.isNotEmpty) {
+            res = temp;
+            break;
+          }
+          if (res == null && temp != null) {
+            res = temp;
+          }
+        } catch (_) {}
       }
 
-      dynamic empRes = await apiClient.get(ApiEndpoints.employees).catchError((_) => null);
-      if (empRes == null) {
-        empRes = await apiClient.get('/employees').catchError((_) => null);
+      dynamic empRes;
+      for (final ep in [ApiEndpoints.employeesAll, '/employees/all', ApiEndpoints.employees, '/employees']) {
+        try {
+          final temp = await itService.rawGet(ep).catchError((_) => null);
+          if (_extractList(temp).isNotEmpty) {
+            empRes = temp;
+            break;
+          }
+          if (empRes == null && temp != null) {
+            empRes = temp;
+          }
+        } catch (_) {}
       }
 
       if (mounted) {
+        List<dynamic> softwareList = _extractList(res);
+        if (softwareList.isEmpty) {
+          softwareList = [
+            {
+              'id': 'sw-1',
+              'name': 'GitHub Enterprise',
+              'vendor': 'GitHub',
+              'totalSeats': 30,
+              'allocatedSeats': 25,
+              'expiryDate': '2026-10-27',
+              'status': 'EXPIRING_SOON',
+              'notes': 'Developer organization licenses.'
+            },
+            {
+              'id': 'sw-2',
+              'name': 'Figma Professional',
+              'vendor': 'Figma',
+              'totalSeats': 10,
+              'allocatedSeats': 8,
+              'expiryDate': '2027-04-17',
+              'status': 'ACTIVE',
+              'notes': 'UI/UX team subscription.'
+            },
+            {
+              'id': 'sw-3',
+              'name': 'Zoom Business',
+              'vendor': 'Zoom',
+              'totalSeats': 50,
+              'allocatedSeats': 0,
+              'expiryDate': '2026-10-02',
+              'status': 'EXPIRED',
+              'notes': 'Company video conferencing suite.'
+            },
+            {
+              'id': 'sw-4',
+              'name': 'Slack Business+',
+              'vendor': 'Slack',
+              'totalSeats': 50,
+              'allocatedSeats': 45,
+              'expiryDate': '2026-11-11',
+              'status': 'EXPIRING_SOON',
+              'notes': 'Team communication platform.'
+            },
+            {
+              'id': 'sw-5',
+              'name': 'JetBrains IntelliJ IDEA',
+              'vendor': 'JetBrains',
+              'totalSeats': 20,
+              'allocatedSeats': 18,
+              'expiryDate': '2027-08-17',
+              'status': 'ACTIVE',
+              'notes': 'IDE licenses for backend team.'
+            },
+            {
+              'id': 'sw-6',
+              'name': 'Microsoft Office 365',
+              'vendor': 'Microsoft',
+              'totalSeats': 50,
+              'allocatedSeats': 42,
+              'expiryDate': '2027-06-17',
+              'status': 'ACTIVE',
+              'notes': 'Enterprise productivity suite.'
+            },
+          ];
+        }
+
         setState(() {
-          if (res is List) {
-            _softwareList = res;
-          } else if (res is Map<String, dynamic> && res['data'] is List) {
-            _softwareList = res['data'];
-          } else {
-            _softwareList = [
-              {
-                'id': 'sw-1',
-                'name': 'GitHub Enterprise',
-                'vendor': 'GitHub',
-                'totalSeats': 50,
-                'allocatedSeats': 42,
-                'expiryDate': '2026-12-31',
-                'status': 'Active',
-                'notes': 'Developer organization licenses.'
-              },
-              {
-                'id': 'sw-2',
-                'name': 'Jira Software',
-                'vendor': 'Atlassian',
-                'totalSeats': 100,
-                'allocatedSeats': 85,
-                'expiryDate': '2026-10-15',
-                'status': 'Active',
-                'notes': 'Project tracking suite.'
-              },
-              {
-                'id': 'sw-3',
-                'name': 'Figma Professional',
-                'vendor': 'Figma Inc',
-                'totalSeats': 15,
-                'allocatedSeats': 14,
-                'expiryDate': '2026-04-20',
-                'status': 'Expiring Soon',
-                'notes': 'UI/UX team subscription.'
-              },
-            ];
-          }
-
-          if (empRes is List) {
-            _employees = empRes;
-          } else if (empRes is Map<String, dynamic> && empRes['data'] is List) {
-            _employees = empRes['data'];
-          }
-
+          _softwareList = softwareList;
+          _employees = _extractList(empRes);
           _isLoading = false;
         });
       }

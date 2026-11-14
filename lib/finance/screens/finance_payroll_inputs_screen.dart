@@ -5,6 +5,8 @@ import '../../core/api/api_client.dart';
 import '../../core/api/api_endpoints.dart';
 import '../../core/theme/app_colors.dart';
 import '../../shared/widgets/app_card.dart';
+import '../../shared/widgets/empty_state_widget.dart';
+import '../../shared/widgets/error_state_widget.dart';
 import '../../shared/widgets/loading_shimmer.dart';
 
 class FinancePayrollInputsScreen extends ConsumerStatefulWidget {
@@ -16,6 +18,7 @@ class FinancePayrollInputsScreen extends ConsumerStatefulWidget {
 
 class _FinancePayrollInputsScreenState extends ConsumerState<FinancePayrollInputsScreen> {
   bool _isLoading = true;
+  String? _errorMessage;
   List<Map<String, dynamic>> _inputs = [];
   String _searchQuery = '';
   String _selectedCycle = 'October 2025';
@@ -27,11 +30,14 @@ class _FinancePayrollInputsScreenState extends ConsumerState<FinancePayrollInput
   }
 
   Future<void> _loadInputs() async {
-    setState(() => _isLoading = true);
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
     final apiClient = ref.read(apiClientProvider);
 
     try {
-      final res = await apiClient.get(ApiEndpoints.payrollInputs).catchError((_) => null);
+      final res = await apiClient.get(ApiEndpoints.payrollInputs);
 
       if (mounted) {
         List<dynamic> items = [];
@@ -43,18 +49,15 @@ class _FinancePayrollInputsScreenState extends ConsumerState<FinancePayrollInput
           items = res['items'];
         }
 
-        if (items.isNotEmpty) {
-          _inputs = items.map((i) => _mapInput(i)).toList();
-        } else {
-          _inputs = _getMockInputs();
-        }
+        _inputs = items.map((i) => _mapInput(i)).toList();
         _isLoading = false;
         setState(() {});
       }
-    } catch (_) {
+    } catch (e) {
       if (mounted) {
         setState(() {
-          _inputs = _getMockInputs();
+          _inputs = [];
+          _errorMessage = e.toString().replaceFirst('Exception: ', '').replaceFirst('ApiException: ', '');
           _isLoading = false;
         });
       }
@@ -65,54 +68,13 @@ class _FinancePayrollInputsScreenState extends ConsumerState<FinancePayrollInput
     final Map<String, dynamic> map = i is Map<String, dynamic> ? i : {};
     return {
       'name': map['employeeName'] ?? map['name'] ?? 'John Doe',
-      'empId': map['employeeId'] ?? map['empId'] ?? 'EMP-1024',
-      'department': map['department'] ?? 'Engineering',
-      'overtimeHours': map['overtimeHours']?.toString() ?? '12',
-      'bonus': map['bonus'] != null ? '₹${map['bonus']}' : '₹5,000',
-      'deductions': map['deductions'] != null ? '₹${map['deductions']}' : '₹1,500',
+      'empId': map['employeeId'] ?? map['empId'] ?? map['id'] ?? 'EMP-1024',
+      'department': map['department'] ?? map['departmentName'] ?? 'Engineering',
+      'overtimeHours': map['overtimeHours']?.toString() ?? '0',
+      'bonus': map['bonus'] != null ? '₹${map['bonus']}' : '₹0',
+      'deductions': map['deductions'] != null ? '₹${map['deductions']}' : '₹0',
       'status': map['status'] ?? 'Submitted',
     };
-  }
-
-  List<Map<String, dynamic>> _getMockInputs() {
-    return [
-      {
-        'name': 'Rahul Sharma',
-        'empId': 'EMP-2041',
-        'department': 'Engineering',
-        'overtimeHours': '15',
-        'bonus': '₹7,500',
-        'deductions': '₹2,000',
-        'status': 'Approved',
-      },
-      {
-        'name': 'Priya Patel',
-        'empId': 'EMP-2089',
-        'department': 'Product Design',
-        'overtimeHours': '8',
-        'bonus': '₹4,000',
-        'deductions': '₹1,200',
-        'status': 'Pending',
-      },
-      {
-        'name': 'Amit Verma',
-        'empId': 'EMP-3102',
-        'department': 'Sales & Marketing',
-        'overtimeHours': '20',
-        'bonus': '₹10,000',
-        'deductions': '₹3,500',
-        'status': 'Approved',
-      },
-      {
-        'name': 'Sneha Rao',
-        'empId': 'EMP-4015',
-        'department': 'Human Resources',
-        'overtimeHours': '5',
-        'bonus': '₹3,000',
-        'deductions': '₹1,000',
-        'status': 'Submitted',
-      },
-    ];
   }
 
   void _showAddInputDialog() {
@@ -185,6 +147,12 @@ class _FinancePayrollInputsScreenState extends ConsumerState<FinancePayrollInput
   @override
   Widget build(BuildContext context) {
     if (_isLoading) return const DashboardSkeleton();
+    if (_errorMessage != null) {
+      return ErrorStateWidget(
+        errorMessage: _errorMessage!,
+        onRetry: _loadInputs,
+      );
+    }
 
     final filtered = _inputs.where((item) {
       final q = _searchQuery.toLowerCase();
@@ -260,11 +228,19 @@ class _FinancePayrollInputsScreenState extends ConsumerState<FinancePayrollInput
             const SizedBox(height: 16),
 
             // List of Inputs
-            ListView.builder(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              itemCount: filtered.length,
-              itemBuilder: (context, index) {
+            filtered.isEmpty
+                ? EmptyStateWidget(
+                    title: _inputs.isEmpty ? 'No Payroll Inputs' : 'No Matching Inputs',
+                    message: _inputs.isEmpty
+                        ? 'There are no payroll input adjustments found for this cycle.'
+                        : 'No payroll inputs matched "$_searchQuery".',
+                    icon: _inputs.isEmpty ? Icons.playlist_add_check_outlined : Icons.search_off_rounded,
+                  )
+                : ListView.builder(
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    itemCount: filtered.length,
+                    itemBuilder: (context, index) {
                 final item = filtered[index];
                 final status = item['status'] ?? 'Submitted';
                 final statusColor = status == 'Approved' ? AppColors.success : (status == 'Pending' ? Colors.orange : AppColors.primary);

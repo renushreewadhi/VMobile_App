@@ -7,7 +7,7 @@ import '../../finance/finance_role_shell.dart';
 import '../../helpdesk/helpdesk_role_shell.dart';
 import '../../hr/hr_role_shell.dart';
 import '../../it/it_role_shell.dart';
-import '../../team-lead/team_lead_role_shell.dart';
+import '../../team_lead/team_lead_role_shell.dart';
 import '../auth/auth_service.dart';
 import '../models/user_model.dart';
 
@@ -56,6 +56,31 @@ class AppRouter extends ConsumerWidget {
       }
     }
 
+    if (authState.user!.role == UserRole.UNAUTHORIZED) {
+      return Scaffold(
+        body: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24.0),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(Icons.block_rounded, size: 64, color: Colors.red),
+                const SizedBox(height: 16),
+                const Text('Access Denied', style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
+                const SizedBox(height: 8),
+                const Text('Your account role is unrecognized or unauthorized.', textAlign: TextAlign.center, style: TextStyle(color: Colors.grey)),
+                const SizedBox(height: 24),
+                ElevatedButton(
+                  onPressed: () => ref.read(authServiceProvider.notifier).logout(),
+                  child: const Text('Sign Out'),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
     switch (authState.user!.role) {
       case UserRole.ADMIN:
         return const AdminRoleShell();
@@ -71,6 +96,8 @@ class AppRouter extends ConsumerWidget {
         return const HelpdeskRoleShell();
       case UserRole.EMPLOYEE:
         return const EmployeeRoleShell();
+      case UserRole.UNAUTHORIZED:
+        return const LoginScreen();
     }
   }
 }

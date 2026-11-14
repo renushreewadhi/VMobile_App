@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 
 import '../../core/api/api_client.dart';
 import '../../core/api/api_endpoints.dart';
+import '../../core/api/it_service.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/glass_theme.dart';
 import '../../core/widgets/glass_scaffold.dart';
@@ -47,15 +48,15 @@ class _ItTicketsScreenState extends ConsumerState<ItTicketsScreen> {
 
   Future<void> _fetchTicketsData() async {
     setState(() => _isLoading = true);
-    final apiClient = ref.read(apiClientProvider);
+    final itService = ref.read(itServiceProvider);
 
     try {
-      dynamic res = await apiClient.get('/it/tickets').catchError((_) => null);
+      dynamic res = await itService.getItTickets().catchError((_) => null);
       if (res == null) {
-        res = await apiClient.get(ApiEndpoints.itTickets).catchError((_) => null);
+        res = await itService.rawGet('/it/tickets').catchError((_) => null);
       }
 
-      dynamic statsRes = await apiClient.get('/it/tickets/stats').catchError((_) => null);
+      dynamic statsRes = await itService.rawGet('/it/tickets/stats').catchError((_) => null);
 
       if (mounted) {
         setState(() {
@@ -678,10 +679,10 @@ class _ItTicketsScreenState extends ConsumerState<ItTicketsScreen> {
                                 }
 
                                 setModalState(() => isSending = true);
-                                final apiClient = ref.read(apiClientProvider);
+                                final itService = ref.read(itServiceProvider);
                                 try {
-                                  await apiClient.put('/it/tickets/${item['id']}', body: {'status': replyStatus});
-                                  await apiClient.post('/it/tickets/${item['id']}/comments', body: {'content': replyController.text.trim()});
+                                  await itService.rawPut('/it/tickets/${item['id']}', body: {'status': replyStatus});
+                                  await itService.addTicketComment(item['id'].toString(), replyController.text.trim());
                                   if (context.mounted) {
                                     Navigator.pop(modalContext);
                                     ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Reply sent & ticket updated!'), backgroundColor: AppColors.success));

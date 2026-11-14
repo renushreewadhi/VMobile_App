@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/api/api_client.dart';
+import '../../../core/api/training_service.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/widgets/glass_scaffold.dart';
 import '../../../shared/widgets/app_card.dart';
@@ -29,9 +30,9 @@ class _HrCertificatesScreenState extends ConsumerState<HrCertificatesScreen> {
 
   Future<void> _loadCertificates() async {
     setState(() => _isLoading = true);
-    final apiClient = ref.read(apiClientProvider);
+    final trainingService = ref.read(trainingServiceProvider);
     try {
-      final res = await apiClient.get('/training/certificates').catchError((_) => null);
+      final res = await trainingService.getCertificates().catchError((_) => null);
       List<dynamic> items = res is List ? res : (res is Map && res['data'] is List ? res['data'] : []);
       setState(() {
         _certificates = items;

@@ -110,7 +110,7 @@ class _AdminProjectMembersScreenState extends ConsumerState<AdminProjectMembersS
       final memRes = await apiClient.get(ApiEndpoints.projectMembers(widget.projectId)).catchError((_) => null);
       if (!mounted || currentReq != _requestId) return;
 
-      final candRes = await apiClient.get(ApiEndpoints.employees).catchError((_) => null);
+      final candRes = await apiClient.get(ApiEndpoints.managementEmployees).catchError((_) => apiClient.get('${ApiEndpoints.employeesAll}?limit=500').catchError((_) => apiClient.get(ApiEndpoints.employees).catchError((_) => null)));
       if (!mounted || currentReq != _requestId) return;
 
       dynamic rawProj = projRes is Map<String, dynamic> && projRes.containsKey('data') ? projRes['data'] : projRes;

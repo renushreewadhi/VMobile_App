@@ -30,7 +30,7 @@ class GlassHeader extends ConsumerWidget implements PreferredSizeWidget {
   @override
   Size get preferredSize {
     final hasTitle = title != null && title!.isNotEmpty;
-    return Size.fromHeight(hasTitle ? 112.0 : 60.0);
+    return Size.fromHeight(hasTitle ? 100.0 : 54.0);
   }
 
   @override
@@ -65,20 +65,41 @@ class GlassHeader extends ConsumerWidget implements PreferredSizeWidget {
                 Padding(
                   padding: EdgeInsets.only(top: topPadding),
                   child: SizedBox(
-                    height: 56,
+                    height: 54,
                     child: Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 16),
                       child: Row(
                         children: [
-                          leading ??
-                              Image.asset(
-                                'lib/assets/img.png',
-                                height: 26,
-                                fit: BoxFit.contain,
-                                color: isDark ? Colors.white : null,
-                              ),
+                          Flexible(
+                            child: leading ??
+                                Image.asset(
+                                  'lib/assets/img.png',
+                                  height: 26,
+                                  fit: BoxFit.contain,
+                                  color: isDark ? Colors.white : null,
+                                  errorBuilder: (_, __, ___) => Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Icon(Icons.business_rounded, color: isDark ? Colors.white : AppColors.primary, size: 22),
+                                      const SizedBox(width: 6),
+                                      Text('etaprise', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: isDark ? Colors.white : const Color(0xFF0F172A))),
+                                    ],
+                                  ),
+                                ),
+                          ),
                           const Spacer(),
-                          if (actions != null) ...actions!,
+                          if (actions != null)
+                            Flexible(
+                              child: SingleChildScrollView(
+                                scrollDirection: Axis.horizontal,
+                                physics: const BouncingScrollPhysics(),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  mainAxisAlignment: MainAxisAlignment.end,
+                                  children: actions!,
+                                ),
+                              ),
+                            ),
                           if (actions == null) ...[
                             Semantics(
                               label: isDark ? "Switch to light mode" : "Switch to dark mode",
@@ -226,7 +247,7 @@ class GlassHeader extends ConsumerWidget implements PreferredSizeWidget {
                 // 2. SUBHEADER ROW FOR PAGE TITLE & BACK BUTTON (Directly below brand row)
                 if (hasTitle)
                   Container(
-                    height: 52,
+                    height: 46,
                     padding: const EdgeInsets.symmetric(horizontal: 16),
                     decoration: BoxDecoration(
                       border: Border(

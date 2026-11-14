@@ -57,26 +57,29 @@ class _AdminOnboardingFormScreenState extends ConsumerState<AdminOnboardingFormS
   }
 
   void _populateData(Map<String, dynamic> data) {
-    _nameController.text = data['employeeName']?.toString() ?? data['name']?.toString() ?? '';
+    _nameController.text = data['employeeName']?.toString() ?? data['candidateName']?.toString() ?? data['name']?.toString() ?? '';
     _positionController.text = data['jobPosition']?.toString() ?? data['position']?.toString() ?? '';
     _codeController.text = data['jobReferenceCode']?.toString() ?? data['code']?.toString() ?? '';
-    _departmentController.text = data['departmentName']?.toString() ?? data['department']?.toString() ?? 'Engineering';
-    _designationController.text = data['designation']?.toString() ?? '';
-    _branchController.text = data['branch']?.toString() ?? 'Main Office';
-    _managerController.text = data['reportingManager']?.toString() ?? '';
+    _departmentController.text = data['departmentName']?.toString() ?? data['department']?.toString() ?? '';
+    _designationController.text = data['designationName']?.toString() ?? data['designation']?.toString() ?? '';
+    _branchController.text = data['branchName']?.toString() ?? data['branch']?.toString() ?? '';
+    _managerController.text = data['reportingManagerName']?.toString() ?? data['reportingManager']?.toString() ?? '';
     _mentorController.text = data['mentorName']?.toString() ?? data['mentor']?.toString() ?? '';
-    _dateController.text = data['startDate']?.toString() ?? DateTime.now().toIso8601String().substring(0, 10);
-    _locationController.text = data['workLocation']?.toString() ?? 'Headquarters';
+
+    final rawDate = data['startDate']?.toString() ?? data['joiningDate']?.toString() ?? DateTime.now().toIso8601String();
+    _dateController.text = rawDate.contains('T') ? rawDate.split('T')[0] : rawDate;
+
+    _locationController.text = data['workLocation']?.toString() ?? 'Surat';
 
     if (data['offer'] is Map<String, dynamic>) {
       final offer = data['offer'] as Map<String, dynamic>;
-      _salaryController.text = offer['salaryCtc']?.toString() ?? '1200000';
+      _salaryController.text = offer['salaryCtc']?.toString() ?? '18000';
       _probationController.text = offer['probationMonths']?.toString() ?? '3';
       _noticeController.text = offer['noticePeriodDays']?.toString() ?? '30';
     }
 
-    _employmentType = data['employmentType']?.toString() ?? 'Full-Time';
-    _employeeType = data['employeeType']?.toString() ?? 'Probation';
+    _employmentType = data['employmentType']?.toString() ?? 'Full Time';
+    _employeeType = data['employeeType']?.toString() ?? 'Permanent';
   }
 
   Future<void> _loadDetail() async {

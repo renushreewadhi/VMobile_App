@@ -3,10 +3,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import '../../core/api/api_client.dart';
 import '../../core/api/api_endpoints.dart';
+import '../../core/api/payroll_service.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/widgets/glass_header.dart';
 import '../../core/widgets/glass_scaffold.dart';
 import '../../shared/widgets/app_card.dart';
+import '../../shared/widgets/empty_state_widget.dart';
+import '../../shared/widgets/error_state_widget.dart';
 
 class HrPayrollReportsScreen extends ConsumerStatefulWidget {
   final bool showAppBar;
@@ -18,6 +21,7 @@ class HrPayrollReportsScreen extends ConsumerStatefulWidget {
 
 class _HrPayrollReportsScreenState extends ConsumerState<HrPayrollReportsScreen> {
   bool _isLoading = true;
+  String? _errorMessage;
   String _selectedMonth = 'Sep';
   int _selectedYear = 2026;
 
@@ -33,64 +37,36 @@ class _HrPayrollReportsScreenState extends ConsumerState<HrPayrollReportsScreen>
   }
 
   Future<void> _loadReportData() async {
-    setState(() => _isLoading = true);
-    final apiClient = ref.read(apiClientProvider);
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
+    final payrollService = ref.read(payrollServiceProvider);
 
     try {
-      final res = await apiClient.get('${ApiEndpoints.payrollReport}?year=$_selectedYear&month=$_selectedMonth').catchError((_) => null);
+      final res = await payrollService.getPayrollReport(queryParams: {
+        'year': _selectedYear.toString(),
+        'month': _selectedMonth,
+      });
 
       if (mounted) {
-        if (res is Map<String, dynamic> && res['totalEarnings'] != null) {
-          _reportData = res;
+        if (res is Map<String, dynamic>) {
+          _reportData = res['data'] is Map<String, dynamic> ? res['data'] : res;
         } else {
-          _reportData = _getMockReportData();
+          _reportData = {};
         }
         _isLoading = false;
         setState(() {});
       }
-    } catch (_) {
+    } catch (e) {
       if (mounted) {
         setState(() {
-          _reportData = _getMockReportData();
+          _reportData = {};
+          _errorMessage = e.toString().replaceFirst('Exception: ', '').replaceFirst('ApiException: ', '');
           _isLoading = false;
         });
       }
     }
-  }
-
-  Map<String, dynamic> _getMockReportData() {
-    return {
-      'totalGrossPayroll': 296332.0,
-      'netPayableAmount': 271222.0,
-      'totalDeductions': 25110.0,
-      'averageSalary': 24657.0,
-      'totalStaff': 11,
-      'disbursedStaff': 11,
-      'earningsBreakdown': {
-        'basicSalary': 192000.0,
-        'hra': 76800.0,
-        'specialAllowances': 27532.0,
-      },
-      'deductionsBreakdown': {
-        'providentFund': 23040.0,
-        'incomeTax': 9600.0,
-        'esi': 3360.0,
-        'professionalTax': 0.0,
-      },
-      'departmentDistribution': [
-        {'name': 'Engineering', 'amount': 147166.0, 'color': const Color(0xFFEF4444), 'percent': 50},
-        {'name': 'Human Resources', 'amount': 120000.0, 'color': const Color(0xFF64748B), 'percent': 40},
-        {'name': 'Finance', 'amount': 29166.0, 'color': const Color(0xFF10B981), 'percent': 10},
-      ],
-      'highestDepartment': {'name': 'Engineering', 'amount': 147166.0},
-      'lowestDepartment': {'name': 'Finance', 'amount': 29166.0},
-      'locationDistribution': [
-        {'name': 'Head Office', 'amount': 264332.0, 'color': const Color(0xFF84CC16), 'percent': 89},
-        {'name': 'Pune Office', 'amount': 32000.0, 'color': const Color(0xFF10B981), 'percent': 11},
-      ],
-      'highestLocation': {'name': 'Head Office', 'amount': 264332.0},
-      'lowestLocation': {'name': 'Pune Office', 'amount': 32000.0},
-    };
   }
 
   String _formatMoney(dynamic amount) {
@@ -112,14 +88,23 @@ class _HrPayrollReportsScreenState extends ConsumerState<HrPayrollReportsScreen>
     if (_isLoading) {
       final skeleton = const Center(child: CircularProgressIndicator());
       if (!widget.showAppBar) return Material(color: Colors.transparent, child: skeleton);
-      return GlassScaffold(title: 'Payroll Analytics & Compensation Reports', body: skeleton);
+      return GlassScaffold(title: 'Payroll Analytics', body: skeleton);
+    }
+
+    if (_errorMessage != null) {
+      final errBody = ErrorStateWidget(
+        errorMessage: _errorMessage!,
+        onRetry: _loadReportData,
+      );
+      if (!widget.showAppBar) return Material(color: Colors.transparent, child: errBody);
+      return GlassScaffold(title: 'Payroll Analytics', body: errBody);
     }
 
     final cardBg = Theme.of(context).cardColor;
-    final gross = _reportData['totalGrossPayroll'] ?? 296332.0;
-    final net = _reportData['netPayableAmount'] ?? 271222.0;
-    final deduct = _reportData['totalDeductions'] ?? 25110.0;
-    final avg = _reportData['averageSalary'] ?? 24657.0;
+    final gross = _reportData['totalGrossPayroll'] ?? 0.0;
+    final net = _reportData['netPayableAmount'] ?? 0.0;
+    final deduct = _reportData['totalDeductions'] ?? 0.0;
+    final avg = _reportData['averageSalary'] ?? 0.0;
 
     final earningsMap = _reportData['earningsBreakdown'] as Map<String, dynamic>? ?? {};
     final deductionsMap = _reportData['deductionsBreakdown'] as Map<String, dynamic>? ?? {};
@@ -473,7 +458,7 @@ class _HrPayrollReportsScreenState extends ConsumerState<HrPayrollReportsScreen>
     if (!widget.showAppBar) return Material(color: Colors.transparent, child: bodyContent);
 
     return GlassScaffold(
-      appBar: GlassHeader(title: 'Payroll Analytics & Compensation Reports'),
+      appBar: GlassHeader(title: 'Payroll Analytics'),
       body: bodyContent,
     );
   }

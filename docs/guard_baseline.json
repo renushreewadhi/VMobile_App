@@ -1,210 +1,262 @@
 {
+  "lib/admin/admin_role_shell.dart": {
+    "colors": 0,
+    "fontSizes": 0
+  },
   "lib/admin/screens/admin_announcements_screen.dart": {
-    "colors": 6,
-    "fontSizes": 2
+    "colors": 34,
+    "fontSizes": 27
   },
   "lib/admin/screens/admin_attendance_screen.dart": {
-    "colors": 20,
-    "fontSizes": 8
+    "colors": 368,
+    "fontSizes": 141
   },
   "lib/admin/screens/admin_audit_logs_screen.dart": {
-    "colors": 8,
-    "fontSizes": 3
+    "colors": 21,
+    "fontSizes": 31
+  },
+  "lib/admin/screens/admin_benefits_management_screen.dart": {
+    "colors": 25,
+    "fontSizes": 20
   },
   "lib/admin/screens/admin_benefit_invoices_screen.dart": {
-    "colors": 3,
-    "fontSizes": 1
+    "colors": 19,
+    "fontSizes": 30
   },
   "lib/admin/screens/admin_branches_screen.dart": {
-    "colors": 9,
-    "fontSizes": 3
+    "colors": 67,
+    "fontSizes": 21
   },
   "lib/admin/screens/admin_branch_detail_screen.dart": {
-    "colors": 12,
-    "fontSizes": 3
+    "colors": 17,
+    "fontSizes": 17
   },
   "lib/admin/screens/admin_branch_form_screen.dart": {
-    "colors": 4,
-    "fontSizes": 2
+    "colors": 78,
+    "fontSizes": 18
+  },
+  "lib/admin/screens/admin_candidate_add_screen.dart": {
+    "colors": 2,
+    "fontSizes": 1
+  },
+  "lib/admin/screens/admin_candidate_detail_screen.dart": {
+    "colors": 21,
+    "fontSizes": 21
+  },
+  "lib/admin/screens/admin_candidate_edit_screen.dart": {
+    "colors": 1,
+    "fontSizes": 1
   },
   "lib/admin/screens/admin_company_settings_screen.dart": {
-    "colors": 4,
-    "fontSizes": 2
+    "colors": 139,
+    "fontSizes": 41
   },
   "lib/admin/screens/admin_dashboard_screen.dart": {
-    "colors": 18,
-    "fontSizes": 9
+    "colors": 135,
+    "fontSizes": 71
   },
   "lib/admin/screens/admin_departments_screen.dart": {
-    "colors": 13,
-    "fontSizes": 5
+    "colors": 73,
+    "fontSizes": 14
   },
   "lib/admin/screens/admin_department_detail_screen.dart": {
-    "colors": 11,
-    "fontSizes": 3
-  },
-  "lib/admin/screens/admin_department_form_screen.dart": {
-    "colors": 4,
-    "fontSizes": 2
-  },
-  "lib/admin/screens/admin_designations_screen.dart": {
-    "colors": 10,
-    "fontSizes": 4
-  },
-  "lib/admin/screens/admin_designation_form_screen.dart": {
-    "colors": 4,
-    "fontSizes": 2
-  },
-  "lib/admin/screens/admin_documents_screen.dart": {
-    "colors": 11,
-    "fontSizes": 2
-  },
-  "lib/admin/screens/admin_email_sms_config_screen.dart": {
-    "colors": 5,
-    "fontSizes": 3
-  },
-  "lib/admin/screens/admin_employees_screen.dart": {
-    "colors": 14,
-    "fontSizes": 6
-  },
-  "lib/admin/screens/admin_employee_detail_screen.dart": {
-    "colors": 14,
-    "fontSizes": 4
-  },
-  "lib/admin/screens/admin_employee_form_screen.dart": {
-    "colors": 6,
-    "fontSizes": 2
-  },
-  "lib/admin/screens/admin_employee_management_screen.dart": {
-    "colors": 7,
-    "fontSizes": 1
-  },
-  "lib/admin/screens/admin_expenses_screen.dart": {
-    "colors": 10,
-    "fontSizes": 6
-  },
-  "lib/admin/screens/admin_expense_invoices_screen.dart": {
-    "colors": 3,
-    "fontSizes": 1
-  },
-  "lib/admin/screens/admin_hr_management_screen.dart": {
-    "colors": 5,
-    "fontSizes": 2
-  },
-  "lib/admin/screens/admin_leave_management_screen.dart": {
-    "colors": 22,
-    "fontSizes": 9
-  },
-  "lib/admin/screens/admin_more_screen.dart": {
-    "colors": 4,
-    "fontSizes": 2
-  },
-  "lib/admin/screens/admin_notification_settings_screen.dart": {
-    "colors": 4,
-    "fontSizes": 2
-  },
-  "lib/admin/screens/admin_onboarding_detail_screen.dart": {
-    "colors": 12,
-    "fontSizes": 6
-  },
-  "lib/admin/screens/admin_onboarding_form_screen.dart": {
-    "colors": 4,
-    "fontSizes": 2
-  },
-  "lib/admin/screens/admin_onboarding_screen.dart": {
-    "colors": 19,
-    "fontSizes": 7
-  },
-  "lib/admin/screens/admin_payroll_screen.dart": {
-    "colors": 13,
-    "fontSizes": 7
-  },
-  "lib/admin/screens/admin_performance_screen.dart": {
-    "colors": 11,
-    "fontSizes": 3
-  },
-  "lib/admin/screens/admin_projects_screen.dart": {
-    "colors": 12,
-    "fontSizes": 7
-  },
-  "lib/admin/screens/admin_project_form_screen.dart": {
-    "colors": 4,
-    "fontSizes": 2
-  },
-  "lib/admin/screens/admin_project_members_screen.dart": {
-    "colors": 4,
-    "fontSizes": 1
-  },
-  "lib/admin/screens/admin_reporting_hierarchy_screen.dart": {
-    "colors": 3,
-    "fontSizes": 1
-  },
-  "lib/admin/screens/admin_reports_screen.dart": {
-    "colors": 15,
-    "fontSizes": 3
-  },
-  "lib/admin/screens/admin_roles_permissions_screen.dart": {
-    "colors": 12,
-    "fontSizes": 6
-  },
-  "lib/admin/screens/admin_salary_config_screen.dart": {
-    "colors": 10,
-    "fontSizes": 6
-  },
-  "lib/admin/screens/admin_shift_detail_screen.dart": {
     "colors": 17,
     "fontSizes": 7
   },
-  "lib/admin/screens/admin_shift_form_screen.dart": {
-    "colors": 7,
-    "fontSizes": 5
+  "lib/admin/screens/admin_department_form_screen.dart": {
+    "colors": 63,
+    "fontSizes": 18
   },
-  "lib/admin/screens/admin_shift_management_screen.dart": {
-    "colors": 25,
+  "lib/admin/screens/admin_designations_screen.dart": {
+    "colors": 66,
+    "fontSizes": 33
+  },
+  "lib/admin/screens/admin_designation_form_screen.dart": {
+    "colors": 55,
+    "fontSizes": 16
+  },
+  "lib/admin/screens/admin_documents_screen.dart": {
+    "colors": 36,
+    "fontSizes": 30
+  },
+  "lib/admin/screens/admin_email_sms_config_screen.dart": {
+    "colors": 60,
+    "fontSizes": 21
+  },
+  "lib/admin/screens/admin_employees_screen.dart": {
+    "colors": 33,
+    "fontSizes": 29
+  },
+  "lib/admin/screens/admin_employee_detail_screen.dart": {
+    "colors": 19,
+    "fontSizes": 34
+  },
+  "lib/admin/screens/admin_employee_form_screen.dart": {
+    "colors": 68,
+    "fontSizes": 19
+  },
+  "lib/admin/screens/admin_employee_management_screen.dart": {
+    "colors": 49,
+    "fontSizes": 16
+  },
+  "lib/admin/screens/admin_expenses_screen.dart": {
+    "colors": 48,
+    "fontSizes": 42
+  },
+  "lib/admin/screens/admin_expense_invoices_screen.dart": {
+    "colors": 18,
+    "fontSizes": 21
+  },
+  "lib/admin/screens/admin_hr_management_screen.dart": {
+    "colors": 45,
+    "fontSizes": 26
+  },
+  "lib/admin/screens/admin_job_add_screen.dart": {
+    "colors": 4,
+    "fontSizes": 2
+  },
+  "lib/admin/screens/admin_leave_management_screen.dart": {
+    "colors": 37,
+    "fontSizes": 32
+  },
+  "lib/admin/screens/admin_more_screen.dart": {
+    "colors": 272,
+    "fontSizes": 2
+  },
+  "lib/admin/screens/admin_notification_settings_screen.dart": {
+    "colors": 20,
     "fontSizes": 10
   },
+  "lib/admin/screens/admin_onboarding_detail_screen.dart": {
+    "colors": 18,
+    "fontSizes": 14
+  },
+  "lib/admin/screens/admin_onboarding_form_screen.dart": {
+    "colors": 1,
+    "fontSizes": 1
+  },
+  "lib/admin/screens/admin_onboarding_screen.dart": {
+    "colors": 24,
+    "fontSizes": 24
+  },
+  "lib/admin/screens/admin_org_allocation_screen.dart": {
+    "colors": 39,
+    "fontSizes": 21
+  },
+  "lib/admin/screens/admin_payroll_reports_screen.dart": {
+    "colors": 35,
+    "fontSizes": 23
+  },
+  "lib/admin/screens/admin_payroll_screen.dart": {
+    "colors": 64,
+    "fontSizes": 52
+  },
+  "lib/admin/screens/admin_performance_screen.dart": {
+    "colors": 39,
+    "fontSizes": 31
+  },
+  "lib/admin/screens/admin_projects_screen.dart": {
+    "colors": 17,
+    "fontSizes": 19
+  },
+  "lib/admin/screens/admin_project_form_screen.dart": {
+    "colors": 3,
+    "fontSizes": 2
+  },
+  "lib/admin/screens/admin_project_members_screen.dart": {
+    "colors": 15,
+    "fontSizes": 22
+  },
+  "lib/admin/screens/admin_recruitment_screen.dart": {
+    "colors": 60,
+    "fontSizes": 47
+  },
+  "lib/admin/screens/admin_reporting_hierarchy_screen.dart": {
+    "colors": 17,
+    "fontSizes": 22
+  },
+  "lib/admin/screens/admin_reports_screen.dart": {
+    "colors": 46,
+    "fontSizes": 27
+  },
+  "lib/admin/screens/admin_roles_permissions_screen.dart": {
+    "colors": 40,
+    "fontSizes": 27
+  },
+  "lib/admin/screens/admin_role_permissions_detail_screen.dart": {
+    "colors": 30,
+    "fontSizes": 21
+  },
+  "lib/admin/screens/admin_salary_config_screen.dart": {
+    "colors": 61,
+    "fontSizes": 61
+  },
+  "lib/admin/screens/admin_schedule_interview_screen.dart": {
+    "colors": 4,
+    "fontSizes": 2
+  },
+  "lib/admin/screens/admin_shift_assignments_screen.dart": {
+    "colors": 41,
+    "fontSizes": 25
+  },
+  "lib/admin/screens/admin_shift_detail_screen.dart": {
+    "colors": 59,
+    "fontSizes": 26
+  },
+  "lib/admin/screens/admin_shift_form_screen.dart": {
+    "colors": 68,
+    "fontSizes": 21
+  },
+  "lib/admin/screens/admin_shift_management_screen.dart": {
+    "colors": 72,
+    "fontSizes": 29
+  },
   "lib/admin/screens/admin_teams_screen.dart": {
-    "colors": 16,
-    "fontSizes": 7
+    "colors": 25,
+    "fontSizes": 22
   },
   "lib/admin/screens/admin_team_detail_screen.dart": {
-    "colors": 14,
-    "fontSizes": 4
+    "colors": 15,
+    "fontSizes": 15
   },
   "lib/admin/screens/admin_team_form_screen.dart": {
-    "colors": 4,
-    "fontSizes": 2
+    "colors": 6,
+    "fontSizes": 4
   },
   "lib/admin/screens/admin_tl_management_screen.dart": {
-    "colors": 5,
-    "fontSizes": 2
+    "colors": 58,
+    "fontSizes": 33
   },
   "lib/admin/screens/admin_training_form_screen.dart": {
-    "colors": 4,
-    "fontSizes": 2
+    "colors": 15,
+    "fontSizes": 18
   },
   "lib/admin/screens/admin_training_screen.dart": {
-    "colors": 13,
-    "fontSizes": 7
+    "colors": 21,
+    "fontSizes": 24
   },
   "lib/admin/screens/system_settings_screen.dart": {
-    "colors": 10,
-    "fontSizes": 3
+    "colors": 22,
+    "fontSizes": 11
   },
   "lib/admin/screens/user_form_screen.dart": {
-    "colors": 4,
-    "fontSizes": 2
+    "colors": 12,
+    "fontSizes": 8
   },
   "lib/admin/screens/user_management_screen.dart": {
-    "colors": 11,
-    "fontSizes": 5
+    "colors": 23,
+    "fontSizes": 21
+  },
+  "lib/app.dart": {
+    "colors": 2,
+    "fontSizes": 0
   },
   "lib/auth/forgot_password_screen.dart": {
     "colors": 0,
     "fontSizes": 8
   },
   "lib/auth/login_screen.dart": {
-    "colors": 44,
+    "colors": 41,
     "fontSizes": 13
   },
   "lib/auth/register_screen.dart": {
@@ -215,89 +267,129 @@
     "colors": 21,
     "fontSizes": 3
   },
-  "lib/core/widgets/app_background.dart": {
-    "colors": 12,
+  "lib/core/api/admin_service.dart": {
+    "colors": 0,
     "fontSizes": 0
   },
-  "lib/core/widgets/app_button.dart": {
+  "lib/core/api/api_client.dart": {
+    "colors": 0,
+    "fontSizes": 0
+  },
+  "lib/core/api/api_endpoints.dart": {
+    "colors": 0,
+    "fontSizes": 0
+  },
+  "lib/core/api/asset_service.dart": {
+    "colors": 0,
+    "fontSizes": 0
+  },
+  "lib/core/api/attendance_service.dart": {
+    "colors": 0,
+    "fontSizes": 0
+  },
+  "lib/core/api/employee_service.dart": {
+    "colors": 0,
+    "fontSizes": 0
+  },
+  "lib/core/api/expense_service.dart": {
+    "colors": 0,
+    "fontSizes": 0
+  },
+  "lib/core/api/finance_service.dart": {
+    "colors": 0,
+    "fontSizes": 0
+  },
+  "lib/core/api/helpdesk_service.dart": {
+    "colors": 0,
+    "fontSizes": 0
+  },
+  "lib/core/api/it_service.dart": {
+    "colors": 0,
+    "fontSizes": 0
+  },
+  "lib/core/api/leave_service.dart": {
+    "colors": 0,
+    "fontSizes": 0
+  },
+  "lib/core/api/payroll_service.dart": {
+    "colors": 0,
+    "fontSizes": 0
+  },
+  "lib/core/api/project_service.dart": {
+    "colors": 0,
+    "fontSizes": 0
+  },
+  "lib/core/api/recruitment_service.dart": {
+    "colors": 0,
+    "fontSizes": 0
+  },
+  "lib/core/api/training_service.dart": {
+    "colors": 0,
+    "fontSizes": 0
+  },
+  "lib/core/auth/auth_service.dart": {
+    "colors": 0,
+    "fontSizes": 0
+  },
+  "lib/core/config/app_config.dart": {
+    "colors": 0,
+    "fontSizes": 0
+  },
+  "lib/core/errors/api_exception.dart": {
+    "colors": 0,
+    "fontSizes": 0
+  },
+  "lib/core/models/user_model.dart": {
+    "colors": 0,
+    "fontSizes": 0
+  },
+  "lib/core/routing/app_router.dart": {
     "colors": 6,
-    "fontSizes": 1
-  },
-  "lib/core/widgets/app_chip.dart": {
-    "colors": 13,
     "fontSizes": 2
   },
-  "lib/core/widgets/glass_bottom_tab_bar.dart": {
-    "colors": 1,
-    "fontSizes": 2
-  },
-  "lib/core/widgets/glass_card.dart": {
-    "colors": 1,
+  "lib/core/storage/storage_service.dart": {
+    "colors": 0,
     "fontSizes": 0
   },
-  "lib/core/widgets/glass_component_preview.dart": {
-    "colors": 12,
+  "lib/employee/employee_role_shell.dart": {
+    "colors": 0,
     "fontSizes": 0
-  },
-  "lib/core/widgets/glass_header.dart": {
-    "colors": 18,
-    "fontSizes": 4
-  },
-  "lib/core/widgets/glass_search_bar.dart": {
-    "colors": 0,
-    "fontSizes": 2
-  },
-  "lib/core/widgets/module_card.dart": {
-    "colors": 2,
-    "fontSizes": 3
-  },
-  "lib/core/widgets/section_header.dart": {
-    "colors": 0,
-    "fontSizes": 2
-  },
-  "lib/core/widgets/section_label.dart": {
-    "colors": 0,
-    "fontSizes": 1
-  },
-  "lib/core/widgets/status_badge.dart": {
-    "colors": 0,
-    "fontSizes": 1
-  },
-  "lib/core/widgets/stat_tile.dart": {
-    "colors": 1,
-    "fontSizes": 3
   },
   "lib/employee/screens/announcements_screen.dart": {
-    "colors": 26,
-    "fontSizes": 17
+    "colors": 77,
+    "fontSizes": 21
   },
   "lib/employee/screens/apply_leave_screen.dart": {
-    "colors": 52,
-    "fontSizes": 16
+    "colors": 57,
+    "fontSizes": 17
+  },
+  "lib/employee/screens/break_logs_screen.dart": {
+    "colors": 31,
+    "fontSizes": 12
   },
   "lib/employee/screens/break_tracker_screen.dart": {
-    "colors": 48,
-    "fontSizes": 15
+    "colors": 120,
+    "fontSizes": 33
   },
   "lib/employee/screens/daily_work_update_screen.dart": {
-    "colors": 46,
-    "fontSizes": 13
+    "colors": 116,
+    "fontSizes": 28
   },
   "lib/employee/screens/edit_profile_screen.dart": {
     "colors": 40,
     "fontSizes": 9
   },
   "lib/employee/screens/employee_dashboard_screen.dart": {
-    "colors": 26,
-    "fontSizes": 10
+    "colors": 57,
+    "fontSizes": 26
   },
   "lib/employee/screens/helpdesk_and_ai_screens.dart": {
-    "colors": 10,
-    "fontSizes": 1
+    "colors": 16,
+    "fontSizes": 2
   },
   "lib/employee/screens/holidays_screen.dart": {
-    "colors": 49,
-    "fontSizes": 21
+    "colors": 100,
+    "fontSizes": 38
   },
   "lib/employee/screens/it_and_finance_screens.dart": {
     "colors": 35,
@@ -308,136 +400,244 @@
     "fontSizes": 14
   },
   "lib/employee/screens/more_screen.dart": {
-    "colors": 68,
-    "fontSizes": 2
+    "colors": 74,
+    "fontSizes": 0
   },
   "lib/employee/screens/my_assets_screen.dart": {
-    "colors": 16,
-    "fontSizes": 15
+    "colors": 83,
+    "fontSizes": 30
   },
   "lib/employee/screens/my_attendance_screen.dart": {
-    "colors": 151,
+    "colors": 154,
     "fontSizes": 42
   },
   "lib/employee/screens/my_benefits_screen.dart": {
-    "colors": 36,
-    "fontSizes": 28
+    "colors": 45,
+    "fontSizes": 33
   },
   "lib/employee/screens/my_benefit_invoices_screen.dart": {
     "colors": 1,
     "fontSizes": 3
   },
   "lib/employee/screens/my_documents_screen.dart": {
-    "colors": 24,
-    "fontSizes": 17
+    "colors": 102,
+    "fontSizes": 26
   },
   "lib/employee/screens/my_expenses_screen.dart": {
-    "colors": 6,
-    "fontSizes": 12
+    "colors": 41,
+    "fontSizes": 25
   },
   "lib/employee/screens/my_expense_invoices_screen.dart": {
     "colors": 1,
     "fontSizes": 3
   },
   "lib/employee/screens/my_leave_screen.dart": {
-    "colors": 36,
-    "fontSizes": 13
+    "colors": 122,
+    "fontSizes": 45
   },
   "lib/employee/screens/my_payslips_screen.dart": {
-    "colors": 96,
+    "colors": 98,
     "fontSizes": 35
   },
   "lib/employee/screens/my_performance_screen.dart": {
+    "colors": 146,
+    "fontSizes": 46
+  },
+  "lib/employee/screens/my_profile_screen.dart": {
+    "colors": 83,
+    "fontSizes": 22
+  },
+  "lib/employee/screens/my_projects_screen.dart": {
     "colors": 37,
     "fontSizes": 17
   },
-  "lib/employee/screens/my_profile_screen.dart": {
-    "colors": 82,
-    "fontSizes": 19
-  },
-  "lib/employee/screens/my_projects_screen.dart": {
-    "colors": 15,
-    "fontSizes": 9
-  },
   "lib/employee/screens/my_salary_screen.dart": {
-    "colors": 8,
-    "fontSizes": 5
+    "colors": 75,
+    "fontSizes": 29
+  },
+  "lib/employee/screens/my_settings_screen.dart": {
+    "colors": 70,
+    "fontSizes": 37
   },
   "lib/employee/screens/my_tasks_screen.dart": {
-    "colors": 15,
-    "fontSizes": 7
+    "colors": 96,
+    "fontSizes": 29
   },
   "lib/employee/screens/notifications_screen.dart": {
-    "colors": 38,
-    "fontSizes": 13
+    "colors": 50,
+    "fontSizes": 14
   },
   "lib/employee/screens/punch_in_out_screen.dart": {
-    "colors": 104,
-    "fontSizes": 53
+    "colors": 0,
+    "fontSizes": 0
   },
   "lib/employee/screens/training_screens.dart": {
-    "colors": 49,
-    "fontSizes": 25
+    "colors": 190,
+    "fontSizes": 92
   },
   "lib/employee/screens/wfh_apply_screen.dart": {
     "colors": 3,
     "fontSizes": 1
   },
-  "lib/finance/screens/finance_approvals_screen.dart": {
-    "colors": 103,
-    "fontSizes": 39
+  "lib/features/attendance/punch/clock_ticker.dart": {
+    "colors": 0,
+    "fontSizes": 0
   },
-  "lib/finance/screens/finance_benefits_screen.dart": {
-    "colors": 93,
+  "lib/features/attendance/punch/punch_controller.dart": {
+    "colors": 0,
+    "fontSizes": 0
+  },
+  "lib/features/attendance/punch/punch_state.dart": {
+    "colors": 0,
+    "fontSizes": 0
+  },
+  "lib/features/attendance/punch/screens/clock_in_success_screen.dart": {
+    "colors": 8,
+    "fontSizes": 5
+  },
+  "lib/features/attendance/punch/screens/location_check_screen.dart": {
+    "colors": 33,
+    "fontSizes": 10
+  },
+  "lib/features/attendance/punch/screens/punch_home_screen.dart": {
+    "colors": 37,
+    "fontSizes": 16
+  },
+  "lib/features/attendance/punch/screens/selfie_verify_screen.dart": {
+    "colors": 13,
+    "fontSizes": 6
+  },
+  "lib/features/attendance/punch/widgets/activity_row.dart": {
+    "colors": 0,
+    "fontSizes": 3
+  },
+  "lib/features/attendance/punch/widgets/hero_card.dart": {
+    "colors": 32,
+    "fontSizes": 10
+  },
+  "lib/features/attendance/punch/widgets/info_tile.dart": {
+    "colors": 3,
+    "fontSizes": 2
+  },
+  "lib/features/attendance/punch/widgets/location_summary_card.dart": {
+    "colors": 17,
+    "fontSizes": 9
+  },
+  "lib/features/attendance/punch/widgets/metric_tile.dart": {
+    "colors": 0,
+    "fontSizes": 2
+  },
+  "lib/features/attendance/punch/widgets/post_shift_banner.dart": {
+    "colors": 6,
+    "fontSizes": 3
+  },
+  "lib/features/attendance/punch/widgets/primary_action_button.dart": {
+    "colors": 5,
+    "fontSizes": 2
+  },
+  "lib/features/attendance/punch/widgets/progress_ring.dart": {
+    "colors": 3,
+    "fontSizes": 3
+  },
+  "lib/features/attendance/punch/widgets/shift_timeline_bar.dart": {
+    "colors": 10,
+    "fontSizes": 2
+  },
+  "lib/features/attendance/punch/widgets/status_chip.dart": {
+    "colors": 1,
+    "fontSizes": 1
+  },
+  "lib/features/attendance/punch/widgets/work_progress_ring.dart": {
+    "colors": 7,
+    "fontSizes": 2
+  },
+  "lib/finance/finance_role_shell.dart": {
+    "colors": 0,
+    "fontSizes": 0
+  },
+  "lib/finance/screens/finance_approvals_screen.dart": {
+    "colors": 91,
     "fontSizes": 36
   },
+  "lib/finance/screens/finance_benefits_screen.dart": {
+    "colors": 98,
+    "fontSizes": 35
+  },
   "lib/finance/screens/finance_benefit_dashboard_screen.dart": {
-    "colors": 96,
-    "fontSizes": 45
+    "colors": 91,
+    "fontSizes": 47
   },
   "lib/finance/screens/finance_benefit_payments_screen.dart": {
-    "colors": 56,
-    "fontSizes": 22
+    "colors": 47,
+    "fontSizes": 18
   },
   "lib/finance/screens/finance_benefit_reports_screen.dart": {
-    "colors": 69,
-    "fontSizes": 30
+    "colors": 64,
+    "fontSizes": 23
   },
   "lib/finance/screens/finance_dashboard_screen.dart": {
     "colors": 12,
     "fontSizes": 7
   },
+  "lib/finance/screens/finance_employee_salaries_screen.dart": {
+    "colors": 66,
+    "fontSizes": 34
+  },
   "lib/finance/screens/finance_loans_advances_screen.dart": {
-    "colors": 95,
-    "fontSizes": 42
+    "colors": 91,
+    "fontSizes": 36
   },
   "lib/finance/screens/finance_more_screen.dart": {
-    "colors": 4,
+    "colors": 118,
     "fontSizes": 2
   },
   "lib/finance/screens/finance_payments_screen.dart": {
     "colors": 100,
-    "fontSizes": 42
+    "fontSizes": 44
+  },
+  "lib/finance/screens/finance_payroll_inputs_screen.dart": {
+    "colors": 24,
+    "fontSizes": 13
+  },
+  "lib/finance/screens/finance_payroll_reports_screen.dart": {
+    "colors": 10,
+    "fontSizes": 4
   },
   "lib/finance/screens/finance_payroll_screen.dart": {
-    "colors": 140,
-    "fontSizes": 75
+    "colors": 119,
+    "fontSizes": 62
+  },
+  "lib/finance/screens/finance_pay_cycles_screen.dart": {
+    "colors": 60,
+    "fontSizes": 28
   },
   "lib/finance/screens/finance_reimbursements_screen.dart": {
-    "colors": 77,
-    "fontSizes": 26
+    "colors": 73,
+    "fontSizes": 23
   },
   "lib/finance/screens/finance_reports_screen.dart": {
     "colors": 104,
-    "fontSizes": 53
+    "fontSizes": 55
+  },
+  "lib/finance/screens/finance_salary_components_screen.dart": {
+    "colors": 67,
+    "fontSizes": 31
+  },
+  "lib/finance/screens/finance_salary_revisions_screen.dart": {
+    "colors": 75,
+    "fontSizes": 31
   },
   "lib/finance/screens/finance_salary_structure_screen.dart": {
     "colors": 24,
     "fontSizes": 13
   },
   "lib/finance/screens/finance_tax_compliance_screen.dart": {
-    "colors": 104,
-    "fontSizes": 46
+    "colors": 103,
+    "fontSizes": 44
+  },
+  "lib/helpdesk/helpdesk_role_shell.dart": {
+    "colors": 0,
+    "fontSizes": 0
   },
   "lib/helpdesk/screens/create_article_screen.dart": {
     "colors": 10,
@@ -448,60 +648,80 @@
     "fontSizes": 2
   },
   "lib/helpdesk/screens/helpdesk_chatbot_screen.dart": {
-    "colors": 12,
-    "fontSizes": 5
+    "colors": 21,
+    "fontSizes": 8
   },
   "lib/helpdesk/screens/helpdesk_dashboard_screen.dart": {
-    "colors": 11,
-    "fontSizes": 7
+    "colors": 31,
+    "fontSizes": 26
   },
   "lib/helpdesk/screens/helpdesk_knowledge_base_screen.dart": {
     "colors": 12,
-    "fontSizes": 8
+    "fontSizes": 11
   },
   "lib/helpdesk/screens/helpdesk_more_screen.dart": {
     "colors": 4,
     "fontSizes": 2
   },
   "lib/helpdesk/screens/helpdesk_tickets_screen.dart": {
-    "colors": 10,
-    "fontSizes": 8
+    "colors": 14,
+    "fontSizes": 22
   },
   "lib/helpdesk/screens/ticket_detail_screen.dart": {
     "colors": 13,
     "fontSizes": 8
   },
+  "lib/hr/hr_role_shell.dart": {
+    "colors": 0,
+    "fontSizes": 0
+  },
   "lib/hr/screens/attendance/hr_attendance_corrections_screen.dart": {
-    "colors": 3,
-    "fontSizes": 1
+    "colors": 0,
+    "fontSizes": 0
   },
   "lib/hr/screens/attendance/hr_attendance_rules_screen.dart": {
-    "colors": 3,
-    "fontSizes": 1
+    "colors": 0,
+    "fontSizes": 0
+  },
+  "lib/hr/screens/attendance/hr_attendance_rule_form_screen.dart": {
+    "colors": 0,
+    "fontSizes": 0
   },
   "lib/hr/screens/attendance/hr_attendance_screen.dart": {
-    "colors": 7,
-    "fontSizes": 2
+    "colors": 0,
+    "fontSizes": 0
   },
   "lib/hr/screens/attendance/hr_attendance_summary_screen.dart": {
-    "colors": 2,
-    "fontSizes": 2
+    "colors": 0,
+    "fontSizes": 0
   },
   "lib/hr/screens/attendance/hr_attendance_verifications_screen.dart": {
-    "colors": 4,
-    "fontSizes": 1
+    "colors": 0,
+    "fontSizes": 0
+  },
+  "lib/hr/screens/branches/hr_branches_screen.dart": {
+    "colors": 0,
+    "fontSizes": 0
   },
   "lib/hr/screens/departments/hr_departments_screen.dart": {
-    "colors": 6,
-    "fontSizes": 2
+    "colors": 0,
+    "fontSizes": 0
   },
   "lib/hr/screens/departments/hr_department_detail_screen.dart": {
-    "colors": 4,
-    "fontSizes": 3
+    "colors": 0,
+    "fontSizes": 0
+  },
+  "lib/hr/screens/departments/hr_department_form_screen.dart": {
+    "colors": 0,
+    "fontSizes": 0
+  },
+  "lib/hr/screens/designations/hr_designations_screen.dart": {
+    "colors": 0,
+    "fontSizes": 0
   },
   "lib/hr/screens/employees/hr_employees_screen.dart": {
-    "colors": 8,
-    "fontSizes": 6
+    "colors": 39,
+    "fontSizes": 14
   },
   "lib/hr/screens/employees/hr_employee_detail_screen.dart": {
     "colors": 5,
@@ -512,136 +732,240 @@
     "fontSizes": 0
   },
   "lib/hr/screens/hr_announcements_screen.dart": {
-    "colors": 3,
+    "colors": 0,
     "fontSizes": 0
   },
   "lib/hr/screens/hr_benefit_invoices_screen.dart": {
-    "colors": 8,
-    "fontSizes": 2
+    "colors": 0,
+    "fontSizes": 0
   },
   "lib/hr/screens/hr_dashboard_screen.dart": {
-    "colors": 12,
-    "fontSizes": 9
+    "colors": 0,
+    "fontSizes": 0
   },
   "lib/hr/screens/hr_documents_screen.dart": {
-    "colors": 8,
-    "fontSizes": 4
+    "colors": 0,
+    "fontSizes": 0
   },
   "lib/hr/screens/hr_employees_screen.dart": {
     "colors": 3,
     "fontSizes": 3
   },
   "lib/hr/screens/hr_expenses_screen.dart": {
-    "colors": 5,
-    "fontSizes": 2
+    "colors": 41,
+    "fontSizes": 19
+  },
+  "lib/hr/screens/hr_expense_invoices_screen.dart": {
+    "colors": 0,
+    "fontSizes": 0
   },
   "lib/hr/screens/hr_leave_management_screen.dart": {
-    "colors": 3,
-    "fontSizes": 1
+    "colors": 44,
+    "fontSizes": 28
   },
   "lib/hr/screens/hr_more_screen.dart": {
-    "colors": 4,
+    "colors": 124,
     "fontSizes": 2
+  },
+  "lib/hr/screens/hr_payroll_reports_screen.dart": {
+    "colors": 49,
+    "fontSizes": 31
   },
   "lib/hr/screens/hr_payroll_screen.dart": {
+    "colors": 62,
+    "fontSizes": 42
+  },
+  "lib/hr/screens/hr_performance_screen.dart": {
+    "colors": 77,
+    "fontSizes": 54
+  },
+  "lib/hr/screens/hr_profile_screen.dart": {
+    "colors": 28,
+    "fontSizes": 16
+  },
+  "lib/hr/screens/hr_reports_screen.dart": {
+    "colors": 54,
+    "fontSizes": 27
+  },
+  "lib/hr/screens/hr_salary_packages_screen.dart": {
+    "colors": 48,
+    "fontSizes": 32
+  },
+  "lib/hr/screens/hr_salary_screen.dart": {
+    "colors": 98,
+    "fontSizes": 52
+  },
+  "lib/hr/screens/hr_salary_structures_screen.dart": {
+    "colors": 54,
+    "fontSizes": 36
+  },
+  "lib/hr/screens/onboarding/hr_onboarding_add_screen.dart": {
+    "colors": 59,
+    "fontSizes": 31
+  },
+  "lib/hr/screens/onboarding/hr_onboarding_detail_screen.dart": {
+    "colors": 18,
+    "fontSizes": 15
+  },
+  "lib/hr/screens/onboarding/hr_onboarding_edit_screen.dart": {
+    "colors": 2,
+    "fontSizes": 0
+  },
+  "lib/hr/screens/onboarding/hr_onboarding_screen.dart": {
+    "colors": 24,
+    "fontSizes": 15
+  },
+  "lib/hr/screens/projects/hr_projects_screen.dart": {
+    "colors": 23,
+    "fontSizes": 15
+  },
+  "lib/hr/screens/projects/hr_project_form_screen.dart": {
     "colors": 6,
     "fontSizes": 2
   },
-  "lib/hr/screens/hr_profile_screen.dart": {
-    "colors": 5,
-    "fontSizes": 3
+  "lib/hr/screens/projects/hr_project_members_screen.dart": {
+    "colors": 18,
+    "fontSizes": 19
   },
-  "lib/hr/screens/hr_reports_screen.dart": {
-    "colors": 6,
-    "fontSizes": 3
-  },
-  "lib/hr/screens/onboarding/hr_onboarding_detail_screen.dart": {
+  "lib/hr/screens/recruitment/hr_candidate_add_screen.dart": {
     "colors": 3,
+    "fontSizes": 2
+  },
+  "lib/hr/screens/recruitment/hr_interview_edit_screen.dart": {
+    "colors": 6,
     "fontSizes": 4
   },
-  "lib/hr/screens/onboarding/hr_onboarding_screen.dart": {
-    "colors": 1,
+  "lib/hr/screens/recruitment/hr_interview_schedule_screen.dart": {
+    "colors": 5,
+    "fontSizes": 2
+  },
+  "lib/hr/screens/recruitment/hr_job_add_screen.dart": {
+    "colors": 6,
+    "fontSizes": 4
+  },
+  "lib/hr/screens/recruitment/hr_recruitment_screen.dart": {
+    "colors": 86,
+    "fontSizes": 51
+  },
+  "lib/hr/screens/shifts/hr_shift_assignments_screen.dart": {
+    "colors": 0,
     "fontSizes": 0
   },
-  "lib/hr/screens/projects/hr_projects_screen.dart": {
-    "colors": 2,
-    "fontSizes": 0
-  },
-  "lib/hr/screens/projects/hr_project_members_screen.dart": {
-    "colors": 2,
+  "lib/hr/screens/shifts/hr_shift_form_screen.dart": {
+    "colors": 0,
     "fontSizes": 0
   },
   "lib/hr/screens/shifts/hr_shift_screen.dart": {
-    "colors": 1,
-    "fontSizes": 1
-  },
-  "lib/hr/screens/teams/hr_teams_screen.dart": {
-    "colors": 1,
+    "colors": 0,
     "fontSizes": 0
   },
+  "lib/hr/screens/teams/hr_teams_screen.dart": {
+    "colors": 24,
+    "fontSizes": 18
+  },
   "lib/hr/screens/teams/hr_team_detail_screen.dart": {
-    "colors": 4,
+    "colors": 22,
+    "fontSizes": 15
+  },
+  "lib/hr/screens/teams/hr_team_form_screen.dart": {
+    "colors": 5,
     "fontSizes": 2
   },
+  "lib/hr/screens/training/hr_assign_training_screen.dart": {
+    "colors": 18,
+    "fontSizes": 18
+  },
+  "lib/hr/screens/training/hr_categories_screen.dart": {
+    "colors": 16,
+    "fontSizes": 13
+  },
+  "lib/hr/screens/training/hr_certificates_screen.dart": {
+    "colors": 16,
+    "fontSizes": 10
+  },
   "lib/hr/screens/training/hr_training_dashboard_screen.dart": {
-    "colors": 4,
-    "fontSizes": 3
+    "colors": 40,
+    "fontSizes": 25
+  },
+  "lib/hr/screens/training/hr_training_reports_screen.dart": {
+    "colors": 19,
+    "fontSizes": 11
+  },
+  "lib/hr/screens/training/hr_training_screen.dart": {
+    "colors": 6,
+    "fontSizes": 6
+  },
+  "lib/it/it_role_shell.dart": {
+    "colors": 0,
+    "fontSizes": 0
   },
   "lib/it/screens/it_access_screen.dart": {
-    "colors": 9,
-    "fontSizes": 5
+    "colors": 56,
+    "fontSizes": 21
   },
   "lib/it/screens/it_assets_screen.dart": {
+    "colors": 68,
+    "fontSizes": 25
+  },
+  "lib/it/screens/it_asset_form_screen.dart": {
     "colors": 10,
     "fontSizes": 3
   },
   "lib/it/screens/it_asset_requests_screen.dart": {
-    "colors": 12,
-    "fontSizes": 5
+    "colors": 65,
+    "fontSizes": 17
   },
   "lib/it/screens/it_create_employee_account_screen.dart": {
-    "colors": 0,
-    "fontSizes": 3
+    "colors": 39,
+    "fontSizes": 16
   },
   "lib/it/screens/it_dashboard_screen.dart": {
-    "colors": 17,
-    "fontSizes": 7
+    "colors": 63,
+    "fontSizes": 49
   },
   "lib/it/screens/it_employee_accounts_screen.dart": {
-    "colors": 8,
-    "fontSizes": 5
+    "colors": 28,
+    "fontSizes": 13
   },
   "lib/it/screens/it_more_screen.dart": {
-    "colors": 4,
+    "colors": 46,
     "fontSizes": 2
   },
   "lib/it/screens/it_offboarding_screen.dart": {
-    "colors": 12,
-    "fontSizes": 4
+    "colors": 59,
+    "fontSizes": 20
   },
   "lib/it/screens/it_onboarding_screen.dart": {
-    "colors": 16,
-    "fontSizes": 4
+    "colors": 47,
+    "fontSizes": 15
   },
   "lib/it/screens/it_reports_screen.dart": {
-    "colors": 11,
-    "fontSizes": 4
+    "colors": 38,
+    "fontSizes": 15
   },
   "lib/it/screens/it_security_screen.dart": {
-    "colors": 12,
-    "fontSizes": 4
+    "colors": 14,
+    "fontSizes": 8
   },
   "lib/it/screens/it_software_screen.dart": {
-    "colors": 11,
-    "fontSizes": 4
+    "colors": 71,
+    "fontSizes": 24
   },
   "lib/it/screens/it_tickets_screen.dart": {
-    "colors": 7,
-    "fontSizes": 4
+    "colors": 88,
+    "fontSizes": 30
+  },
+  "lib/main.dart": {
+    "colors": 0,
+    "fontSizes": 0
   },
   "lib/resources/screens/holidays_screen.dart": {
-    "colors": 49,
-    "fontSizes": 21
+    "colors": 104,
+    "fontSizes": 40
+  },
+  "lib/shared/layouts/app_shell.dart": {
+    "colors": 0,
+    "fontSizes": 0
   },
   "lib/shared/widgets/app_card.dart": {
     "colors": 0,
@@ -672,103 +996,111 @@
     "fontSizes": 0
   },
   "lib/shared/widgets/status_chip.dart": {
-    "colors": 8,
+    "colors": 10,
     "fontSizes": 1
   },
-  "lib/team-lead/screens/my_team_screen.dart": {
+  "lib/team_lead/screens/my_team_screen.dart": {
     "colors": 13,
     "fontSizes": 14
   },
-  "lib/team-lead/screens/team_leave_approval_screen.dart": {
+  "lib/team_lead/screens/team_leave_approval_screen.dart": {
     "colors": 22,
     "fontSizes": 12
   },
-  "lib/team-lead/screens/tl_add_payroll_input_screen.dart": {
+  "lib/team_lead/screens/tl_add_payroll_input_screen.dart": {
     "colors": 6,
     "fontSizes": 8
   },
-  "lib/team-lead/screens/tl_add_task_screen.dart": {
+  "lib/team_lead/screens/tl_add_task_screen.dart": {
     "colors": 6,
     "fontSizes": 8
   },
-  "lib/team-lead/screens/tl_announcements_screen.dart": {
+  "lib/team_lead/screens/tl_announcements_screen.dart": {
     "colors": 23,
     "fontSizes": 12
   },
-  "lib/team-lead/screens/tl_assign_goal_screen.dart": {
+  "lib/team_lead/screens/tl_assign_goal_screen.dart": {
     "colors": 6,
     "fontSizes": 12
   },
-  "lib/team-lead/screens/tl_assign_training_screen.dart": {
-    "colors": 15,
-    "fontSizes": 14
+  "lib/team_lead/screens/tl_assign_training_screen.dart": {
+    "colors": 36,
+    "fontSizes": 25
   },
-  "lib/team-lead/screens/tl_attendance_screen.dart": {
+  "lib/team_lead/screens/tl_attendance_screen.dart": {
     "colors": 18,
     "fontSizes": 12
   },
-  "lib/team-lead/screens/tl_benefits_screen.dart": {
-    "colors": 25,
-    "fontSizes": 18
+  "lib/team_lead/screens/tl_benefits_screen.dart": {
+    "colors": 27,
+    "fontSizes": 22
   },
-  "lib/team-lead/screens/tl_benefit_invoices_screen.dart": {
+  "lib/team_lead/screens/tl_benefit_invoices_screen.dart": {
     "colors": 18,
     "fontSizes": 13
   },
-  "lib/team-lead/screens/tl_dashboard_screen.dart": {
+  "lib/team_lead/screens/tl_dashboard_screen.dart": {
     "colors": 8,
     "fontSizes": 2
   },
-  "lib/team-lead/screens/tl_eod_updates_screen.dart": {
-    "colors": 20,
+  "lib/team_lead/screens/tl_eod_updates_screen.dart": {
+    "colors": 18,
     "fontSizes": 11
   },
-  "lib/team-lead/screens/tl_expenses_screen.dart": {
+  "lib/team_lead/screens/tl_expenses_screen.dart": {
     "colors": 24,
     "fontSizes": 7
   },
-  "lib/team-lead/screens/tl_expense_invoices_screen.dart": {
+  "lib/team_lead/screens/tl_expense_invoices_screen.dart": {
     "colors": 2,
     "fontSizes": 4
   },
-  "lib/team-lead/screens/tl_kpi_screen.dart": {
+  "lib/team_lead/screens/tl_kpi_screen.dart": {
     "colors": 21,
     "fontSizes": 11
   },
-  "lib/team-lead/screens/tl_meetings_screen.dart": {
+  "lib/team_lead/screens/tl_meetings_screen.dart": {
     "colors": 27,
     "fontSizes": 12
   },
-  "lib/team-lead/screens/tl_more_screen.dart": {
-    "colors": 4,
+  "lib/team_lead/screens/tl_more_screen.dart": {
+    "colors": 140,
     "fontSizes": 2
   },
-  "lib/team-lead/screens/tl_performance_screen.dart": {
-    "colors": 34,
+  "lib/team_lead/screens/tl_performance_screen.dart": {
+    "colors": 28,
     "fontSizes": 12
   },
-  "lib/team-lead/screens/tl_projects_screen.dart": {
+  "lib/team_lead/screens/tl_projects_screen.dart": {
     "colors": 23,
     "fontSizes": 11
   },
-  "lib/team-lead/screens/tl_project_members_screen.dart": {
+  "lib/team_lead/screens/tl_project_members_screen.dart": {
     "colors": 18,
     "fontSizes": 10
   },
-  "lib/team-lead/screens/tl_reports_screen.dart": {
+  "lib/team_lead/screens/tl_reports_screen.dart": {
     "colors": 28,
     "fontSizes": 26
   },
-  "lib/team-lead/screens/tl_tasks_screen.dart": {
+  "lib/team_lead/screens/tl_tasks_screen.dart": {
     "colors": 24,
     "fontSizes": 12
   },
-  "lib/team-lead/screens/tl_team_payroll_screen.dart": {
+  "lib/team_lead/screens/tl_team_assets_screen.dart": {
+    "colors": 13,
+    "fontSizes": 9
+  },
+  "lib/team_lead/screens/tl_team_payroll_screen.dart": {
     "colors": 24,
     "fontSizes": 15
   },
-  "lib/team-lead/screens/tl_team_training_screen.dart": {
-    "colors": 20,
-    "fontSizes": 10
+  "lib/team_lead/screens/tl_team_training_screen.dart": {
+    "colors": 32,
+    "fontSizes": 24
+  },
+  "lib/team_lead/team_lead_role_shell.dart": {
+    "colors": 0,
+    "fontSizes": 0
   }
 }

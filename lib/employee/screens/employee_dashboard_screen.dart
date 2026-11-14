@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/api/api_client.dart';
 import '../../core/api/api_endpoints.dart';
+import '../../core/api/leave_service.dart';
 import '../../core/auth/auth_service.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/widgets/glass_card.dart';
@@ -31,6 +32,7 @@ class EmployeeDashboardScreen extends ConsumerStatefulWidget {
 
 class _EmployeeDashboardScreenState extends ConsumerState<EmployeeDashboardScreen> {
   bool _isLoading = true;
+  bool _isLeaveSummaryExpanded = false;
 
   Map<String, dynamic> _today = {};
   List<dynamic> _balances = [];
@@ -49,11 +51,12 @@ class _EmployeeDashboardScreenState extends ConsumerState<EmployeeDashboardScree
     setState(() => _isLoading = true);
 
     final apiClient = ref.read(apiClientProvider);
+    final leaveService = ref.read(leaveServiceProvider);
 
     try {
       final results = await Future.wait([
         apiClient.get(ApiEndpoints.attendanceToday).catchError((_) => null),
-        apiClient.get(ApiEndpoints.leaveBalances).catchError((_) => null),
+        leaveService.getLeaveBalances().catchError((_) => null),
         apiClient.get('/Holiday').catchError((_) => null),
         apiClient.get(ApiEndpoints.myTasks).catchError((_) => null),
         apiClient.get(ApiEndpoints.announcements).catchError((_) => null),
@@ -70,10 +73,12 @@ class _EmployeeDashboardScreenState extends ConsumerState<EmployeeDashboardScree
       setState(() {
         _today = todayRes is Map<String, dynamic> ? todayRes : {};
         _balances = balancesRes.isNotEmpty ? balancesRes : [
+          {'leaveType': 'Earned Leave', 'remaining': 15, 'total': 15},
+          {'leaveType': 'Sick Leave', 'remaining': 10, 'total': 10},
           {'leaveType': 'Casual Leave', 'remaining': 8, 'total': 12},
-          {'leaveType': 'Sick Leave', 'remaining': 5, 'total': 7},
+          {'leaveType': 'Comp Off', 'remaining': 4, 'total': 5},
+          {'leaveType': 'Personal Leave', 'remaining': 5, 'total': 5},
           {'leaveType': 'Paid Leave', 'remaining': 0, 'total': 15},
-          {'leaveType': 'Comp Off', 'remaining': 4, 'total': 4},
         ];
         _holidays = holidaysRes.isNotEmpty ? holidaysRes : [
           {'title': 'Republic Day', 'date': '26 Jan 2026', 'type': 'Public Holiday'},
@@ -93,7 +98,111 @@ class _EmployeeDashboardScreenState extends ConsumerState<EmployeeDashboardScree
   String _greeting(String name) {
     final hour = DateTime.now().hour;
     final timeGreeting = hour < 12 ? 'Good morning' : (hour < 17 ? 'Good afternoon' : 'Good evening');
-    return '$timeGreeting,\nWelcome, $name!';
+    return '$timeGreeting, $name!';
+  }
+
+  Widget _buildHeroPunchCard(bool isDark) {
+    final statusColor = _isCheckedIn ? const Color(0xFF10B981) : AppColors.primary;
+    final checkInTimeFormatted = _formatTimeString(_today['checkInTime'] ?? _today['checkIn']);
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: isDark
+              ? [const Color(0xFF132230), const Color(0xFF0F2624)]
+              : [const Color(0xFFF0FDF4), const Color(0xFFE0F2FE)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: statusColor.withOpacity(0.3)),
+        boxShadow: [
+          BoxShadow(
+            color: statusColor.withOpacity(0.08),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: statusColor.withOpacity(0.18),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(
+                  _isCheckedIn ? Icons.check_circle_rounded : Icons.fingerprint_rounded,
+                  color: statusColor,
+                  size: 24,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Container(
+                          width: 8,
+                          height: 8,
+                          decoration: BoxDecoration(color: statusColor, shape: BoxShape.circle),
+                        ),
+                        const SizedBox(width: 6),
+                        Text(
+                          _isCheckedIn ? 'CLOCKED IN AT $checkInTimeFormatted' : 'NOT CLOCKED IN YET',
+                          style: TextStyle(
+                            fontSize: 10.5,
+                            fontWeight: FontWeight.w900,
+                            color: statusColor,
+                            letterSpacing: 0.5,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      _isCheckedIn ? 'Workday active · Standard Day Shift' : 'Ready to start your workday?',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                        color: isDark ? AppColors.darkPrimaryText : AppColors.lightPrimaryText,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              onPressed: () {
+                Navigator.push(context, MaterialPageRoute(builder: (_) => const PunchInOutScreen())).then((_) => _loadData());
+              },
+              icon: Icon(_isCheckedIn ? Icons.logout_rounded : Icons.fingerprint_rounded, size: 20),
+              label: Text(
+                _isCheckedIn ? 'Clock Out / Stepping Out' : 'PUNCH IN NOW',
+                style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 13.5, letterSpacing: 0.5),
+              ),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: statusColor,
+                foregroundColor: Colors.white,
+                elevation: 0,
+                padding: const EdgeInsets.symmetric(vertical: 13),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   String _dateLabel(DateTime date) {
@@ -208,7 +317,11 @@ class _EmployeeDashboardScreenState extends ConsumerState<EmployeeDashboardScree
             ),
             const SizedBox(height: 14),
 
-            // 2. TOP METRICS 2x2 COMPACT GRID (Matching HRMS Web Cards)
+            // 2. HERO PUNCH IN/OUT ACTION CARD
+            _buildHeroPunchCard(isDark),
+            const SizedBox(height: 14),
+
+            // 3. TOP METRICS 2x2 COMPACT GRID
             GridView.count(
               crossAxisCount: 2,
               shrinkWrap: true,
@@ -235,8 +348,8 @@ class _EmployeeDashboardScreenState extends ConsumerState<EmployeeDashboardScree
                 ),
                 _metricCard(
                   title: 'My Tasks',
-                  value: '$_pendingTasks Pending',
-                  subtitle: 'Active Tasks',
+                  value: _pendingTasks == 0 ? 'All Done 🎉' : '$_pendingTasks Pending',
+                  subtitle: _pendingTasks == 0 ? 'No Active Tasks' : 'Active Tasks',
                   icon: Icons.checklist_rounded,
                   color: const Color(0xFF8B5CF6),
                   onTap: () => widget.onNavigateTab(3),
@@ -253,7 +366,7 @@ class _EmployeeDashboardScreenState extends ConsumerState<EmployeeDashboardScree
             ),
             const SizedBox(height: 16),
 
-            // 3. LEAVE BALANCE BREAKDOWN CARD WITH QUICK APPLY
+            // 4. LEAVE BALANCE BREAKDOWN CARD (Collapsible to reduce clutter)
             GlassCard(
               padding: const EdgeInsets.all(16),
               child: Column(
@@ -270,29 +383,33 @@ class _EmployeeDashboardScreenState extends ConsumerState<EmployeeDashboardScree
                           color: isDark ? AppColors.darkPrimaryText : AppColors.lightPrimaryText,
                         ),
                       ),
-                      TextButton(
-                        onPressed: () => widget.onNavigateTab(2),
-                        style: TextButton.styleFrom(padding: EdgeInsets.zero, minimumSize: const Size(0, 0)),
-                        child: const Text('View All >', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: AppColors.primary)),
+                      GestureDetector(
+                        onTap: () => setState(() => _isLeaveSummaryExpanded = !_isLeaveSummaryExpanded),
+                        child: Text(
+                          _isLeaveSummaryExpanded ? 'Collapse ▴' : 'Expand ▾',
+                          style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: AppColors.primary),
+                        ),
                       ),
                     ],
                   ),
                   const SizedBox(height: 12),
                   Row(
                     children: [
-                      Expanded(child: _leaveBreakdownItem('Casual Leave', '8', 'Available / 12', const Color(0xFF10B981))),
+                      Expanded(child: _leaveBreakdownItem('Earned Leave', '15', 'Available / 15', const Color(0xFF10B981))),
                       const SizedBox(width: 8),
-                      Expanded(child: _leaveBreakdownItem('Sick Leave', '5', 'Available / 7', const Color(0xFFEF4444))),
+                      Expanded(child: _leaveBreakdownItem('Sick Leave', '10', 'Available / 10', const Color(0xFFEF4444))),
                     ],
                   ),
-                  const SizedBox(height: 8),
-                  Row(
-                    children: [
-                      Expanded(child: _leaveBreakdownItem('Paid Leave', '0', 'Available / 15', const Color(0xFF3B82F6))),
-                      const SizedBox(width: 8),
-                      Expanded(child: _leaveBreakdownItem('Comp Off', '4', 'Available / 4', const Color(0xFFF59E0B))),
-                    ],
-                  ),
+                  if (_isLeaveSummaryExpanded) ...[
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        Expanded(child: _leaveBreakdownItem('Casual Leave', '8', 'Available / 12', const Color(0xFF3B82F6))),
+                        const SizedBox(width: 8),
+                        Expanded(child: _leaveBreakdownItem('Comp Off', '4', 'Available / 5', const Color(0xFFF59E0B))),
+                      ],
+                    ),
+                  ],
                   const SizedBox(height: 14),
                   SizedBox(
                     width: double.infinity,
@@ -347,7 +464,7 @@ class _EmployeeDashboardScreenState extends ConsumerState<EmployeeDashboardScree
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
         decoration: BoxDecoration(
           color: color.withOpacity(0.08),
           borderRadius: BorderRadius.circular(16),
@@ -356,27 +473,28 @@ class _EmployeeDashboardScreenState extends ConsumerState<EmployeeDashboardScree
         child: Row(
           children: [
             Container(
-              padding: const EdgeInsets.all(8),
+              padding: const EdgeInsets.all(7),
               decoration: BoxDecoration(
                 color: color.withOpacity(0.18),
                 shape: BoxShape.circle,
               ),
-              child: Icon(icon, color: color, size: 18),
+              child: Icon(icon, color: color, size: 16),
             ),
-            const SizedBox(width: 10),
+            const SizedBox(width: 8),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Text(title, style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.bold, color: Colors.grey[700])),
+                  Text(title, style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.grey[700])),
                   const SizedBox(height: 1),
-                  Text(value, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w900, color: color)),
+                  Text(value, style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w900, color: color), maxLines: 1, overflow: TextOverflow.ellipsis),
                   const SizedBox(height: 1),
-                  Text(subtitle, style: TextStyle(fontSize: 9, color: Colors.grey[500])),
+                  Text(subtitle, style: TextStyle(fontSize: 8.5, color: Colors.grey[500])),
                 ],
               ),
             ),
+            Icon(Icons.chevron_right_rounded, size: 16, color: color.withOpacity(0.6)),
           ],
         ),
       ),

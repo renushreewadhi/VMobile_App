@@ -1,15 +1,14 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'app_colors.dart';
 import 'glass_theme.dart';
 
 class AppTheme {
-  static const String fontFamily = 'Plus Jakarta Sans';
-
   static ThemeData get lightTheme {
+    final baseTextTheme = GoogleFonts.plusJakartaSansTextTheme(ThemeData.light().textTheme);
     return ThemeData(
       useMaterial3: true,
       brightness: Brightness.light,
-      fontFamily: fontFamily,
       primaryColor: AppColors.primary,
       scaffoldBackgroundColor: AppColors.lightAppBackground,
       extensions: [
@@ -29,21 +28,21 @@ class AppTheme {
         error: AppColors.error,
         onError: Colors.white,
       ),
-      textTheme: const TextTheme(
-        headlineLarge: TextStyle(fontFamily: fontFamily, fontSize: 20, fontWeight: FontWeight.w800, color: Color(0xFF0F172A), letterSpacing: -0.3),
-        headlineMedium: TextStyle(fontFamily: fontFamily, fontSize: 18, fontWeight: FontWeight.w800, color: Color(0xFF0F172A), letterSpacing: -0.3),
-        titleLarge: TextStyle(fontFamily: fontFamily, fontSize: 15, fontWeight: FontWeight.w700, color: Color(0xFF0F172A)),
-        titleMedium: TextStyle(fontFamily: fontFamily, fontSize: 13, fontWeight: FontWeight.w600, color: Color(0xFF0F172A)),
-        bodyLarge: TextStyle(fontFamily: fontFamily, fontSize: 15, fontWeight: FontWeight.w500, color: Color(0xFF0F172A)),
-        bodyMedium: TextStyle(fontFamily: fontFamily, fontSize: 12, fontWeight: FontWeight.w500, color: Color(0xFF475569)),
-        bodySmall: TextStyle(fontFamily: fontFamily, fontSize: 11, fontWeight: FontWeight.w700, color: Color(0xFF475569), letterSpacing: 1.4),
+      textTheme: baseTextTheme.copyWith(
+        headlineLarge: GoogleFonts.plusJakartaSans(fontSize: 20, fontWeight: FontWeight.w700, color: const Color(0xFF0F172A), letterSpacing: -0.3),
+        headlineMedium: GoogleFonts.plusJakartaSans(fontSize: 18, fontWeight: FontWeight.w700, color: const Color(0xFF0F172A), letterSpacing: -0.3),
+        titleLarge: GoogleFonts.plusJakartaSans(fontSize: 15, fontWeight: FontWeight.w700, color: const Color(0xFF0F172A)),
+        titleMedium: GoogleFonts.plusJakartaSans(fontSize: 13, fontWeight: FontWeight.w600, color: const Color(0xFF0F172A)),
+        bodyLarge: GoogleFonts.plusJakartaSans(fontSize: 15, fontWeight: FontWeight.w500, color: const Color(0xFF0F172A)),
+        bodyMedium: GoogleFonts.plusJakartaSans(fontSize: 12, fontWeight: FontWeight.w500, color: const Color(0xFF475569)),
+        bodySmall: GoogleFonts.plusJakartaSans(fontSize: 11, fontWeight: FontWeight.w600, color: const Color(0xFF475569)),
       ),
-      appBarTheme: const AppBarTheme(
+      appBarTheme: AppBarTheme(
         backgroundColor: Colors.transparent,
         elevation: 0,
         centerTitle: false,
         scrolledUnderElevation: 0,
-        titleTextStyle: TextStyle(fontFamily: fontFamily, fontSize: 20, fontWeight: FontWeight.w800, color: Color(0xFF0F172A), letterSpacing: -0.3),
+        titleTextStyle: GoogleFonts.plusJakartaSans(fontSize: 20, fontWeight: FontWeight.w700, color: const Color(0xFF0F172A), letterSpacing: -0.3),
       ),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
@@ -69,9 +68,9 @@ class AppTheme {
           borderRadius: BorderRadius.circular(12),
           borderSide: const BorderSide(color: AppColors.error, width: 1.8),
         ),
-        labelStyle: const TextStyle(fontFamily: fontFamily, fontSize: 13, fontWeight: FontWeight.w500, color: Color(0xFF64748B)),
-        hintStyle: const TextStyle(fontFamily: fontFamily, fontSize: 13, fontWeight: FontWeight.w400, color: Color(0xFF94A3B8)),
-        errorStyle: const TextStyle(fontFamily: fontFamily, fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.error),
+        labelStyle: GoogleFonts.plusJakartaSans(fontSize: 13, fontWeight: FontWeight.w500, color: const Color(0xFF64748B)),
+        hintStyle: GoogleFonts.plusJakartaSans(fontSize: 13, fontWeight: FontWeight.w400, color: const Color(0xFF94A3B8)),
+        errorStyle: GoogleFonts.plusJakartaSans(fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.error),
       ),
       dialogTheme: DialogThemeData(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
@@ -92,10 +91,10 @@ class AppTheme {
   }
 
   static ThemeData get darkTheme {
+    final baseTextTheme = GoogleFonts.plusJakartaSansTextTheme(ThemeData.dark().textTheme);
     return ThemeData(
       useMaterial3: true,
       brightness: Brightness.dark,
-      fontFamily: fontFamily,
       primaryColor: AppColors.primaryLight,
       scaffoldBackgroundColor: AppColors.darkAppBackground,
       extensions: [
@@ -115,21 +114,21 @@ class AppTheme {
         error: AppColors.error,
         onError: Colors.white,
       ),
-      textTheme: const TextTheme(
-        headlineLarge: TextStyle(fontFamily: fontFamily, fontSize: 20, fontWeight: FontWeight.w800, color: Colors.white, letterSpacing: -0.3),
-        headlineMedium: TextStyle(fontFamily: fontFamily, fontSize: 18, fontWeight: FontWeight.w800, color: Colors.white, letterSpacing: -0.3),
-        titleLarge: TextStyle(fontFamily: fontFamily, fontSize: 15, fontWeight: FontWeight.w700, color: Colors.white),
-        titleMedium: TextStyle(fontFamily: fontFamily, fontSize: 13, fontWeight: FontWeight.w600, color: Colors.white),
-        bodyLarge: TextStyle(fontFamily: fontFamily, fontSize: 15, fontWeight: FontWeight.w500, color: Colors.white),
-        bodyMedium: TextStyle(fontFamily: fontFamily, fontSize: 12, fontWeight: FontWeight.w500, color: Color(0xFFA3AFBD)),
-        bodySmall: TextStyle(fontFamily: fontFamily, fontSize: 11, fontWeight: FontWeight.w700, color: Color(0xFFA3AFBD), letterSpacing: 1.4),
+      textTheme: baseTextTheme.copyWith(
+        headlineLarge: GoogleFonts.plusJakartaSans(fontSize: 20, fontWeight: FontWeight.w700, color: Colors.white, letterSpacing: -0.3),
+        headlineMedium: GoogleFonts.plusJakartaSans(fontSize: 18, fontWeight: FontWeight.w700, color: Colors.white, letterSpacing: -0.3),
+        titleLarge: GoogleFonts.plusJakartaSans(fontSize: 15, fontWeight: FontWeight.w700, color: Colors.white),
+        titleMedium: GoogleFonts.plusJakartaSans(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.white),
+        bodyLarge: GoogleFonts.plusJakartaSans(fontSize: 15, fontWeight: FontWeight.w500, color: Colors.white),
+        bodyMedium: GoogleFonts.plusJakartaSans(fontSize: 12, fontWeight: FontWeight.w500, color: const Color(0xFFA3AFBD)),
+        bodySmall: GoogleFonts.plusJakartaSans(fontSize: 11, fontWeight: FontWeight.w600, color: const Color(0xFFA3AFBD)),
       ),
-      appBarTheme: const AppBarTheme(
+      appBarTheme: AppBarTheme(
         backgroundColor: Colors.transparent,
         elevation: 0,
         centerTitle: false,
         scrolledUnderElevation: 0,
-        titleTextStyle: TextStyle(fontFamily: fontFamily, fontSize: 20, fontWeight: FontWeight.w800, color: Colors.white, letterSpacing: -0.3),
+        titleTextStyle: GoogleFonts.plusJakartaSans(fontSize: 20, fontWeight: FontWeight.w700, color: Colors.white, letterSpacing: -0.3),
       ),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
@@ -155,9 +154,9 @@ class AppTheme {
           borderRadius: BorderRadius.circular(12),
           borderSide: const BorderSide(color: AppColors.error, width: 1.8),
         ),
-        labelStyle: const TextStyle(fontFamily: fontFamily, fontSize: 13, fontWeight: FontWeight.w500, color: Color(0xFFA3AFBD)),
-        hintStyle: const TextStyle(fontFamily: fontFamily, fontSize: 13, fontWeight: FontWeight.w400, color: Color(0xFF64748B)),
-        errorStyle: const TextStyle(fontFamily: fontFamily, fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.error),
+        labelStyle: GoogleFonts.plusJakartaSans(fontSize: 13, fontWeight: FontWeight.w500, color: const Color(0xFFA3AFBD)),
+        hintStyle: GoogleFonts.plusJakartaSans(fontSize: 13, fontWeight: FontWeight.w400, color: const Color(0xFF64748B)),
+        errorStyle: GoogleFonts.plusJakartaSans(fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.error),
       ),
       dialogTheme: DialogThemeData(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),

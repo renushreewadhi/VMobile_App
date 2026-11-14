@@ -54,16 +54,22 @@ class _AdminDepartmentFormScreenState extends ConsumerState<AdminDepartmentFormS
   Future<void> _loadEmployeesAndExistingCodes() async {
     final apiClient = ref.read(apiClientProvider);
     try {
-      final empRes = await apiClient.get(ApiEndpoints.employees).catchError((_) => null);
-      List<dynamic> emps = empRes is List ? empRes : (empRes is Map ? (empRes['items'] ?? empRes['data'] ?? []) : []);
+      final empRes = await apiClient.get('${ApiEndpoints.employeesAll}?limit=500').catchError((_) => null);
+      List<dynamic> emps = [];
+      if (empRes is List) {
+        emps = empRes;
+      } else if (empRes is Map) {
+        emps = empRes['items'] ?? empRes['data'] ?? empRes['result'] ?? [];
+      }
 
       List<Map<String, String>> empList = [];
       for (final e in emps) {
         if (e is Map<String, dynamic>) {
-          final id = (e['id'] ?? e['employeeId'])?.toString() ?? '';
+          final id = (e['id'] ?? e['employeeId'] ?? e['userId'])?.toString() ?? '';
           final fName = e['firstName']?.toString() ?? '';
           final lName = e['lastName']?.toString() ?? '';
-          final name = '$fName $lName'.trim().isNotEmpty ? '$fName $lName' : (e['name']?.toString() ?? 'Employee');
+          final fullName = e['fullName']?.toString() ?? '';
+          final name = fullName.isNotEmpty ? fullName : ('$fName $lName'.trim().isNotEmpty ? '$fName $lName' : (e['name']?.toString() ?? 'Employee'));
           if (id.isNotEmpty) {
             empList.add({'id': id, 'name': name});
           }

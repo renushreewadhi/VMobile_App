@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import '../../core/api/api_client.dart';
 import '../../core/api/api_endpoints.dart';
+import '../../core/api/payroll_service.dart';
 import '../../core/auth/auth_service.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/widgets/glass_header.dart';
@@ -125,22 +126,18 @@ class _HrSalaryScreenState extends ConsumerState<HrSalaryScreen> {
       _errorMessage = null;
     });
 
-    final apiClient = ref.read(apiClientProvider);
+    final payrollService = ref.read(payrollServiceProvider);
 
     try {
-      final salRes = await apiClient.get(ApiEndpoints.employeeSalaries).catchError((_) => null);
-      final revRes = await apiClient.get(ApiEndpoints.salaryRevisions).catchError((_) => null);
-      final inpRes = await apiClient.get(ApiEndpoints.payrollInputs).catchError((_) => null);
+      final salRes = await payrollService.getEmployeeSalaries().catchError((_) => null);
+      final revRes = await payrollService.getSalaryRevisions().catchError((_) => null);
+      final inpRes = await payrollService.getPayrollInputs().catchError((_) => null);
 
       if (!mounted || currentReq != _requestId) return;
 
       List<dynamic> salaries = salRes is List ? salRes : (salRes is Map ? (salRes['items'] ?? salRes['data'] ?? []) : []);
       List<dynamic> revisions = revRes is List ? revRes : (revRes is Map ? (revRes['items'] ?? revRes['data'] ?? []) : []);
       List<dynamic> inputs = inpRes is List ? inpRes : (inpRes is Map ? (inpRes['items'] ?? inpRes['data'] ?? []) : []);
-
-      if (salaries.isEmpty) salaries = _getMockSalaries();
-      if (revisions.isEmpty) revisions = _getMockRevisions();
-      if (inputs.isEmpty) inputs = _getMockInputs();
 
       setState(() {
         _salaries = salaries;
@@ -151,132 +148,13 @@ class _HrSalaryScreenState extends ConsumerState<HrSalaryScreen> {
     } catch (e) {
       if (!mounted || currentReq != _requestId) return;
       setState(() {
-        _salaries = _getMockSalaries();
-        _revisions = _getMockRevisions();
-        _inputs = _getMockInputs();
+        _salaries = [];
+        _revisions = [];
+        _inputs = [];
+        _errorMessage = e.toString().replaceFirst('Exception: ', '').replaceFirst('ApiException: ', '');
         _isLoading = false;
       });
     }
-  }
-
-  List<dynamic> _getMockSalaries() {
-    return [
-      {
-        'id': 'EMP-26-0013',
-        'employeeId': 'EMP-26-0013',
-        'employeeCode': 'EMP-26-0013',
-        'employeeName': 'Amit Prajapati',
-        'department': 'Engineering',
-        'basicSalary': 8000.0,
-        'totalEarnings': 8000.0,
-        'totalDeductions': 0.0,
-        'netSalary': 8000.0,
-        'bankName': 'State Bank of India (SBI)',
-        'bankAccountNumber': '5399',
-      },
-      {
-        'id': 'EMP-26-0009',
-        'employeeId': 'EMP-26-0009',
-        'employeeCode': 'EMP-26-0009',
-        'employeeName': 'Mansi Borase',
-        'department': 'Engineering',
-        'basicSalary': 8000.0,
-        'totalEarnings': 8000.0,
-        'totalDeductions': 0.0,
-        'netSalary': 8000.0,
-        'bankName': 'HDFC Bank11',
-        'bankAccountNumber': '3822',
-      },
-      {
-        'id': 'EMP-24-0002',
-        'employeeId': 'EMP-24-0002',
-        'employeeCode': 'EMP-24-0002',
-        'employeeName': 'Prachi Natali',
-        'department': 'Human Resources',
-        'basicSalary': 25000.0,
-        'totalEarnings': 50000.0,
-        'totalDeductions': 4637.50,
-        'netSalary': 45362.50,
-        'bankName': 'Not Set',
-        'bankAccountNumber': '',
-      },
-      {
-        'id': 'EMP-24-0003',
-        'employeeId': 'EMP-24-0003',
-        'employeeCode': 'EMP-24-0003',
-        'employeeName': 'Praveen Singh',
-        'department': 'Engineering',
-        'basicSalary': 14500.0,
-        'totalEarnings': 29166.0,
-        'totalDeductions': 2048.75,
-        'netSalary': 27117.25,
-        'bankName': 'Not Set',
-        'bankAccountNumber': '',
-      },
-      {
-        'id': 'EMP-24-0007',
-        'employeeId': 'EMP-24-0007',
-        'employeeCode': 'EMP-24-0007',
-        'employeeName': 'HRMS Finance',
-        'department': 'Finance',
-        'basicSalary': 14500.0,
-        'totalEarnings': 29166.0,
-        'totalDeductions': 2048.75,
-        'netSalary': 27117.25,
-        'bankName': 'Not Set',
-        'bankAccountNumber': '',
-      },
-      {
-        'id': 'EMP-26-0008',
-        'employeeId': 'EMP-26-0008',
-        'employeeCode': 'EMP-26-0008',
-        'employeeName': 'Ajay Raja',
-        'department': 'Engineering',
-        'basicSalary': 8000.0,
-        'totalEarnings': 8000.0,
-        'totalDeductions': 0.0,
-        'netSalary': 8000.0,
-        'bankName': 'Bank Of Baroda',
-        'bankAccountNumber': '0000',
-      },
-    ];
-  }
-
-  List<dynamic> _getMockRevisions() {
-    return [
-      {
-        'id': 'REV-01',
-        'employeeId': 'EMP-26-0013',
-        'employeeCode': 'EMP-26-0013',
-        'employeeName': 'Amit Prajapati',
-        'revisionType': 'INCREMENT',
-        'currentBasic': 8000.0,
-        'newBasic': 12000.0,
-        'reason': 'Annual appraisal and merit increase',
-        'effectiveDate': '2026-11-01',
-        'status': 'PENDING',
-      },
-    ];
-  }
-
-  List<dynamic> _getMockInputs() {
-    return [
-      {
-        'id': 'INP-01',
-        'employeeId': 'EMP-26-0009',
-        'employeeCode': 'EMP-26-0009',
-        'employeeName': 'Mansi Borase',
-        'month': 'September',
-        'year': '2026',
-        'inputType': 'OVERTIME',
-        'label': 'Project Crunch Overtime',
-        'value': '15 Hours (₹4,500)',
-        'tlApprovalStatus': 'APPROVED',
-        'tlRemarks': 'Verified extra shift hours',
-        'hrVerificationStatus': 'PENDING',
-        'status': 'PENDING',
-      },
-    ];
   }
 
   int get _pendingRevisionsCount => _revisions.where((r) => (r['status'] ?? '').toString().toUpperCase() == 'PENDING').length;
@@ -305,43 +183,28 @@ class _HrSalaryScreenState extends ConsumerState<HrSalaryScreen> {
       _selectedStructureDetail = null;
     });
 
-    final apiClient = ref.read(apiClientProvider);
+    final payrollService = ref.read(payrollServiceProvider);
 
-    apiClient.get('/salary/structure/$empId').then((res) {
+    payrollService.getSalaryStructureDetail(empId).then((res) {
+      if (!mounted || currentStructureReq != _structureRequestId) return;
+      if (res is Map<String, dynamic>) {
+        setState(() {
+          _selectedStructureDetail = res['data'] is Map<String, dynamic> ? res['data'] : res;
+          _structureLoading = false;
+        });
+      } else {
+        setState(() {
+          _structureError = 'No salary structure details found for this employee.';
+          _structureLoading = false;
+        });
+      }
+    }).catchError((e) {
       if (!mounted || currentStructureReq != _structureRequestId) return;
       setState(() {
-        _selectedStructureDetail = res is Map<String, dynamic> ? res : _getMockStructureDetail(s);
-        _structureLoading = false;
-      });
-    }).catchError((_) {
-      if (!mounted || currentStructureReq != _structureRequestId) return;
-      setState(() {
-        _selectedStructureDetail = _getMockStructureDetail(s);
+        _structureError = e.toString().replaceFirst('Exception: ', '').replaceFirst('ApiException: ', '');
         _structureLoading = false;
       });
     });
-  }
-
-  Map<String, dynamic> _getMockStructureDetail(Map<String, dynamic> s) {
-    final basic = double.tryParse((s['basicSalary'] ?? 8000).toString()) ?? 8000.0;
-    final hra = basic * 0.4;
-    return {
-      'basicSalary': basic,
-      'totalEarnings': s['totalEarnings'] ?? basic,
-      'totalDeductions': s['totalDeductions'] ?? 0.0,
-      'netPay': s['netSalary'] ?? basic,
-      'components': [
-        {'code': 'BASIC', 'name': 'Basic Salary', 'category': 'EARNING', 'basis': 'FIXED_AMOUNT ($basic)', 'amount': basic},
-        {'code': 'HRA', 'name': 'House Rent Allowance', 'category': 'EARNING', 'basis': 'PERCENT_OF_BASIC (40%)', 'amount': hra},
-        {'code': 'CONVEYANCE', 'name': 'Conveyance Allowance', 'category': 'EARNING', 'basis': 'FIXED_AMOUNT (1600)', 'amount': 1600.0},
-        {'code': 'MEDICAL', 'name': 'Medical Allowance', 'category': 'EARNING', 'basis': 'FIXED_AMOUNT (1250)', 'amount': 1250.0},
-        {'code': 'SPECIAL', 'name': 'Special Allowance', 'category': 'EARNING', 'basis': 'FIXED_AMOUNT (0)', 'amount': 0.0},
-        {'code': 'PF', 'name': 'Provident Fund', 'category': 'DEDUCTION', 'basis': 'PERCENT_OF_BASIC (12%)', 'amount': basic * 0.12},
-        {'code': 'ESI', 'name': 'ESI', 'category': 'DEDUCTION', 'basis': 'PERCENT_OF_GROSS (0.75%)', 'amount': 0.0},
-        {'code': 'TDS', 'name': 'TDS / Income Tax', 'category': 'DEDUCTION', 'basis': 'PERCENT_OF_GROSS (5%)', 'amount': 0.0},
-        {'code': 'PT', 'name': 'Professional Tax', 'category': 'DEDUCTION', 'basis': 'FIXED_AMOUNT (200)', 'amount': 200.0},
-      ],
-    };
   }
 
   void _openRevisionModal([String? employeeId]) {
@@ -385,9 +248,9 @@ class _HrSalaryScreenState extends ConsumerState<HrSalaryScreen> {
     }
 
     setState(() => _isSubmittingRevision = true);
-    final apiClient = ref.read(apiClientProvider);
+    final payrollService = ref.read(payrollServiceProvider);
 
-    apiClient.post(ApiEndpoints.salaryRevisions, body: {
+    payrollService.createSalaryRevision({
       'employeeId': empId,
       'revisionType': _revisionForm['revisionType'],
       'newBasic': newBasicVal,

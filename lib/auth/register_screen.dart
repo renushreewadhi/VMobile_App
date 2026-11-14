@@ -62,7 +62,6 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
             lastName: lastName,
             email: _emailController.text.trim(),
             password: _passwordController.text,
-            role: 'EMPLOYEE',
           );
       if (!mounted) return;
       _message('Registration successful. Please sign in with your new account.');

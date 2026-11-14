@@ -3,9 +3,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/api/api_client.dart';
 import '../../core/api/api_endpoints.dart';
+import '../../core/api/finance_service.dart';
 import '../../core/theme/app_colors.dart';
 import '../../shared/widgets/app_card.dart';
 import '../../shared/widgets/compact_summary_widgets.dart';
+import '../../shared/widgets/empty_state_widget.dart';
+import '../../shared/widgets/error_state_widget.dart';
 import '../../shared/widgets/loading_shimmer.dart';
 
 class FinanceDashboardScreen extends ConsumerStatefulWidget {
@@ -19,16 +22,17 @@ class FinanceDashboardScreen extends ConsumerStatefulWidget {
 
 class _FinanceDashboardScreenState extends ConsumerState<FinanceDashboardScreen> {
   bool _isLoading = true;
+  String? _errorMessage;
   String _selectedMonth = 'Sep 2026';
 
   final List<String> _months = ['Sep 2026', 'Aug 2026', 'Jul 2026'];
 
   Map<String, dynamic> _stats = {
-    'totalPayroll': '₹ 54,20,000',
-    'pendingReimbursementsCount': 18,
-    'pendingReimbursementsAmount': '₹ 2,15,000',
-    'activeLoansCount': 12,
-    'taxDeductionsYtd': '₹ 6,80,000',
+    'totalPayroll': '₹0',
+    'pendingReimbursementsCount': 0,
+    'pendingReimbursementsAmount': '₹0',
+    'activeLoansCount': 0,
+    'taxDeductionsYtd': '₹0',
   };
 
   List<Map<String, dynamic>> _pendingApprovals = [];
@@ -41,66 +45,76 @@ class _FinanceDashboardScreenState extends ConsumerState<FinanceDashboardScreen>
   }
 
   Future<void> _loadDashboardData() async {
-    setState(() => _isLoading = true);
-    final apiClient = ref.read(apiClientProvider);
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
+    final financeService = ref.read(financeServiceProvider);
 
     try {
-      final dashRes = await apiClient.get(ApiEndpoints.financeDashboard).catchError((_) => null);
+      final dashRes = await financeService.getFinanceDashboard();
       if (dashRes is Map<String, dynamic>) {
         _stats = {..._stats, ...dashRes};
       }
 
-      final appRes = await apiClient.get(ApiEndpoints.financeApprovals).catchError((_) => null);
-      if (appRes is List && appRes.isNotEmpty) {
-        _pendingApprovals = appRes.take(5).map((a) {
-          final map = a is Map<String, dynamic> ? a : {};
-          return {
-            'id': map['reqId'] ?? 'APR-101',
-            'type': map['requestType'] ?? map['description'] ?? 'Expense Claim',
-            'employee': map['requestedBy'] ?? map['employeeName'] ?? 'Staff',
-            'amount': map['amount'] != null ? '₹${map['amount']}' : '₹24,500',
-            'requestedOn': map['date'] ?? '14 Oct 2026',
-            'status': map['status'] ?? 'Pending',
-          };
-        }).toList();
-      } else {
-        _pendingApprovals = [
-          {'id': 'APR-101', 'type': 'Conference Travel', 'employee': 'David Miller', 'amount': '₹24,500', 'requestedOn': '14 Oct 2026', 'status': 'Pending'},
-          {'id': 'APR-102', 'type': 'Medical Advance', 'employee': 'Emily Watson', 'amount': '₹50,000', 'requestedOn': '12 Oct 2026', 'status': 'Pending'},
-          {'id': 'APR-103', 'type': 'IT Workstation', 'employee': 'Alex Rivera', 'amount': '₹38,000', 'requestedOn': '10 Oct 2026', 'status': 'Pending'},
-        ];
+      final appRes = await financeService.getFinanceApprovals();
+      List<dynamic> appList = [];
+      if (appRes is List) {
+        appList = appRes;
+      } else if (appRes is Map<String, dynamic> && appRes['data'] is List) {
+        appList = appRes['data'];
       }
+      _pendingApprovals = appList.take(5).map((a) {
+        final map = a is Map<String, dynamic> ? a : {};
+        return {
+          'id': map['reqId'] ?? map['id'] ?? 'APR-101',
+          'type': map['requestType'] ?? map['description'] ?? 'Expense Claim',
+          'employee': map['requestedBy'] ?? map['employeeName'] ?? 'Staff',
+          'amount': map['amount'] != null ? '₹${map['amount']}' : '₹0',
+          'requestedOn': map['date'] ?? map['createdAt'] ?? '',
+          'status': map['status'] ?? 'Pending',
+        };
+      }).toList();
 
-      final payRes = await apiClient.get(ApiEndpoints.financePayments).catchError((_) => null);
-      if (payRes is List && payRes.isNotEmpty) {
-        _recentPayments = payRes.take(5).map((p) {
-          final map = p is Map<String, dynamic> ? p : {};
-          return {
-            'id': map['paymentId'] ?? 'PAY-8901',
-            'employee': map['employeeName'] ?? 'Staff',
-            'type': map['paymentType'] ?? 'Salary Payout',
-            'amount': map['amount'] != null ? '₹${map['amount']}' : '₹45,000',
-            'paidOn': map['paidOn'] ?? map['createdAt'] ?? '12 Oct 2026',
-            'status': map['status'] ?? 'Completed',
-          };
-        }).toList();
-      } else {
-        _recentPayments = [
-          {'id': 'PAY-89012', 'employee': 'Sarah Jenkins', 'type': 'Health Benefit', 'amount': '₹25,000', 'paidOn': '12 Oct 2026', 'status': 'Completed'},
-          {'id': 'PAY-89015', 'employee': 'Rajesh Sharma', 'type': 'Education Allowance', 'amount': '₹45,000', 'paidOn': '11 Oct 2026', 'status': 'Completed'},
-          {'id': 'PAY-89018', 'employee': 'Anita Roy', 'type': 'Wellness Stipend', 'amount': '₹12,000', 'paidOn': '09 Oct 2026', 'status': 'In Process'},
-        ];
+      final payRes = await financeService.getFinancePayments();
+      List<dynamic> payList = [];
+      if (payRes is List) {
+        payList = payRes;
+      } else if (payRes is Map<String, dynamic> && payRes['data'] is List) {
+        payList = payRes['data'];
       }
+      _recentPayments = payList.take(5).map((p) {
+        final map = p is Map<String, dynamic> ? p : {};
+        return {
+          'id': map['paymentId'] ?? map['id'] ?? 'PAY-001',
+          'employee': map['employeeName'] ?? 'Staff',
+          'type': map['paymentType'] ?? 'Salary Payout',
+          'amount': map['amount'] != null ? '₹${map['amount']}' : '₹0',
+          'paidOn': map['paidOn'] ?? map['createdAt'] ?? '',
+          'status': map['status'] ?? 'Completed',
+        };
+      }).toList();
 
       if (mounted) setState(() => _isLoading = false);
-    } catch (_) {
-      if (mounted) setState(() => _isLoading = false);
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _errorMessage = e.toString().replaceFirst('Exception: ', '').replaceFirst('ApiException: ', '');
+          _isLoading = false;
+        });
+      }
     }
   }
 
   @override
   Widget build(BuildContext context) {
     if (_isLoading) return const DashboardSkeleton();
+    if (_errorMessage != null) {
+      return ErrorStateWidget(
+        errorMessage: _errorMessage!,
+        onRetry: _loadDashboardData,
+      );
+    }
 
     final payrollTotal = _stats['totalPayroll'] ?? '₹ 54,20,000';
     final reimbursementsCount = _stats['pendingReimbursementsCount'] ?? 18;
@@ -238,30 +252,38 @@ class _FinanceDashboardScreenState extends ConsumerState<FinanceDashboardScreen>
             ),
             const SizedBox(height: 8),
 
-            ..._pendingApprovals.map((req) {
-              return Padding(
-                padding: const EdgeInsets.only(bottom: 8),
-                child: AppCard(
-                  padding: const EdgeInsets.all(12),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(req['employee'] ?? '', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-                            Text('${req['type']} • ${req['requestedOn']}', style: const TextStyle(fontSize: 11, color: AppColors.lightSecondaryText)),
-                          ],
+            _pendingApprovals.isEmpty
+                ? const EmptyStateWidget(
+                    title: 'No Pending Approvals',
+                    message: 'There are no finance requests pending approval.',
+                    icon: Icons.check_circle_outline,
+                  )
+                : Column(
+                    children: _pendingApprovals.map((req) {
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: 8),
+                        child: AppCard(
+                          padding: const EdgeInsets.all(12),
+                          child: Row(
+                            children: [
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(req['employee'] ?? '', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                                    Text('${req['type']} • ${req['requestedOn']}', style: const TextStyle(fontSize: 11, color: AppColors.lightSecondaryText)),
+                                  ],
+                                ),
+                              ),
+                              Text(req['amount'] ?? '', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppColors.primary)),
+                              const SizedBox(width: 8),
+                              const Icon(Icons.chevron_right_rounded, size: 18, color: AppColors.lightMutedText),
+                            ],
+                          ),
                         ),
-                      ),
-                      Text(req['amount'] ?? '', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppColors.primary)),
-                      const SizedBox(width: 8),
-                      const Icon(Icons.chevron_right_rounded, size: 18, color: AppColors.lightMutedText),
-                    ],
+                      );
+                    }).toList(),
                   ),
-                ),
-              );
-            }),
           ],
         ),
       ),

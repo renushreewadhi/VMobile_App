@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/api/api_client.dart';
 import '../../core/api/api_endpoints.dart';
+import '../../core/api/asset_service.dart';
+import '../../core/api/it_service.dart';
 import '../../core/auth/auth_service.dart';
 import '../../core/theme/app_colors.dart';
 import '../../shared/widgets/app_card.dart';
@@ -29,9 +31,9 @@ class _AssetRequestsScreenState extends ConsumerState<AssetRequestsScreen> {
 
   Future<void> _fetchRequests() async {
     setState(() => _isLoading = true);
-    final apiClient = ref.read(apiClientProvider);
+    final assetService = ref.read(assetServiceProvider);
     try {
-      final res = await apiClient.get('/assets/my/requests').catchError((_) => null);
+      final res = await assetService.getMyAssetRequests().catchError((_) => null);
       if (mounted) {
         setState(() {
           if (res is List) _requests = res;
@@ -480,10 +482,10 @@ class _ItSupportTicketsScreenState extends ConsumerState<ItSupportTicketsScreen>
                             final txt = messageController.text.trim();
                             if (txt.isEmpty) return;
 
-                            final apiClient = ref.read(apiClientProvider);
+                            final itService = ref.read(itServiceProvider);
 
                             try {
-                              await apiClient.post('${ApiEndpoints.itTickets}/${ticket['id']}/comments', body: {'comment': txt});
+                              await itService.addTicketComment(ticket['id'].toString(), txt);
                               setModalState(() {
                                 messages.add({
                                   'sender': 'Employee',

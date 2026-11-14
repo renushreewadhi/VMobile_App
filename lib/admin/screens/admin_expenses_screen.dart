@@ -174,7 +174,8 @@ class ExpenseReportRowModel {
 }
 
 class AdminExpensesScreen extends ConsumerStatefulWidget {
-  const AdminExpensesScreen({super.key});
+  final bool showAppBar;
+  const AdminExpensesScreen({super.key, this.showAppBar = true});
 
   @override
   ConsumerState<AdminExpensesScreen> createState() => _AdminExpensesScreenState();
@@ -924,11 +925,7 @@ class _AdminExpensesScreenState extends ConsumerState<AdminExpensesScreen> {
     final userRole = authState.user?.role;
     final bool isAuthorized = userRole == UserRole.ADMIN || userRole == UserRole.HR;
 
-    return GlassScaffold(
-      appBar: GlassHeader(
-        title: 'Expense Management & Control',
-      ),
-      body: !isAuthorized
+    final content = !isAuthorized
           ? Center(
               child: Padding(
                 padding: const EdgeInsets.all(24.0),
@@ -961,7 +958,15 @@ class _AdminExpensesScreenState extends ConsumerState<AdminExpensesScreen> {
           : RefreshIndicator(
               onRefresh: _loadModuleData,
               child: _buildMainContent(glass, cardBgColor),
-            ),
+            );
+
+    if (!widget.showAppBar) return Material(color: Colors.transparent, child: content);
+
+    return GlassScaffold(
+      appBar: const GlassHeader(
+        title: 'Expense Management & Control',
+      ),
+      body: content,
     );
   }
 

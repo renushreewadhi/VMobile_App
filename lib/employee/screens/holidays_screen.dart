@@ -451,32 +451,14 @@ class _HolidaysScreenState extends ConsumerState<HolidaysScreen> {
   }
 
   Widget _buildHeaderRow(bool isDark) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Holiday Calendar',
-                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: isDark ? AppColors.darkPrimaryText : AppColors.lightPrimaryText),
-              ),
-              const SizedBox(height: 2),
-              Text(
-                'View company holidays, public holidays and important dates.',
-                style: TextStyle(fontSize: 12, color: isDark ? AppColors.darkSecondaryText : AppColors.lightSecondaryText),
-              ),
-            ],
-          ),
-        ),
-        ElevatedButton.icon(
-          onPressed: _openAddModal,
-          icon: const Icon(Icons.add, size: 16),
-          label: const Text('Add Holiday'),
-          style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary, foregroundColor: Colors.white),
-        ),
-      ],
+    return Align(
+      alignment: Alignment.centerRight,
+      child: ElevatedButton.icon(
+        onPressed: _openAddModal,
+        icon: const Icon(Icons.add, size: 16),
+        label: const Text('Add Holiday'),
+        style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary, foregroundColor: Colors.white),
+      ),
     );
   }
 

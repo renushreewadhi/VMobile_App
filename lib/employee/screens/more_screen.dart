@@ -379,72 +379,26 @@ class _MoreScreenState extends ConsumerState<MoreScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final results = _searchResults;
-    final isSearching = _searchQuery.trim().isNotEmpty;
-
-    // Filter parent modules if searching
-    final filteredParents = _parentModules.where((parent) {
-      if (_searchQuery.isEmpty) return true;
-      final q = _searchQuery.toLowerCase();
-      if (parent.title.toLowerCase().contains(q) || parent.description.toLowerCase().contains(q)) {
-        return true;
-      }
-      return parent.submodules.any((s) => s.name.toLowerCase().contains(q) || s.description.toLowerCase().contains(q));
-    }).toList();
-
     final content = ListView(
-      padding: const EdgeInsets.only(top: 4, bottom: 20),
+      padding: const EdgeInsets.only(top: 8, bottom: 20),
       children: [
-        GlassSearchBar(
-          controller: _searchController,
-          placeholder: "Search modules...",
-          onChanged: (val) => setState(() => _searchQuery = val),
-          onClear: () => setState(() => _searchQuery = ''),
-        ),
-        const SectionLabel("ALL MODULES"),
-          if (isSearching && filteredParents.isEmpty)
-            Center(
-              child: Padding(
-                padding: const EdgeInsets.all(40),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    const Icon(Icons.search_off_rounded, size: 48, color: Colors.grey),
-                    const SizedBox(height: 12),
-                    const Text('No modules found', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-                    const SizedBox(height: 4),
-                    Text('No results for "$_searchQuery"', style: const TextStyle(fontSize: 12, color: Colors.grey)),
-                    const SizedBox(height: 16),
-                    TextButton(
-                      onPressed: () {
-                        _searchController.clear();
-                        setState(() => _searchQuery = '');
-                      },
-                      child: const Text('Clear Search'),
-                    ),
-                  ],
+        ..._parentModules.map((parent) {
+          return ModuleCard(
+            icon: parent.icon,
+            gradientColors: parent.colors,
+            title: parent.title,
+            count: parent.submodules.length,
+            onPress: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => ParentSubmodulesScreen(parent: parent),
                 ),
-              ),
-            )
-          else
-            ...filteredParents.map((parent) {
-              return ModuleCard(
-                icon: parent.icon,
-                gradientColors: parent.colors,
-                title: parent.title,
-                subtitle: parent.description,
-                count: parent.submodules.length,
-                onPress: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => ParentSubmodulesScreen(parent: parent),
-                    ),
-                  );
-                },
               );
-            }),
-        ],
+            },
+          );
+        }),
+      ],
     );
 
     if (!widget.showAppBar) {
@@ -461,10 +415,7 @@ class _MoreScreenState extends ConsumerState<MoreScreen> {
           label: "Home",
           isSelected: false,
           onTap: () {
-            Navigator.pushReplacement(
-              context,
-              MaterialPageRoute(builder: (context) => EmployeeDashboardScreen(onNavigateTab: (_) {})),
-            );
+            Navigator.of(context).popUntil((route) => route.isFirst);
           },
         ),
         GlassTab(
@@ -479,6 +430,15 @@ class _MoreScreenState extends ConsumerState<MoreScreen> {
           },
         ),
         GlassTab(
+          icon: Icons.add_rounded,
+          label: "",
+          isAction: true,
+          isSelected: false,
+          onTap: () {
+            Navigator.push(context, MaterialPageRoute(builder: (_) => const PunchInOutScreen()));
+          },
+        ),
+        GlassTab(
           icon: Icons.calendar_month_rounded,
           label: "My Leave",
           isSelected: false,
@@ -486,18 +446,6 @@ class _MoreScreenState extends ConsumerState<MoreScreen> {
             Navigator.pushReplacement(
               context,
               MaterialPageRoute(builder: (context) => const MyLeaveScreen(showAppBar: true)),
-            );
-          },
-        ),
-        GlassTab(
-          icon: Icons.notifications_rounded,
-          label: "Alerts",
-          badgeCount: 3,
-          isSelected: false,
-          onTap: () {
-            Navigator.pushReplacement(
-              context,
-              MaterialPageRoute(builder: (context) => const NotificationsScreen(showAppBar: true)),
             );
           },
         ),

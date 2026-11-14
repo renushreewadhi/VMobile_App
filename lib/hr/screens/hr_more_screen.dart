@@ -599,7 +599,6 @@ class _HrMoreScreenState extends ConsumerState<HrMoreScreen> {
           onChanged: (val) => setState(() => _searchQuery = val),
           onClear: () => setState(() => _searchQuery = ''),
         ),
-        const SectionLabel("ALL HR MODULES"),
         if (isSearching && filteredParents.isEmpty)
           Center(
             child: Padding(
@@ -630,7 +629,6 @@ class _HrMoreScreenState extends ConsumerState<HrMoreScreen> {
               icon: parent.icon,
               gradientColors: parent.colors,
               title: parent.title,
-              subtitle: parent.description,
               count: parent.submodules.length,
               onPress: () {
                 Navigator.push(

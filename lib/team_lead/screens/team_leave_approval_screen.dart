@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/api/api_client.dart';
 import '../../core/api/api_endpoints.dart';
+import '../../core/api/leave_service.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/widgets/glass_header.dart';
 import '../../core/widgets/glass_scaffold.dart';
@@ -30,13 +31,13 @@ class _TeamLeaveApprovalScreenState extends ConsumerState<TeamLeaveApprovalScree
 
   Future<void> _loadAllLeaveData() async {
     setState(() => _isLoading = true);
-    final apiClient = ref.read(apiClientProvider);
+    final leaveService = ref.read(leaveServiceProvider);
 
     try {
       final results = await Future.wait<dynamic>(<Future<dynamic>>[
-        apiClient.get(ApiEndpoints.leavePending).catchError((_) => null),
-        apiClient.get('/leave/team/approved').catchError((_) => null),
-        apiClient.get('/leave/team/rejected').catchError((_) => null),
+        leaveService.getPendingLeaves().catchError((_) => null),
+        leaveService.rawGet('/leave/team/approved').catchError((_) => null),
+        leaveService.rawGet('/leave/team/rejected').catchError((_) => null),
       ]);
 
       final pending = results[0];
@@ -136,9 +137,9 @@ class _TeamLeaveApprovalScreenState extends ConsumerState<TeamLeaveApprovalScree
   }
 
   Future<void> _handleDecision(String id, bool isApprove, String name) async {
-    final apiClient = ref.read(apiClientProvider);
+    final leaveService = ref.read(leaveServiceProvider);
     try {
-      await apiClient.post(ApiEndpoints.approveOrRejectLeave(id), body: {
+      await leaveService.approveOrRejectLeave(id, {
         'approved': isApprove,
         'decision': isApprove ? 'APPROVED' : 'REJECTED',
       });

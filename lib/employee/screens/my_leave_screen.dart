@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/api/api_client.dart';
 import '../../core/api/api_endpoints.dart';
+import '../../core/api/leave_service.dart';
+import '../../core/auth/auth_service.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/glass_theme.dart';
 import '../../core/widgets/glass_scaffold.dart';
@@ -28,6 +30,9 @@ class _MyLeaveScreenState extends ConsumerState<MyLeaveScreen> {
   String _selectedBalanceSegment = 'ALL';
   String _selectedLeaveType = 'Sick Leave';
   int _activeLeaveTab = 0; // 0 = Leave Balances, 1 = Leave History & Status
+  bool _isLoadingDetails = false;
+  Map<String, dynamic>? _selectedLeaveDetail;
+  bool _showLeaveDetailModal = false;
 
   List<dynamic> get _filteredBalances {
     if (_selectedBalanceSegment == 'USED') {
@@ -64,6 +69,32 @@ class _MyLeaveScreenState extends ConsumerState<MyLeaveScreen> {
     _fetchLeaveData();
   }
 
+  Future<void> _confirmCancelLeave(String id) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Cancel Leave Request?'),
+        content: const Text('Are you sure you want to cancel this leave request? This action cannot be undone.'),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Keep'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: FilledButton.styleFrom(backgroundColor: Colors.red),
+            child: const Text('Cancel Leave'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true) {
+      await _cancelLeave(id);
+    }
+  }
+
   Future<void> _cancelLeave(String id) async {
     final apiClient = ref.read(apiClientProvider);
     try {
@@ -98,10 +129,10 @@ class _MyLeaveScreenState extends ConsumerState<MyLeaveScreen> {
 
   Future<void> _fetchLeaveData() async {
     setState(() => _isLoading = true);
-    final apiClient = ref.read(apiClientProvider);
+    final leaveService = ref.read(leaveServiceProvider);
     try {
-      final myLeaves = await apiClient.get(ApiEndpoints.leaveMy).catchError((_) => null);
-      final balances = await apiClient.get(ApiEndpoints.leaveBalances).catchError((_) => null);
+      final myLeaves = await leaveService.getMyLeaves().catchError((_) => null);
+      final balances = await leaveService.getLeaveBalances().catchError((_) => null);
 
       if (mounted) {
         setState(() {
@@ -371,11 +402,21 @@ class _MyLeaveScreenState extends ConsumerState<MyLeaveScreen> {
                     // 2. Selectable Leave Category Chips
                     Text('Select Leave Type', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: glass.textSecondary)),
                     const SizedBox(height: 8),
-                    SingleChildScrollView(
-                      scrollDirection: Axis.horizontal,
-                      physics: const BouncingScrollPhysics(),
-                      child: Row(
-                        children: _filteredBalances.map((b) {
+                    ShaderMask(
+                      shaderCallback: (Rect bounds) {
+                        return const LinearGradient(
+                          begin: Alignment.centerLeft,
+                          end: Alignment.centerRight,
+                          colors: [Colors.black, Colors.transparent, Colors.transparent, Colors.black],
+                          stops: [0.0, 0.02, 0.94, 1.0],
+                        ).createShader(bounds);
+                      },
+                      blendMode: BlendMode.dstOut,
+                      child: SingleChildScrollView(
+                        scrollDirection: Axis.horizontal,
+                        physics: const BouncingScrollPhysics(),
+                        child: Row(
+                          children: _filteredBalances.map((b) {
                           final type = b['leaveType']?.toString() ?? b['type']?.toString() ?? 'Leave';
                           final shortName = type.replaceAll(' Leave', '');
                           final isSelected = (_currentSelectedBalance?['leaveType'] ?? '') == type;
@@ -416,6 +457,7 @@ class _MyLeaveScreenState extends ConsumerState<MyLeaveScreen> {
                         }).toList(),
                       ),
                     ),
+                  ),
                     const SizedBox(height: 18),
 
                     // 3. Dynamic Selected Category Balance Details Card
@@ -676,17 +718,33 @@ class _MyLeaveScreenState extends ConsumerState<MyLeaveScreen> {
                                           'Reviewer: $reviewer',
                                           style: TextStyle(fontSize: 11, color: glass.textSecondary),
                                         ),
-                                        if (canCancel)
-                                          TextButton.icon(
-                                            onPressed: () => _cancelLeave(id),
-                                            icon: const Icon(Icons.close_rounded, size: 13, color: Colors.redAccent),
-                                            label: const Text('Cancel', style: TextStyle(fontSize: 11, color: Colors.redAccent, fontWeight: FontWeight.bold)),
-                                            style: TextButton.styleFrom(
-                                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                                              minimumSize: const Size(0, 24),
-                                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                        Row(
+                                          children: [
+                                            OutlinedButton.icon(
+                                              onPressed: () => _viewLeaveDetails(id, h),
+                                              icon: const Icon(Icons.remove_red_eye_outlined, size: 14),
+                                              label: const Text('View', style: TextStyle(fontSize: 11)),
+                                              style: OutlinedButton.styleFrom(
+                                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                                minimumSize: const Size(0, 24),
+                                                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                              ),
                                             ),
-                                          ),
+                                            if (canCancel) ...[
+                                              const SizedBox(width: 6),
+                                              TextButton.icon(
+                                                onPressed: () => _confirmCancelLeave(id),
+                                                icon: const Icon(Icons.close_rounded, size: 13, color: Colors.redAccent),
+                                                label: const Text('Cancel', style: TextStyle(fontSize: 11, color: Colors.redAccent, fontWeight: FontWeight.bold)),
+                                                style: TextButton.styleFrom(
+                                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                                  minimumSize: const Size(0, 24),
+                                                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                                ),
+                                              ),
+                                            ],
+                                          ],
+                                        ),
                                       ],
                                     ),
                                   ],
@@ -703,11 +761,18 @@ class _MyLeaveScreenState extends ConsumerState<MyLeaveScreen> {
       ),
     );
 
-    if (!widget.showAppBar) return content;
+    final stack = Stack(
+      children: [
+        content,
+        if (_showLeaveDetailModal) _buildLeaveDetailModal(isDark, glass),
+      ],
+    );
+
+    if (!widget.showAppBar) return stack;
 
     return GlassScaffold(
       title: 'My Leave',
-      body: content,
+      body: stack,
     );
   }
 
@@ -740,6 +805,204 @@ class _MyLeaveScreenState extends ConsumerState<MyLeaveScreen> {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Future<void> _viewLeaveDetails(String id, Map<String, dynamic> fallbackItem) async {
+    setState(() {
+      _isLoadingDetails = true;
+      _selectedLeaveDetail = fallbackItem;
+      _showLeaveDetailModal = true;
+    });
+
+    final apiClient = ref.read(apiClientProvider);
+    try {
+      final res = await apiClient.get('/leave/$id').catchError((_) => null);
+      if (res != null && mounted) {
+        setState(() {
+          if (res is Map<String, dynamic>) {
+            _selectedLeaveDetail = res;
+          } else if (res is Map && res['data'] is Map) {
+            _selectedLeaveDetail = Map<String, dynamic>.from(res['data']);
+          }
+        });
+      }
+    } catch (_) {
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoadingDetails = false;
+        });
+      }
+    }
+  }
+
+  Widget _buildLeaveDetailModal(bool isDark, GlassTheme glass) {
+    if (!_showLeaveDetailModal || _selectedLeaveDetail == null) return const SizedBox.shrink();
+
+    final h = _selectedLeaveDetail!;
+    final type = h['leaveType']?.toString() ?? h['type']?.toString() ?? 'Leave';
+    final startDate = _formatReadableDate(h['startDate']?.toString());
+    final endDate = _formatReadableDate(h['endDate']?.toString());
+    final status = h['status']?.toString() ?? 'PENDING';
+    final reason = h['reason']?.toString() ?? h['description']?.toString() ?? '--';
+    final days = h['totalDays'] ?? h['days'] ?? 1;
+    final reviewer = h['approvedBy'] ?? h['reviewedBy'] ?? h['reviewerName'] ?? '--';
+    final decisionDate = _formatReadableDate(h['reviewedAt']?.toString() ?? h['updatedAt']?.toString());
+    final email = h['companyEmail'] ?? h['email'] ?? ref.read(authServiceProvider).user?.email ?? 'emp@hrm.com';
+
+    return Container(
+      color: Colors.black.withOpacity(0.5),
+      child: Center(
+        child: Container(
+          width: 420,
+          margin: const EdgeInsets.all(20),
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            color: isDark ? const Color(0xFF1A2632) : Colors.white,
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: isDark ? AppColors.darkBordersAndDividers : const Color(0xFFE2E8F0)),
+            boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.3), blurRadius: 15, offset: const Offset(0, 5))],
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Row(
+                    children: [
+                      const Icon(Icons.event_note_rounded, color: AppColors.primary, size: 20),
+                      const SizedBox(width: 8),
+                      Text('Leave Request Details', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: glass.textPrimary)),
+                    ],
+                  ),
+                  IconButton(
+                    onPressed: () => setState(() => _showLeaveDetailModal = false),
+                    icon: Icon(Icons.close_rounded, size: 18, color: glass.textSecondary),
+                  ),
+                ],
+              ),
+              const Divider(height: 20),
+              if (_isLoadingDetails)
+                const Center(
+                  child: Padding(
+                    padding: EdgeInsets.all(24),
+                    child: CircularProgressIndicator(),
+                  ),
+                )
+              else
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text('Leave Type', style: TextStyle(fontSize: 11, color: glass.textSecondary)),
+                            const SizedBox(height: 2),
+                            Text(type, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: glass.textPrimary)),
+                          ],
+                        ),
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.end,
+                          children: [
+                            Text('Status', style: TextStyle(fontSize: 11, color: glass.textSecondary)),
+                            const SizedBox(height: 2),
+                            StatusChip(status: status),
+                          ],
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 14),
+                    Row(
+                      children: [
+                        const Icon(Icons.email_outlined, size: 14, color: AppColors.primary),
+                        const SizedBox(width: 6),
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text('Company Email ID', style: TextStyle(fontSize: 11, color: glass.textSecondary)),
+                            Text(email, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: glass.textPrimary)),
+                          ],
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 14),
+                    Row(
+                      children: [
+                        const Icon(Icons.date_range_rounded, size: 14, color: AppColors.primary),
+                        const SizedBox(width: 6),
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text('Total Duration', style: TextStyle(fontSize: 11, color: glass.textSecondary)),
+                            Text('$startDate – $endDate ($days Day${days > 1 ? 's' : ''})', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: glass.textPrimary)),
+                          ],
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 14),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text('Reviewed By', style: TextStyle(fontSize: 11, color: glass.textSecondary)),
+                            const SizedBox(height: 2),
+                            Text(reviewer, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: glass.textPrimary)),
+                          ],
+                        ),
+                        if (decisionDate != '--')
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.end,
+                            children: [
+                              Text('Decision Date', style: TextStyle(fontSize: 11, color: glass.textSecondary)),
+                              const SizedBox(height: 2),
+                              Text(decisionDate, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: glass.textPrimary)),
+                            ],
+                          ),
+                      ],
+                    ),
+                    const SizedBox(height: 14),
+                    Text('Reason Provided', style: TextStyle(fontSize: 11, color: glass.textSecondary)),
+                    const SizedBox(height: 4),
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: isDark ? AppColors.darkBordersAndDividers : const Color(0xFFE2E8F0)),
+                      ),
+                      child: Text(
+                        reason.isNotEmpty ? reason : 'No reason provided',
+                        style: TextStyle(fontSize: 12.5, color: glass.textPrimary),
+                      ),
+                    ),
+                  ],
+                ),
+              const SizedBox(height: 20),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: () => setState(() => _showLeaveDetailModal = false),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primary,
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                  child: const Text('Close', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/api/api_client.dart';
 import '../../core/api/api_endpoints.dart';
+import '../../core/api/training_service.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/widgets/glass_header.dart';
 import '../../core/widgets/glass_scaffold.dart';
@@ -46,9 +47,9 @@ class _TlAssignTrainingScreenState extends ConsumerState<TlAssignTrainingScreen>
   }
 
   Future<void> _loadCourses() async {
-    final apiClient = ref.read(apiClientProvider);
+    final trainingService = ref.read(trainingServiceProvider);
     try {
-      final res = await apiClient.get('/training/courses').catchError((_) => null);
+      final res = await trainingService.getCourses().catchError((_) => null);
       List<dynamic> items = [];
       if (res is List) {
         items = res;
@@ -96,9 +97,9 @@ class _TlAssignTrainingScreenState extends ConsumerState<TlAssignTrainingScreen>
   }
 
   Future<void> _loadAssignments() async {
-    final apiClient = ref.read(apiClientProvider);
+    final trainingService = ref.read(trainingServiceProvider);
     try {
-      final res = await apiClient.get('/training/assignments').catchError((_) => null);
+      final res = await trainingService.getAssignments().catchError((_) => null);
       List<dynamic> items = [];
       if (res is List) {
         items = res;
@@ -272,9 +273,9 @@ class _TlAssignTrainingScreenState extends ConsumerState<TlAssignTrainingScreen>
             ElevatedButton(
               style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary, foregroundColor: Colors.white),
               onPressed: () async {
-                final apiClient = ref.read(apiClientProvider);
+                final trainingService = ref.read(trainingServiceProvider);
                 try {
-                  await apiClient.post('/training/assignments', body: {
+                  await trainingService.assignTraining({
                     'courseId': selectedCourseId,
                     'assignedToType': assignedToType,
                     'assignedTo': [selectedEmpId],
@@ -325,9 +326,9 @@ class _TlAssignTrainingScreenState extends ConsumerState<TlAssignTrainingScreen>
   }
 
   Future<void> _sendReminder(String assignmentId, String name) async {
-    final apiClient = ref.read(apiClientProvider);
+    final trainingService = ref.read(trainingServiceProvider);
     try {
-      await apiClient.post('/training/assignments/$assignmentId/reminder', body: {}).catchError((_) => null);
+      await trainingService.sendAssignmentReminder(assignmentId).catchError((_) => null);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Reminder sent to $name'), backgroundColor: AppColors.success),

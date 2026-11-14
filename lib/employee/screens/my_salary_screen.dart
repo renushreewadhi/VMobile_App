@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/api/api_client.dart';
 import '../../core/api/api_endpoints.dart';
+import '../../core/api/payroll_service.dart';
 import '../../core/auth/auth_service.dart';
 import '../../core/theme/app_colors.dart';
 import '../../shared/widgets/app_card.dart';
@@ -39,10 +40,10 @@ class _MySalaryScreenState extends ConsumerState<MySalaryScreen> {
     _loadData();
   }
 
-  Future<dynamic> _tryFetch(ApiClient apiClient, List<String> endpoints) async {
+  Future<dynamic> _tryFetch(PayrollService payrollService, List<String> endpoints) async {
     for (final ep in endpoints) {
       try {
-        final res = await apiClient.get(ep);
+        final res = await payrollService.rawGet(ep);
         if (res != null) return res;
       } catch (_) {}
     }
@@ -82,10 +83,10 @@ class _MySalaryScreenState extends ConsumerState<MySalaryScreen> {
       _error = null;
     });
 
-    final apiClient = ref.read(apiClientProvider);
+    final payrollService = ref.read(payrollServiceProvider);
 
     try {
-      final salaryRes = await _tryFetch(apiClient, [
+      final salaryRes = await _tryFetch(payrollService, [
         ApiEndpoints.mySalary,
         '/payroll/salary/my',
         '/salary/structure/my',
@@ -94,7 +95,7 @@ class _MySalaryScreenState extends ConsumerState<MySalaryScreen> {
         '/salary/me',
       ]);
 
-      final historyRes = await _tryFetch(apiClient, [
+      final historyRes = await _tryFetch(payrollService, [
         ApiEndpoints.mySalaryHistory,
         ApiEndpoints.myPayslips,
         '/payroll/payslips/my',

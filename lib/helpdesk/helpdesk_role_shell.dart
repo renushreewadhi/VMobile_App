@@ -26,7 +26,7 @@ class _HelpdeskRoleShellState extends State<HelpdeskRoleShell> {
     ];
 
     final titles = [
-      'Helpdesk Dashboard',
+      '',
       'Support Tickets',
       'Knowledge Base',
       'Helpdesk More Tools',

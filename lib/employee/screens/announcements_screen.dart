@@ -274,18 +274,6 @@ class _AnnouncementsScreenState extends ConsumerState<AnnouncementsScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                // Page Header Text
-                Text(
-                  'Announcements & Bulletins',
-                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: isDark ? AppColors.darkPrimaryText : AppColors.lightPrimaryText),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  'Stay informed with company news, policy updates, and team highlights',
-                  style: TextStyle(fontSize: 12, color: isDark ? AppColors.darkSecondaryText : AppColors.lightSecondaryText),
-                ),
-                const SizedBox(height: 16),
-
                 // 1. STAT SUMMARY CARDS (3 Cards matching Website)
                 _buildStatsGrid(isDark),
                 const SizedBox(height: 16),

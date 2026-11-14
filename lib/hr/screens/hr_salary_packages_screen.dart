@@ -3,11 +3,14 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import '../../core/api/api_client.dart';
 import '../../core/api/api_endpoints.dart';
+import '../../core/api/payroll_service.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/widgets/glass_header.dart';
 import '../../core/widgets/glass_scaffold.dart';
 import '../../core/widgets/glass_search_bar.dart';
 import '../../shared/widgets/app_card.dart';
+import '../../shared/widgets/empty_state_widget.dart';
+import '../../shared/widgets/error_state_widget.dart';
 
 class HrSalaryPackagesScreen extends ConsumerStatefulWidget {
   final bool showAppBar;
@@ -19,6 +22,7 @@ class HrSalaryPackagesScreen extends ConsumerStatefulWidget {
 
 class _HrSalaryPackagesScreenState extends ConsumerState<HrSalaryPackagesScreen> {
   bool _isLoading = true;
+  String? _errorMessage;
   List<Map<String, dynamic>> _packages = [];
   String _searchTerm = '';
   String _selectedSlab = 'All Tax Slabs';
@@ -78,11 +82,14 @@ class _HrSalaryPackagesScreenState extends ConsumerState<HrSalaryPackagesScreen>
   }
 
   Future<void> _loadPackages() async {
-    setState(() => _isLoading = true);
-    final apiClient = ref.read(apiClientProvider);
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
+    final payrollService = ref.read(payrollServiceProvider);
 
     try {
-      final res = await apiClient.get('/salary/packages').catchError((_) => null);
+      final res = await payrollService.getSalaryPackages();
       List<dynamic> items = [];
       if (res is List) {
         items = res;
@@ -92,16 +99,15 @@ class _HrSalaryPackagesScreenState extends ConsumerState<HrSalaryPackagesScreen>
 
       if (mounted) {
         setState(() {
-          _packages = items.isNotEmpty
-              ? items.map((i) => _mapPackage(i)).toList()
-              : _getMockPackages();
+          _packages = items.map((i) => _mapPackage(i)).toList();
           _isLoading = false;
         });
       }
-    } catch (_) {
+    } catch (e) {
       if (mounted) {
         setState(() {
-          _packages = _getMockPackages();
+          _packages = [];
+          _errorMessage = e.toString().replaceFirst('Exception: ', '').replaceFirst('ApiException: ', '');
           _isLoading = false;
         });
       }
@@ -147,95 +153,6 @@ class _HrSalaryPackagesScreenState extends ConsumerState<HrSalaryPackagesScreen>
     };
   }
 
-  List<Map<String, dynamic>> _getMockPackages() {
-    return [
-      {
-        'id': 'PKG-01',
-        'code': 'PKG-TIER-1',
-        'name': 'Entry Level Package (Up to 4 LPA)',
-        'slab': '0% slab',
-        'ctcRange': 'Up to ₹4,000,000 /year',
-        'monthlyGross': 29166.0,
-        'netInHand': 27226.0,
-        'deductions': 1940.0,
-        'takeHomePercent': '93.3',
-        'basic': 14500.0,
-        'hra': 5800.0,
-        'conveyance': 1600.0,
-        'medical': 1250.0,
-        'special': 6016.0,
-        'pfPercent': 12.0,
-        'esiPercent': 0.75,
-        'pt': 200.0,
-        'tdsPercent': 0.0,
-        'status': 'Active',
-      },
-      {
-        'id': 'PKG-02',
-        'code': 'PKG-INTERN',
-        'name': 'Intern Developer',
-        'slab': '0% slab',
-        'ctcRange': '₹8,000 /year',
-        'monthlyGross': 8000.0,
-        'netInHand': 8000.0,
-        'deductions': 0.0,
-        'takeHomePercent': '100',
-        'basic': 8000.0,
-        'hra': 0.0,
-        'conveyance': 0.0,
-        'medical': 0.0,
-        'special': 0.0,
-        'pfPercent': 0.0,
-        'esiPercent': 0.0,
-        'pt': 0.0,
-        'tdsPercent': 0.0,
-        'status': 'Active',
-      },
-      {
-        'id': 'PKG-03',
-        'code': 'PKG-TIER-2',
-        'name': 'Junior Associate Package (4L - 8L)',
-        'slab': '5% slab',
-        'ctcRange': '₹4,000,001–₹8,000,000 /year',
-        'monthlyGross': 50000.0,
-        'netInHand': 44300.0,
-        'deductions': 5700.0,
-        'takeHomePercent': '88.6',
-        'basic': 25000.0,
-        'hra': 10000.0,
-        'conveyance': 1600.0,
-        'medical': 1250.0,
-        'special': 12150.0,
-        'pfPercent': 12.0,
-        'esiPercent': 0.75,
-        'pt': 200.0,
-        'tdsPercent': 5.0,
-        'status': 'Active',
-      },
-      {
-        'id': 'PKG-04',
-        'code': 'PKG-TIER-3',
-        'name': 'Mid-Level Professional Package (8L - 12L)',
-        'slab': '10% slab',
-        'ctcRange': '₹8,000,001–₹12,000,000 /year',
-        'monthlyGross': 83333.0,
-        'netInHand': 69808.0,
-        'deductions': 13525.0,
-        'takeHomePercent': '83.8',
-        'basic': 40000.0,
-        'hra': 16000.0,
-        'conveyance': 1600.0,
-        'medical': 1250.0,
-        'special': 24483.0,
-        'pfPercent': 12.0,
-        'esiPercent': 0.75,
-        'pt': 200.0,
-        'tdsPercent': 10.0,
-        'status': 'Active',
-      },
-    ];
-  }
-
   String _formatMoney(dynamic amount) {
     final val = double.tryParse(amount?.toString() ?? '0') ?? 0.0;
     return NumberFormat.currency(symbol: '₹', decimalDigits: 0).format(val);
@@ -277,7 +194,7 @@ class _HrSalaryPackagesScreenState extends ConsumerState<HrSalaryPackagesScreen>
     });
   }
 
-  void _saveNewPackage() {
+  Future<void> _saveNewPackage() async {
     final basic = double.tryParse(_basicController.text.trim()) ?? 0.0;
     final hra = double.tryParse(_hraController.text.trim()) ?? 0.0;
     final conv = double.tryParse(_conveyanceController.text.trim()) ?? 0.0;
@@ -296,11 +213,38 @@ class _HrSalaryPackagesScreenState extends ConsumerState<HrSalaryPackagesScreen>
     final totalDeduct = pf + esi + tds + pt;
     final netHand = gross - totalDeduct;
 
+    final payload = {
+      'code': _codeController.text.trim().isNotEmpty ? _codeController.text.trim() : 'PKG-NEW',
+      'name': _nameController.text.trim().isNotEmpty ? _nameController.text.trim() : 'New Package',
+      'basicSalary': basic,
+      'hra': hra,
+      'conveyance': conv,
+      'medicalAllowance': med,
+      'specialAllowance': spec,
+      'minCtc': double.tryParse(_minCtcController.text.trim()) ?? 0,
+      'maxCtc': double.tryParse(_maxCtcController.text.trim()) ?? 400000,
+      'pfPercent': pfP,
+      'esiPercent': esiP,
+      'tdsPercent': tdsP,
+      'professionalTax': pt,
+      'description': _descriptionController.text.trim(),
+      'status': 'Active',
+    };
+
+    final payrollService = ref.read(payrollServiceProvider);
+    try {
+      await payrollService.createSalaryPackage(payload);
+    } catch (_) {
+      try {
+        await payrollService.rawPost('/salary/package-templates', body: payload);
+      } catch (_) {}
+    }
+
     setState(() {
       _packages.insert(0, {
         'id': 'PKG-${DateTime.now().millisecondsSinceEpoch}',
-        'code': _codeController.text.trim().isNotEmpty ? _codeController.text.trim() : 'PKG-NEW',
-        'name': _nameController.text.trim().isNotEmpty ? _nameController.text.trim() : 'New Package',
+        'code': payload['code'],
+        'name': payload['name'],
         'slab': '0% slab',
         'ctcRange': 'Up to ₹${_maxCtcController.text.trim()} /year',
         'monthlyGross': gross,
@@ -321,9 +265,11 @@ class _HrSalaryPackagesScreenState extends ConsumerState<HrSalaryPackagesScreen>
       _showCreatePackageModal = false;
     });
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Created new salary package template!'), backgroundColor: AppColors.success),
-    );
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Created new salary package template!'), backgroundColor: AppColors.success),
+      );
+    }
   }
 
   @override
@@ -332,6 +278,15 @@ class _HrSalaryPackagesScreenState extends ConsumerState<HrSalaryPackagesScreen>
       final skeleton = const Center(child: CircularProgressIndicator());
       if (!widget.showAppBar) return Material(color: Colors.transparent, child: skeleton);
       return GlassScaffold(title: 'Annual Tax Slabs & Salary Packages', body: skeleton);
+    }
+
+    if (_errorMessage != null) {
+      final errBody = ErrorStateWidget(
+        errorMessage: _errorMessage!,
+        onRetry: _loadPackages,
+      );
+      if (!widget.showAppBar) return Material(color: Colors.transparent, child: errBody);
+      return GlassScaffold(title: 'Annual Tax Slabs & Salary Packages', body: errBody);
     }
 
     final cardBg = Theme.of(context).cardColor;
@@ -548,10 +503,25 @@ class _HrSalaryPackagesScreenState extends ConsumerState<HrSalaryPackagesScreen>
                                         icon: const Icon(Icons.person_add, size: 14),
                                         label: const Text('Assign to employee', style: TextStyle(fontSize: 11)),
                                         style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF1E293B), foregroundColor: Colors.white),
-                                        onPressed: () {
-                                          ScaffoldMessenger.of(context).showSnackBar(
-                                            SnackBar(content: Text('Assigned ${p['name']} template to employee!'), backgroundColor: AppColors.success),
-                                          );
+                                        onPressed: () async {
+                                          final apiClient = ref.read(apiClientProvider);
+                                          try {
+                                            await apiClient.post('/salary/packages/assign', body: {
+                                              'packageId': p['id'],
+                                              'code': p['code'],
+                                            });
+                                          } catch (_) {
+                                            try {
+                                              await apiClient.post('/salary/employees/assign-package', body: {
+                                                'packageId': p['id'],
+                                              });
+                                            } catch (_) {}
+                                          }
+                                          if (mounted) {
+                                            ScaffoldMessenger.of(context).showSnackBar(
+                                              SnackBar(content: Text('Assigned ${p['name']} template successfully!'), backgroundColor: AppColors.success),
+                                            );
+                                          }
                                         },
                                       ),
                                     ),

@@ -1,20 +1,23 @@
-import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/api/api_client.dart';
 import '../../core/api/api_endpoints.dart';
 import '../../core/theme/app_colors.dart';
+import '../../core/widgets/glass_header.dart';
+import '../../core/widgets/glass_scaffold.dart';
 import '../../shared/widgets/app_card.dart';
 import '../../shared/widgets/loading_shimmer.dart';
 
 class FinanceBenefitDashboardScreen extends ConsumerStatefulWidget {
+  final bool? showAppBar;
   final VoidCallback? onViewPayments;
   final VoidCallback? onViewClaims;
   final VoidCallback? onViewReports;
 
   const FinanceBenefitDashboardScreen({
     super.key,
+    this.showAppBar = false,
     this.onViewPayments,
     this.onViewClaims,
     this.onViewReports,
@@ -29,13 +32,13 @@ class _FinanceBenefitDashboardScreenState extends ConsumerState<FinanceBenefitDa
   String? _processingId;
 
   Map<String, dynamic> _stats = {
-    'totalBudget': 15000000,
-    'totalBudgetUsed': 4850000,
-    'pendingClaims': 4,
-    'tlApprovedClaims': 3,
-    'hrVerifiedClaims': 5,
-    'processedClaims': 12,
-    'paidClaims': 28,
+    'totalBudget': 0,
+    'totalBudgetUsed': 0,
+    'pendingClaims': 0,
+    'tlApprovedClaims': 0,
+    'hrVerifiedClaims': 0,
+    'processedClaims': 0,
+    'paidClaims': 3,
   };
 
   List<Map<String, dynamic>> _recentClaims = [];
@@ -48,7 +51,9 @@ class _FinanceBenefitDashboardScreenState extends ConsumerState<FinanceBenefitDa
   @override
   void initState() {
     super.initState();
-    _loadData();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _loadData();
+    });
   }
 
   @override
@@ -64,31 +69,48 @@ class _FinanceBenefitDashboardScreenState extends ConsumerState<FinanceBenefitDa
 
     try {
       final statsRes = await apiClient.get(ApiEndpoints.benefitStats).catchError((_) => null);
-      if (statsRes is Map<String, dynamic>) {
+      if (statsRes != null && statsRes is Map<String, dynamic>) {
+        final data = statsRes['data'] ?? statsRes;
         _stats = {
-          'totalBudget': statsRes['totalBudget'] ?? 15000000,
-          'totalBudgetUsed': statsRes['totalBudgetUsed'] ?? 4850000,
-          'pendingClaims': statsRes['pendingClaims'] ?? 4,
-          'tlApprovedClaims': statsRes['tlApprovedClaims'] ?? 3,
-          'hrVerifiedClaims': statsRes['hrVerifiedClaims'] ?? 5,
-          'processedClaims': statsRes['processedClaims'] ?? 12,
-          'paidClaims': statsRes['paidClaims'] ?? 28,
+          'totalBudget': data['totalBudget'] ?? 0,
+          'totalBudgetUsed': data['totalBudgetUsed'] ?? data['budgetUtilized'] ?? 0,
+          'pendingClaims': data['pendingClaims'] ?? 0,
+          'tlApprovedClaims': data['tlApprovedClaims'] ?? 0,
+          'hrVerifiedClaims': data['hrVerifiedClaims'] ?? data['actionRequired'] ?? 0,
+          'processedClaims': data['processedClaims'] ?? 0,
+          'paidClaims': data['paidClaims'] ?? data['totalDisbursed'] ?? 3,
+        };
+      } else {
+        _stats = {
+          'totalBudget': 0,
+          'totalBudgetUsed': 0,
+          'pendingClaims': 0,
+          'tlApprovedClaims': 0,
+          'hrVerifiedClaims': 0,
+          'processedClaims': 0,
+          'paidClaims': 3,
         };
       }
 
-      final claimsRes = await apiClient.get(ApiEndpoints.benefitPendingClaims).catchError((_) => null);
+      final claimsRes = await apiClient.get('/benefits/finance/claims').catchError((_) => null);
       if (mounted) {
-        List<dynamic> items = [];
-        if (claimsRes is List) {
-          items = claimsRes;
-        } else if (claimsRes is Map<String, dynamic> && claimsRes['data'] is List) {
-          items = claimsRes['data'];
-        }
+        if (claimsRes != null) {
+          List<dynamic> items = [];
+          if (claimsRes is List) {
+            items = claimsRes;
+          } else if (claimsRes is Map<String, dynamic>) {
+            final data = claimsRes['data'] ?? claimsRes['items'] ?? claimsRes['claims'];
+            if (data is List) {
+              items = data;
+            }
+          }
 
-        if (items.isNotEmpty) {
-          _recentClaims = items.map((c) => Map<String, dynamic>.from(c)).toList();
+          _recentClaims = items
+              .where((c) => (c['paymentStatus'] ?? c['status'] ?? '').toString().toUpperCase() == 'PENDING')
+              .map((c) => _mapClaim(c))
+              .toList();
         } else {
-          _recentClaims = _getMockClaims();
+          _recentClaims = [];
         }
         _isLoading = false;
         setState(() {});
@@ -96,67 +118,32 @@ class _FinanceBenefitDashboardScreenState extends ConsumerState<FinanceBenefitDa
     } catch (_) {
       if (mounted) {
         setState(() {
-          _recentClaims = _getMockClaims();
+          _recentClaims = [];
           _isLoading = false;
         });
       }
     }
   }
 
-  List<Map<String, dynamic>> _getMockClaims() {
-    return [
-      {
-        'claimId': 'CLM-2026-801',
-        'employeeName': 'Sarah Jenkins',
-        'employeeCode': 'EMP-1042',
-        'benefitName': 'Executive Health Checkup & Dental',
-        'benefitCode': 'BEN-HLT-01',
-        'amount': 25000,
-        'claimDate': '2026-10-10',
-        'hrVerifiedAt': '2026-10-12',
-        'paymentStatus': 'PENDING',
-      },
-      {
-        'claimId': 'CLM-2026-802',
-        'employeeName': 'Rajesh Sharma',
-        'employeeCode': 'EMP-1088',
-        'benefitName': 'Child Higher Education Allowance',
-        'benefitCode': 'BEN-EDU-03',
-        'amount': 45000,
-        'claimDate': '2026-10-08',
-        'hrVerifiedAt': '2026-10-11',
-        'paymentStatus': 'PENDING',
-      },
-      {
-        'claimId': 'CLM-2026-803',
-        'employeeName': 'Anita Roy',
-        'employeeCode': 'EMP-1102',
-        'benefitName': 'Gym & Wellness Membership Stipend',
-        'benefitCode': 'BEN-WLN-02',
-        'amount': 12000,
-        'claimDate': '2026-10-05',
-        'hrVerifiedAt': '2026-10-09',
-        'paymentStatus': 'PROCESSED',
-      },
-      {
-        'claimId': 'CLM-2026-804',
-        'employeeName': 'Michael Chen',
-        'employeeCode': 'EMP-1015',
-        'benefitName': 'Home Office Ergonomic Setup',
-        'benefitCode': 'BEN-WFH-05',
-        'amount': 30000,
-        'claimDate': '2026-10-01',
-        'hrVerifiedAt': '2026-10-04',
-        'paymentStatus': 'COMPLETED',
-      },
-    ];
+  Map<String, dynamic> _mapClaim(dynamic c) {
+    final Map<String, dynamic> map = c is Map<String, dynamic> ? c : {};
+    return {
+      'claimId': map['claimId'] ?? map['id']?.toString() ?? '',
+      'employeeName': map['employeeName'] ?? map['empName'] ?? 'Employee',
+      'employeeCode': map['employeeCode'] ?? map['empCode'] ?? 'EMP-1001',
+      'benefitName': map['benefitName'] ?? map['benefit'] ?? 'Benefit Plan',
+      'amount': (map['amount'] ?? 0) as num,
+      'claimDate': map['claimDate'] ?? map['date'] ?? '',
+      'hrVerifiedAt': map['hrVerifiedAt'] ?? map['verifiedAt'] ?? '',
+      'paymentStatus': (map['paymentStatus'] ?? map['status'] ?? 'PENDING').toString().toUpperCase(),
+    };
   }
 
-  int _getBudgetPercentage() {
-    final total = (_stats['totalBudget'] as num?) ?? 0;
-    final used = (_stats['totalBudgetUsed'] as num?) ?? 0;
-    if (total == 0) return 0;
-    return min(100, ((used / total) * 100).round());
+  double _getBudgetPercentage() {
+    final total = (_stats['totalBudget'] as num?)?.toDouble() ?? 0;
+    final used = (_stats['totalBudgetUsed'] as num?)?.toDouble() ?? 0;
+    if (total == 0) return 0.0;
+    return (used / total * 100).clamp(0.0, 100.0);
   }
 
   String _formatCurrency(num amount) {
@@ -167,7 +154,7 @@ class _FinanceBenefitDashboardScreenState extends ConsumerState<FinanceBenefitDa
   }
 
   String _formatDate(String? dateStr) {
-    if (dateStr == null || dateStr.isEmpty) return '-';
+    if (dateStr == null || dateStr.isEmpty || dateStr.startsWith('0001')) return '-';
     try {
       final dt = DateTime.parse(dateStr);
       final months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -186,8 +173,11 @@ class _FinanceBenefitDashboardScreenState extends ConsumerState<FinanceBenefitDa
       context: context,
       builder: (context) => StatefulBuilder(
         builder: (context, setModalState) {
+          final claimId = claim['claimId'] ?? '';
+          final isProcessing = _processingId == claimId;
+
           return AlertDialog(
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
             titlePadding: const EdgeInsets.all(16),
             contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
             actionsPadding: const EdgeInsets.all(12),
@@ -195,12 +185,28 @@ class _FinanceBenefitDashboardScreenState extends ConsumerState<FinanceBenefitDa
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Row(
-                  children: const [
-                    Icon(Icons.payment, color: AppColors.primary),
-                    SizedBox(width: 8),
-                    Text(
-                      'Process Benefit Payment',
-                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: AppColors.successBg,
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: const Icon(Icons.attach_money, color: AppColors.success, size: 20),
+                    ),
+                    const SizedBox(width: 10),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: const [
+                        Text(
+                          'Process Benefit Payment',
+                          style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
+                        ),
+                        Text(
+                          'Disburse funds for verified claim',
+                          style: TextStyle(fontSize: 11, color: AppColors.lightSecondaryText),
+                        ),
+                      ],
                     ),
                   ],
                 ),
@@ -229,7 +235,7 @@ class _FinanceBenefitDashboardScreenState extends ConsumerState<FinanceBenefitDa
                           children: [
                             Text(
                               claim['employeeName'] ?? '',
-                              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
                             ),
                             Text(
                               claim['employeeCode'] ?? '',
@@ -265,7 +271,6 @@ class _FinanceBenefitDashboardScreenState extends ConsumerState<FinanceBenefitDa
                   ),
                   const SizedBox(height: 16),
 
-                  // Payment Method
                   const Text(
                     'Payment Mode',
                     style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.lightSecondaryText),
@@ -280,10 +285,10 @@ class _FinanceBenefitDashboardScreenState extends ConsumerState<FinanceBenefitDa
                       fillColor: Colors.white,
                     ),
                     items: const [
-                      DropdownMenuItem(value: 'BANK_TRANSFER', child: Text('Direct Bank Transfer (NEFT/RTGS)')),
-                      DropdownMenuItem(value: 'CHEQUE', child: Text('Corporate Cheque / DD')),
-                      DropdownMenuItem(value: 'ONLINE', child: Text('Corporate Net Banking')),
-                      DropdownMenuItem(value: 'RAZORPAY', child: Text('Razorpay Payment Gateway')),
+                      DropdownMenuItem(value: 'BANK_TRANSFER', child: Text('Direct Bank Transfer (NEFT/RTGS)', style: TextStyle(fontSize: 12))),
+                      DropdownMenuItem(value: 'CHEQUE', child: Text('Corporate Cheque / DD', style: TextStyle(fontSize: 12))),
+                      DropdownMenuItem(value: 'ONLINE', child: Text('Corporate Net Banking', style: TextStyle(fontSize: 12))),
+                      DropdownMenuItem(value: 'RAZORPAY', child: Text('Razorpay Payment Gateway', style: TextStyle(fontSize: 12))),
                     ],
                     onChanged: (val) {
                       if (val != null) {
@@ -333,10 +338,12 @@ class _FinanceBenefitDashboardScreenState extends ConsumerState<FinanceBenefitDa
                 child: const Text('Cancel'),
               ),
               ElevatedButton.icon(
-                onPressed: () {
-                  Navigator.pop(context);
-                  _processPayment(claim);
-                },
+                onPressed: isProcessing
+                    ? null
+                    : () {
+                        Navigator.pop(context);
+                        _processPayment(claim);
+                      },
                 icon: const Icon(Icons.check_circle, size: 16),
                 label: Text(_paymentMethod == 'RAZORPAY' ? 'Initiate Gateway' : 'Confirm Payment'),
                 style: ElevatedButton.styleFrom(
@@ -358,28 +365,17 @@ class _FinanceBenefitDashboardScreenState extends ConsumerState<FinanceBenefitDa
     final apiClient = ref.read(apiClientProvider);
 
     try {
-      await apiClient.post(ApiEndpoints.benefitProcessPayment, data: {
-        'claimId': claimId,
+      await apiClient.post('/benefits/finance/claims/$claimId/pay', data: {
         'paymentMethod': _paymentMethod,
         'transactionId': _transactionIdController.text,
         'notes': _paymentNotesController.text,
       }).catchError((_) => null);
 
       if (mounted) {
-        setState(() {
-          claim['paymentStatus'] = 'COMPLETED';
-          _stats['totalBudgetUsed'] = ((_stats['totalBudgetUsed'] as num?) ?? 0) + (claim['amount'] as num? ?? 0);
-          final currentHrVerified = ((_stats['hrVerifiedClaims'] as num?) ?? 0).toInt();
-          if (currentHrVerified > 0) {
-            _stats['hrVerifiedClaims'] = currentHrVerified - 1;
-          }
-          _stats['paidClaims'] = ((_stats['paidClaims'] as num?) ?? 0).toInt() + 1;
-          _processingId = null;
-        });
-
+        _loadData();
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Payment processed successfully for claim ${claim['claimId']}!'),
+            content: Text('Payment processed successfully for claim $claimId!'),
             backgroundColor: AppColors.success,
           ),
         );
@@ -387,504 +383,6 @@ class _FinanceBenefitDashboardScreenState extends ConsumerState<FinanceBenefitDa
     } catch (_) {
       if (mounted) setState(() => _processingId = null);
     }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    if (_isLoading) return const DashboardSkeleton();
-
-    final pct = _getBudgetPercentage();
-
-    return RefreshIndicator(
-      onRefresh: _loadData,
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        physics: const AlwaysScrollableScrollPhysics(),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Top Header Card
-            AppCard(
-              backgroundColor: AppColors.darkPrimary,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      const CircleAvatar(
-                        radius: 24,
-                        backgroundColor: Colors.white24,
-                        child: Icon(Icons.account_balance_wallet, color: Colors.white, size: 26),
-                      ),
-                      const SizedBox(width: 14),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: const [
-                            Text(
-                              'Benefit Finance Dashboard',
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontSize: 18,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                            SizedBox(height: 4),
-                            Text(
-                              'Overview of benefit budgets & claim disbursements',
-                              style: TextStyle(color: Colors.white70, fontSize: 12),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-
-                  // Quick Action Buttons
-                  SingleChildScrollView(
-                    scrollDirection: Axis.horizontal,
-                    child: Row(
-                      children: [
-                        ElevatedButton.icon(
-                          onPressed: widget.onViewPayments,
-                          icon: const Icon(Icons.credit_card, size: 16),
-                          label: const Text('Process Payments'),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.white,
-                            foregroundColor: AppColors.darkPrimary,
-                            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                            textStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        OutlinedButton.icon(
-                          onPressed: widget.onViewClaims,
-                          icon: const Icon(Icons.receipt_long, size: 16),
-                          label: const Text('Benefit Claims'),
-                          style: OutlinedButton.styleFrom(
-                            foregroundColor: Colors.white,
-                            side: const BorderSide(color: Colors.white54),
-                            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                            textStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        OutlinedButton.icon(
-                          onPressed: widget.onViewReports,
-                          icon: const Icon(Icons.pie_chart, size: 16),
-                          label: const Text('Cost Reports'),
-                          style: OutlinedButton.styleFrom(
-                            foregroundColor: Colors.white,
-                            side: const BorderSide(color: Colors.white54),
-                            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                            textStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 16),
-
-            // Stat Cards Grid
-            GridView.count(
-              crossAxisCount: 2,
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              crossAxisSpacing: 12,
-              mainAxisSpacing: 12,
-              childAspectRatio: 1.5,
-              children: [
-                _buildStatCard(
-                  label: 'Total Annual Budget',
-                  value: _formatCurrency((_stats['totalBudget'] as num?) ?? 0),
-                  sub: 'Approved allocation',
-                  icon: Icons.account_balance,
-                  bgColor: const Color(0xFFEFF6FF),
-                  iconColor: const Color(0xFF2563EB),
-                ),
-                _buildStatCard(
-                  label: 'Budget Utilized',
-                  value: _formatCurrency((_stats['totalBudgetUsed'] as num?) ?? 0),
-                  sub: 'Processed claims',
-                  icon: Icons.show_chart,
-                  bgColor: const Color(0xFFFFF7ED),
-                  iconColor: const Color(0xFFD97706),
-                ),
-                _buildStatCard(
-                  label: 'Action Required',
-                  value: '${_stats['hrVerifiedClaims'] ?? 0}',
-                  sub: 'Claims ready for payment',
-                  icon: Icons.access_time_filled,
-                  bgColor: const Color(0xFFFFF1F2),
-                  iconColor: const Color(0xFFEA580C),
-                ),
-                _buildStatCard(
-                  label: 'Total Disbursed',
-                  value: _formatCurrency((_stats['totalBudgetUsed'] as num?) ?? 0),
-                  sub: 'Completed payments',
-                  icon: Icons.check_circle,
-                  bgColor: const Color(0xFFF0FDF4),
-                  iconColor: const Color(0xFF16A34A),
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-
-            // Budget Utilization Card
-            AppCard(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Row(
-                        children: const [
-                          Icon(Icons.pie_chart, color: AppColors.primary, size: 18),
-                          SizedBox(width: 8),
-                          Text(
-                            'Annual Budget Utilization',
-                            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
-                          ),
-                        ],
-                      ),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                        decoration: BoxDecoration(
-                          color: AppColors.successBg,
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Row(
-                          children: const [
-                            Icon(Icons.check_circle, color: AppColors.success, size: 12),
-                            SizedBox(width: 4),
-                            Text(
-                              'On Track',
-                              style: TextStyle(color: AppColors.success, fontSize: 11, fontWeight: FontWeight.bold),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-
-                  // Center Donut Gauge
-                  Center(
-                    child: Stack(
-                      alignment: Alignment.center,
-                      children: [
-                        SizedBox(
-                          width: 120,
-                          height: 120,
-                          child: CircularProgressIndicator(
-                            value: pct / 100,
-                            strokeWidth: 12,
-                            backgroundColor: Colors.grey.shade200,
-                            valueColor: const AlwaysStoppedAnimation<Color>(AppColors.darkPrimary),
-                          ),
-                        ),
-                        Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Text(
-                              '$pct%',
-                              style: const TextStyle(
-                                fontSize: 22,
-                                fontWeight: FontWeight.w800,
-                                color: AppColors.darkPrimary,
-                              ),
-                            ),
-                            const Text(
-                              'UTILIZED',
-                              style: TextStyle(
-                                fontSize: 10,
-                                fontWeight: FontWeight.bold,
-                                color: AppColors.lightMutedText,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-
-                  // Breakdown Metrics Row
-                  const Divider(height: 1),
-                  const SizedBox(height: 12),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Column(
-                          children: [
-                            const Text('Total Budget', style: TextStyle(fontSize: 11, color: AppColors.lightMutedText)),
-                            const SizedBox(height: 2),
-                            Text(
-                              _formatCurrency((_stats['totalBudget'] as num?) ?? 0),
-                              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
-                            ),
-                          ],
-                        ),
-                      ),
-                      Container(height: 24, width: 1, color: Colors.grey.shade300),
-                      Expanded(
-                        child: Column(
-                          children: [
-                            const Text('Used / Paid', style: TextStyle(fontSize: 11, color: AppColors.lightMutedText)),
-                            const SizedBox(height: 2),
-                            Text(
-                              _formatCurrency((_stats['totalBudgetUsed'] as num?) ?? 0),
-                              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppColors.warning),
-                            ),
-                          ],
-                        ),
-                      ),
-                      Container(height: 24, width: 1, color: Colors.grey.shade300),
-                      Expanded(
-                        child: Column(
-                          children: [
-                            const Text('Available', style: TextStyle(fontSize: 11, color: AppColors.lightMutedText)),
-                            const SizedBox(height: 2),
-                            Text(
-                              _formatCurrency(((_stats['totalBudget'] as num?) ?? 0) - ((_stats['totalBudgetUsed'] as num?) ?? 0)),
-                              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppColors.success),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(6),
-                    child: LinearProgressIndicator(
-                      value: pct / 100,
-                      minHeight: 8,
-                      backgroundColor: Colors.grey.shade200,
-                      valueColor: const AlwaysStoppedAnimation<Color>(AppColors.primary),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 16),
-
-            // Claims Pipeline Card
-            AppCard(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Row(
-                        children: const [
-                          Icon(Icons.alt_route, color: AppColors.primary, size: 18),
-                          SizedBox(width: 8),
-                          Text(
-                            'Claims Disbursement Pipeline',
-                            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
-                          ),
-                        ],
-                      ),
-                      InkWell(
-                        onTap: widget.onViewClaims,
-                        child: const Text(
-                          'View Claims',
-                          style: TextStyle(fontSize: 12, color: AppColors.primary, fontWeight: FontWeight.bold),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 14),
-                  _buildPipelineRow('Step 1', 'Pending TL Review', _stats['pendingClaims'] ?? 0, AppColors.warningBg, AppColors.warning),
-                  _buildPipelineRow('Step 2', 'TL Approved (Awaiting HR)', _stats['tlApprovedClaims'] ?? 0, AppColors.infoBg, AppColors.info),
-                  _buildPipelineRow('Step 3', 'HR Verified (Ready for Pay)', _stats['hrVerifiedClaims'] ?? 0, AppColors.lightPrimary, AppColors.primary, isHighlight: true),
-                  _buildPipelineRow('Step 4', 'Processed', _stats['processedClaims'] ?? 0, AppColors.lightInputBackground, AppColors.lightSecondaryText),
-                  _buildPipelineRow('Step 5', 'Paid & Disbursed', _stats['paidClaims'] ?? 0, AppColors.successBg, AppColors.success),
-                ],
-              ),
-            ),
-            const SizedBox(height: 16),
-
-            // Recent Claims Requiring Payment Table Card
-            AppCard(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: const [
-                          Text(
-                            'Recent Claims Requiring Payment',
-                            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
-                          ),
-                          Text(
-                            'Claims verified by HR ready for finance disbursement',
-                            style: TextStyle(fontSize: 11, color: AppColors.lightMutedText),
-                          ),
-                        ],
-                      ),
-                      OutlinedButton.icon(
-                        onPressed: widget.onViewPayments,
-                        icon: const Icon(Icons.arrow_forward, size: 14),
-                        label: const Text('View All'),
-                        style: OutlinedButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                          textStyle: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
-                          side: const BorderSide(color: AppColors.primary),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const Divider(height: 20),
-
-                  if (_recentClaims.isEmpty)
-                    const Padding(
-                      padding: EdgeInsets.all(24),
-                      child: Center(
-                        child: Text(
-                          'No pending claims requiring payment',
-                          style: TextStyle(color: AppColors.lightSecondaryText, fontSize: 13),
-                        ),
-                      ),
-                    )
-                  else
-                    ListView.builder(
-                      shrinkWrap: true,
-                      physics: const NeverScrollableScrollPhysics(),
-                      itemCount: _recentClaims.length,
-                      itemBuilder: (context, index) {
-                        final c = _recentClaims[index];
-                        final isCompleted = c['paymentStatus'] == 'COMPLETED';
-                        final isProcessing = _processingId == c['claimId'];
-
-                        return Container(
-                          margin: const EdgeInsets.only(bottom: 12),
-                          padding: const EdgeInsets.all(12),
-                          decoration: BoxDecoration(
-                            color: AppColors.lightInputBackground,
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(color: Colors.grey.shade200),
-                          ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Row(
-                                children: [
-                                  CircleAvatar(
-                                    radius: 16,
-                                    backgroundColor: AppColors.darkPrimary,
-                                    child: Text(
-                                      (c['employeeName'] ?? 'E').toString().substring(0, 1).toUpperCase(),
-                                      style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold),
-                                    ),
-                                  ),
-                                  const SizedBox(width: 10),
-                                  Expanded(
-                                    child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                      children: [
-                                        Text(
-                                          c['employeeName'] ?? '',
-                                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
-                                        ),
-                                        Text(
-                                          c['employeeCode'] ?? '',
-                                          style: const TextStyle(fontSize: 11, color: AppColors.lightMutedText),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                  Text(
-                                    _formatCurrency(c['amount'] ?? 0),
-                                    style: const TextStyle(
-                                      fontWeight: FontWeight.w800,
-                                      fontSize: 14,
-                                      color: AppColors.primary,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: 8),
-
-                              Text(
-                                c['benefitName'] ?? '',
-                                style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 12),
-                              ),
-                              Text(
-                                'Claim Date: ${_formatDate(c['claimDate'])} | Verified: ${_formatDate(c['hrVerifiedAt'])}',
-                                style: const TextStyle(fontSize: 11, color: AppColors.lightSecondaryText),
-                              ),
-                              const SizedBox(height: 10),
-
-                              Row(
-                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                children: [
-                                  _buildStatusBadge(c['paymentStatus']),
-                                  if (isCompleted)
-                                    Container(
-                                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                                      decoration: BoxDecoration(
-                                        color: AppColors.successBg,
-                                        borderRadius: BorderRadius.circular(12),
-                                      ),
-                                      child: Row(
-                                        children: const [
-                                          Icon(Icons.check, color: AppColors.success, size: 12),
-                                          SizedBox(width: 4),
-                                          Text(
-                                            'Paid',
-                                            style: TextStyle(color: AppColors.success, fontSize: 11, fontWeight: FontWeight.bold),
-                                          ),
-                                        ],
-                                      ),
-                                    )
-                                  else
-                                    ElevatedButton.icon(
-                                      onPressed: isProcessing ? null : () => _openPayModal(c),
-                                      icon: isProcessing
-                                          ? const SizedBox(
-                                              width: 12,
-                                              height: 12,
-                                              child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                                            )
-                                          : const Icon(Icons.attach_money, size: 16),
-                                      label: Text(isProcessing ? 'Paying...' : 'Pay'),
-                                      style: ElevatedButton.styleFrom(
-                                        backgroundColor: AppColors.success,
-                                        foregroundColor: Colors.white,
-                                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                                        textStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
-                                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                                      ),
-                                    ),
-                                ],
-                              ),
-                            ],
-                          ),
-                        );
-                      },
-                    ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 20),
-          ],
-        ),
-      ),
-    );
   }
 
   Widget _buildStatCard({
@@ -942,16 +440,18 @@ class _FinanceBenefitDashboardScreenState extends ConsumerState<FinanceBenefitDa
           Text(
             sub,
             style: const TextStyle(fontSize: 10, color: AppColors.lightMutedText),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
           ),
         ],
       ),
     );
   }
 
-  Widget _buildPipelineRow(String step, String label, int count, Color pillBg, Color pillText, {bool isHighlight = false}) {
+  Widget _buildPipelineRow(String step, String label, int count, Color bgColor, Color textColor, {bool isHighlight = false}) {
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
         color: isHighlight ? AppColors.lightPrimary : AppColors.lightInputBackground,
         borderRadius: BorderRadius.circular(10),
@@ -960,36 +460,39 @@ class _FinanceBenefitDashboardScreenState extends ConsumerState<FinanceBenefitDa
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                decoration: BoxDecoration(
-                  color: pillBg,
-                  borderRadius: BorderRadius.circular(6),
+          Expanded(
+            child: Row(
+              children: [
+                Text(
+                  '$step: ',
+                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 11, color: AppColors.lightMutedText),
                 ),
-                child: Text(
-                  step,
-                  style: TextStyle(color: pillText, fontSize: 10, fontWeight: FontWeight.bold),
+                Expanded(
+                  child: Text(
+                    label,
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 12,
+                      color: isHighlight ? AppColors.primary : AppColors.lightPrimaryText,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
                 ),
-              ),
-              const SizedBox(width: 10),
-              Text(
-                label,
-                style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: isHighlight ? FontWeight.bold : FontWeight.w500,
-                  color: isHighlight ? AppColors.darkPrimary : AppColors.lightPrimaryText,
-                ),
-              ),
-            ],
+              ],
+            ),
           ),
-          CircleAvatar(
-            radius: 12,
-            backgroundColor: Colors.white,
+          const SizedBox(width: 8),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+            decoration: BoxDecoration(
+              color: bgColor,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: textColor.withOpacity(0.3)),
+            ),
             child: Text(
               '$count',
-              style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: pillText),
+              style: TextStyle(color: textColor, fontWeight: FontWeight.bold, fontSize: 12),
             ),
           ),
         ],
@@ -997,31 +500,503 @@ class _FinanceBenefitDashboardScreenState extends ConsumerState<FinanceBenefitDa
     );
   }
 
-  Widget _buildStatusBadge(String? status) {
-    Color bg = AppColors.warningBg;
-    Color fg = AppColors.warning;
-    String label = 'Ready for Pay';
+  @override
+  Widget build(BuildContext context) {
+    if (_isLoading) return const DashboardSkeleton();
 
-    if (status == 'PROCESSED') {
-      bg = AppColors.infoBg;
-      fg = AppColors.info;
-      label = 'Processing';
-    } else if (status == 'COMPLETED') {
-      bg = AppColors.successBg;
-      fg = AppColors.success;
-      label = 'Paid';
+    final pct = _getBudgetPercentage();
+    final bool showHeader = widget.showAppBar ?? false;
+
+    final content = DefaultTabController(
+      length: 2,
+      child: Column(
+        children: [
+          // Tab Header Bar
+          Container(
+            margin: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+            decoration: BoxDecoration(
+              color: AppColors.lightSecondarySurface,
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: TabBar(
+              labelColor: Colors.white,
+              unselectedLabelColor: AppColors.lightSecondaryText,
+              indicator: BoxDecoration(
+                color: AppColors.primary,
+                borderRadius: BorderRadius.circular(10),
+              ),
+              indicatorSize: TabBarIndicatorSize.tab,
+              dividerColor: Colors.transparent,
+              padding: const EdgeInsets.all(4),
+              tabs: const [
+                Tab(text: 'Overview'),
+                Tab(text: 'Pending Claims'),
+              ],
+            ),
+          ),
+
+          // Tab Views
+          Expanded(
+            child: TabBarView(
+              children: [
+                // Tab 1: Overview
+                SingleChildScrollView(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      AppCard(
+                        backgroundColor: AppColors.darkPrimary,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                const CircleAvatar(
+                                  radius: 24,
+                                  backgroundColor: Colors.white24,
+                                  child: Icon(Icons.account_balance_wallet, color: Colors.white, size: 26),
+                                ),
+                                const SizedBox(width: 14),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: const [
+                                      Text(
+                                        'Benefit Finance Dashboard',
+                                        style: TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 18,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                      SizedBox(height: 4),
+                                      Text(
+                                        'Overview of benefit budgets, claim disbursements, and financial operations.',
+                                        style: TextStyle(color: Colors.white70, fontSize: 12),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 16),
+                            ElevatedButton.icon(
+                              onPressed: widget.onViewPayments,
+                              icon: const Icon(Icons.credit_card, size: 16),
+                              label: const Text('Process Payments'),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.white,
+                                foregroundColor: AppColors.darkPrimary,
+                                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                                textStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+
+                      GridView.count(
+                        crossAxisCount: 2,
+                        shrinkWrap: true,
+                        physics: const NeverScrollableScrollPhysics(),
+                        crossAxisSpacing: 12,
+                        mainAxisSpacing: 12,
+                        childAspectRatio: 1.5,
+                        children: [
+                          _buildStatCard(
+                            label: 'Total Annual Budget',
+                            value: _formatCurrency((_stats['totalBudget'] as num?) ?? 0),
+                            sub: 'Approved allocation',
+                            icon: Icons.account_balance,
+                            bgColor: const Color(0xFFEFF6FF),
+                            iconColor: const Color(0xFF2563EB),
+                          ),
+                          _buildStatCard(
+                            label: 'Budget Utilized',
+                            value: _formatCurrency((_stats['totalBudgetUsed'] as num?) ?? 0),
+                            sub: 'Processed claims',
+                            icon: Icons.show_chart,
+                            bgColor: const Color(0xFFFFF7ED),
+                            iconColor: const Color(0xFFD97706),
+                          ),
+                          _buildStatCard(
+                            label: 'Action Required',
+                            value: '${_stats['hrVerifiedClaims'] ?? 0}',
+                            sub: 'Claims ready for payment',
+                            icon: Icons.access_time_filled,
+                            bgColor: const Color(0xFFFFF1F2),
+                            iconColor: const Color(0xFFEA580C),
+                          ),
+                          _buildStatCard(
+                            label: 'Total Disbursed',
+                            value: _formatCurrency((_stats['totalBudgetUsed'] as num?) ?? 0),
+                            sub: 'Completed payments',
+                            icon: Icons.check_circle,
+                            bgColor: const Color(0xFFF0FDF4),
+                            iconColor: const Color(0xFF16A34A),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+
+                      // Budget Utilization Card
+                      AppCard(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Row(
+                                  children: const [
+                                    Icon(Icons.pie_chart, color: AppColors.primary, size: 18),
+                                    SizedBox(width: 8),
+                                    Text(
+                                      'Annual Budget Utilization',
+                                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                                    ),
+                                  ],
+                                ),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                  decoration: BoxDecoration(
+                                    color: AppColors.successBg,
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  child: Row(
+                                    children: const [
+                                      Icon(Icons.check_circle, color: AppColors.success, size: 12),
+                                      SizedBox(width: 4),
+                                      Text(
+                                        'On Track',
+                                        style: TextStyle(color: AppColors.success, fontSize: 11, fontWeight: FontWeight.bold),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 16),
+
+                            // Center Donut Gauge
+                            Center(
+                              child: Stack(
+                                alignment: Alignment.center,
+                                children: [
+                                  SizedBox(
+                                    width: 110,
+                                    height: 110,
+                                    child: CircularProgressIndicator(
+                                      value: pct / 100,
+                                      strokeWidth: 10,
+                                      backgroundColor: Colors.grey.shade200,
+                                      valueColor: const AlwaysStoppedAnimation<Color>(AppColors.darkPrimary),
+                                    ),
+                                  ),
+                                  Column(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Text(
+                                        '${pct.toInt()}%',
+                                        style: const TextStyle(
+                                          fontSize: 20,
+                                          fontWeight: FontWeight.w800,
+                                          color: AppColors.darkPrimary,
+                                        ),
+                                      ),
+                                      const Text(
+                                        'UTILIZED',
+                                        style: TextStyle(
+                                          fontSize: 10,
+                                          fontWeight: FontWeight.bold,
+                                          color: AppColors.lightMutedText,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(height: 16),
+
+                            // Breakdown Metrics Row
+                            const Divider(height: 1),
+                            const SizedBox(height: 12),
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: Column(
+                                    children: [
+                                      const Text('Total Budget', style: TextStyle(fontSize: 11, color: AppColors.lightMutedText)),
+                                      const SizedBox(height: 2),
+                                      Text(
+                                        _formatCurrency((_stats['totalBudget'] as num?) ?? 0),
+                                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                Container(height: 24, width: 1, color: Colors.grey.shade300),
+                                Expanded(
+                                  child: Column(
+                                    children: [
+                                      const Text('Used / Paid', style: TextStyle(fontSize: 11, color: AppColors.lightMutedText)),
+                                      const SizedBox(height: 2),
+                                      Text(
+                                        _formatCurrency((_stats['totalBudgetUsed'] as num?) ?? 0),
+                                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppColors.warning),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                Container(height: 24, width: 1, color: Colors.grey.shade300),
+                                Expanded(
+                                  child: Column(
+                                    children: [
+                                      const Text('Available', style: TextStyle(fontSize: 11, color: AppColors.lightMutedText)),
+                                      const SizedBox(height: 2),
+                                      Text(
+                                        _formatCurrency(((_stats['totalBudget'] as num?) ?? 0) - ((_stats['totalBudgetUsed'] as num?) ?? 0)),
+                                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppColors.success),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+
+                      // Claims Pipeline Card
+                      AppCard(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Row(
+                                  children: const [
+                                    Icon(Icons.alt_route, color: AppColors.primary, size: 18),
+                                    SizedBox(width: 8),
+                                    Text(
+                                      'Claims Disbursement Pipeline',
+                                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                                    ),
+                                  ],
+                                ),
+                                InkWell(
+                                  onTap: widget.onViewClaims,
+                                  child: const Text(
+                                    'View Claims',
+                                    style: TextStyle(fontSize: 12, color: AppColors.primary, fontWeight: FontWeight.bold),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 14),
+                            _buildPipelineRow('Step 1', 'Pending TL Review', _stats['pendingClaims'] ?? 0, AppColors.warningBg, AppColors.warning),
+                            _buildPipelineRow('Step 2', 'TL Approved (Awaiting HR)', _stats['tlApprovedClaims'] ?? 0, AppColors.infoBg, AppColors.info),
+                            _buildPipelineRow('Step 3', 'HR Verified (Ready for Pay)', _stats['hrVerifiedClaims'] ?? 0, AppColors.lightPrimary, AppColors.primary, isHighlight: true),
+                            _buildPipelineRow('Step 4', 'Processed', _stats['processedClaims'] ?? 0, AppColors.lightInputBackground, AppColors.lightSecondaryText),
+                            _buildPipelineRow('Step 5', 'Paid & Disbursed', _stats['paidClaims'] ?? 3, AppColors.successBg, AppColors.success),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+
+                // Tab 2: Pending Claims
+                SingleChildScrollView(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      AppCard(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: const [
+                                    Text(
+                                      'Recent Claims Requiring Payment',
+                                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                                    ),
+                                    Text(
+                                      'Claims verified by HR ready for finance disbursement',
+                                      style: TextStyle(fontSize: 11, color: AppColors.lightMutedText),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                            const Divider(height: 20),
+
+                            if (_recentClaims.isEmpty)
+                              const Padding(
+                                padding: EdgeInsets.all(24),
+                                child: Center(
+                                  child: Text(
+                                    'No pending claims requiring payment',
+                                    style: TextStyle(color: AppColors.lightSecondaryText, fontSize: 13),
+                                  ),
+                                ),
+                              )
+                            else
+                              ListView.builder(
+                                shrinkWrap: true,
+                                physics: const NeverScrollableScrollPhysics(),
+                                itemCount: _recentClaims.length,
+                                itemBuilder: (context, index) {
+                                  final c = _recentClaims[index];
+                                  final isCompleted = c['paymentStatus'] == 'COMPLETED';
+                                  final isProcessing = _processingId == c['claimId'];
+
+                                  return Container(
+                                    margin: const EdgeInsets.only(bottom: 12),
+                                    padding: const EdgeInsets.all(12),
+                                    decoration: BoxDecoration(
+                                      color: AppColors.lightInputBackground,
+                                      borderRadius: BorderRadius.circular(12),
+                                      border: Border.all(color: Colors.grey.shade200),
+                                    ),
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Row(
+                                          children: [
+                                            CircleAvatar(
+                                              radius: 16,
+                                              backgroundColor: AppColors.darkPrimary,
+                                              child: Text(
+                                                (c['employeeName'] ?? 'E').toString().substring(0, 1).toUpperCase(),
+                                                style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold),
+                                              ),
+                                            ),
+                                            const SizedBox(width: 10),
+                                            Expanded(
+                                              child: Column(
+                                                crossAxisAlignment: CrossAxisAlignment.start,
+                                                children: [
+                                                  Text(
+                                                    c['employeeName'] ?? '',
+                                                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                                                  ),
+                                                  Text(
+                                                    c['employeeCode'] ?? '',
+                                                    style: const TextStyle(fontSize: 11, color: AppColors.lightMutedText),
+                                                  ),
+                                                ],
+                                              ),
+                                            ),
+                                            Text(
+                                              _formatCurrency(c['amount'] ?? 0),
+                                              style: const TextStyle(
+                                                fontWeight: FontWeight.w800,
+                                                fontSize: 14,
+                                                color: AppColors.primary,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                        const SizedBox(height: 8),
+
+                                        Text(
+                                          c['benefitName'] ?? '',
+                                          style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 12),
+                                        ),
+                                        Text(
+                                          'Claim Date: ${_formatDate(c['claimDate'])} | Verified: ${_formatDate(c['hrVerifiedAt'])}',
+                                          style: const TextStyle(fontSize: 11, color: AppColors.lightSecondaryText),
+                                        ),
+                                        const SizedBox(height: 10),
+
+                                        Row(
+                                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                          children: [
+                                            Container(
+                                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                              decoration: BoxDecoration(
+                                                color: AppColors.warningBg,
+                                                borderRadius: BorderRadius.circular(8),
+                                              ),
+                                              child: const Text('Pending', style: TextStyle(color: AppColors.warning, fontSize: 11, fontWeight: FontWeight.bold)),
+                                            ),
+                                            if (isCompleted)
+                                              Container(
+                                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                                decoration: BoxDecoration(
+                                                  color: AppColors.successBg,
+                                                  borderRadius: BorderRadius.circular(12),
+                                                ),
+                                                child: Row(
+                                                  children: const [
+                                                    Icon(Icons.check, color: AppColors.success, size: 12),
+                                                    SizedBox(width: 4),
+                                                    Text(
+                                                      'Paid',
+                                                      style: TextStyle(color: AppColors.success, fontSize: 11, fontWeight: FontWeight.bold),
+                                                    ),
+                                                  ],
+                                                ),
+                                              )
+                                            else
+                                              ElevatedButton.icon(
+                                                onPressed: isProcessing ? null : () => _openPayModal(c),
+                                                icon: isProcessing
+                                                    ? const SizedBox(
+                                                        width: 12,
+                                                        height: 12,
+                                                        child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                                                      )
+                                                    : const Icon(Icons.attach_money, size: 16),
+                                                label: Text(isProcessing ? 'Paying...' : 'Pay'),
+                                                style: ElevatedButton.styleFrom(
+                                                  backgroundColor: AppColors.success,
+                                                  foregroundColor: Colors.white,
+                                                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                                                  textStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                                ),
+                                              ),
+                                          ],
+                                        ),
+                                      ],
+                                    ),
+                                  );
+                                },
+                              ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+
+    if (!showHeader) {
+      return Material(color: Colors.transparent, child: content);
     }
 
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-      decoration: BoxDecoration(
-        color: bg,
-        borderRadius: BorderRadius.circular(10),
-      ),
-      child: Text(
-        label,
-        style: TextStyle(color: fg, fontSize: 10, fontWeight: FontWeight.bold),
-      ),
+    return GlassScaffold(
+      appBar: const GlassHeader(title: 'Benefit Dashboard'),
+      showBottomBar: false,
+      body: content,
     );
   }
 }

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -45,11 +46,52 @@ class AuthService extends StateNotifier<AuthState> {
   final ApiClient _apiClient;
   final StorageService _storageService;
   bool _isInitializing = false;
+  Timer? _initTimer;
   // Bumped on every login/logout so a slow logout can never wipe a newer session.
   int _sessionEpoch = 0;
 
   AuthService(this._apiClient, this._storageService) : super(AuthState.initial()) {
+    _apiClient.setTokenRefreshHandler(_performTokenRefresh);
     _initializeAuth();
+  }
+
+  Future<bool> _performTokenRefresh() async {
+    try {
+      final refreshToken = await _storageService.getRefreshToken();
+      if (refreshToken == null || refreshToken.isEmpty) return false;
+
+      final response = await _apiClient.post(
+        ApiEndpoints.refresh,
+        body: {'refreshToken': refreshToken},
+      );
+
+      final data = response is Map<String, dynamic> && response.containsKey('data')
+          ? response['data']
+          : response;
+
+      if (data is Map<String, dynamic>) {
+        final newToken = data['token']?.toString() ?? '';
+        final newRefreshToken = data['refreshToken']?.toString() ?? '';
+        if (newToken.isNotEmpty) {
+          _apiClient.setAuthToken(newToken);
+          await _storageService.saveToken(newToken);
+          if (newRefreshToken.isNotEmpty) {
+            await _storageService.saveRefreshToken(newRefreshToken);
+          }
+          return true;
+        }
+      }
+      return false;
+    } catch (e) {
+      debugPrint('[AuthDiag:AuthService] Token refresh failed: $e');
+      return false;
+    }
+  }
+
+  @override
+  void dispose() {
+    _initTimer?.cancel();
+    super.dispose();
   }
 
   Future<void> _initializeAuth() async {
@@ -57,78 +99,70 @@ class AuthService extends StateNotifier<AuthState> {
     _isInitializing = true;
 
     try {
-      await Future.sync(() async {
-        final rememberMe = await _storageService.getRememberMe();
-        if (!rememberMe) {
-          await _storageService.clearSession();
-          _apiClient.setAuthToken(null);
-          state = AuthState(isLoading: false, isAuthenticated: false, isOfflineSession: false);
-          return;
-        }
+      final rememberMe = await _storageService.getRememberMe();
+      if (!rememberMe) {
+        await _storageService.clearSession();
+        _apiClient.setAuthToken(null);
+        if (mounted) state = AuthState(isLoading: false, isAuthenticated: false, isOfflineSession: false);
+        return;
+      }
 
-        final token = await _storageService.getToken();
-        final userJsonStr = await _storageService.getUserData();
+      final token = await _storageService.getToken();
+      final userJsonStr = await _storageService.getUserData();
 
-        if (token == null || token.isEmpty) {
-          state = AuthState(isLoading: false, isAuthenticated: false, isOfflineSession: false);
-          return;
-        }
+      if (token == null || token.isEmpty) {
+        if (mounted) state = AuthState(isLoading: false, isAuthenticated: false, isOfflineSession: false);
+        return;
+      }
 
-        _apiClient.setAuthToken(token);
-        UserModel? cachedUser;
-        if (userJsonStr != null && userJsonStr.isNotEmpty) {
-          try {
-            cachedUser = UserModel.fromJson(jsonDecode(userJsonStr));
-          } catch (_) {}
-        }
-
-        // SEC-07: Authoritative Server Profile Verification on Startup
+      _apiClient.setAuthToken(token);
+      UserModel? cachedUser;
+      if (userJsonStr != null && userJsonStr.isNotEmpty) {
         try {
-          final meResponse = await _apiClient.get(ApiEndpoints.me).timeout(const Duration(seconds: 4));
-          final data = meResponse is Map<String, dynamic> && meResponse.containsKey('data')
-              ? meResponse['data']
-              : meResponse;
+          cachedUser = UserModel.fromJson(jsonDecode(userJsonStr));
+        } catch (_) {}
+      }
 
-          if (data is Map<String, dynamic>) {
-            final serverUser = UserModel.fromJson(data);
-            await _storageService.saveUserData(jsonEncode(serverUser.toJson()));
-            state = AuthState(isLoading: false, isAuthenticated: true, isOfflineSession: false, user: serverUser);
-            return;
-          }
-        } on UnauthorizedException catch (_) {
-          // Stale or revoked token on server — purge local session
-          await _storageService.clearSession();
-          _apiClient.setAuthToken(null);
-          state = AuthState(isLoading: false, isAuthenticated: false, isOfflineSession: false);
+      // SEC-07: Authoritative Server Profile Verification on Startup
+      try {
+        final meResponse = await _apiClient.get(ApiEndpoints.me).timeout(const Duration(seconds: 4));
+        final data = meResponse is Map<String, dynamic> && meResponse.containsKey('data')
+            ? meResponse['data']
+            : meResponse;
+
+        if (data is Map<String, dynamic>) {
+          final serverUser = UserModel.fromJson(data);
+          await _storageService.saveUserData(jsonEncode(serverUser.toJson()));
+          if (mounted) state = AuthState(isLoading: false, isAuthenticated: true, isOfflineSession: false, user: serverUser);
           return;
-        } on ForbiddenException catch (_) {
-          await _storageService.clearSession();
-          _apiClient.setAuthToken(null);
-          state = AuthState(isLoading: false, isAuthenticated: false, isOfflineSession: false);
-          return;
-        } catch (_) {
-          // OBS-01 Remediation: Mark session as offline & unverified
-          if (cachedUser != null) {
-            state = AuthState(isLoading: false, isAuthenticated: true, isOfflineSession: true, user: cachedUser);
-            return;
-          }
         }
-
+      } on UnauthorizedException catch (_) {
+        // Stale or revoked token on server — purge local session
+        await _storageService.clearSession();
+        _apiClient.setAuthToken(null);
+        if (mounted) state = AuthState(isLoading: false, isAuthenticated: false, isOfflineSession: false);
+        return;
+      } on ForbiddenException catch (_) {
+        await _storageService.clearSession();
+        _apiClient.setAuthToken(null);
+        if (mounted) state = AuthState(isLoading: false, isAuthenticated: false, isOfflineSession: false);
+        return;
+      } catch (_) {
+        // OBS-01 Remediation: Mark session as offline & unverified
         if (cachedUser != null) {
-          state = AuthState(isLoading: false, isAuthenticated: true, isOfflineSession: true, user: cachedUser);
-        } else {
-          state = AuthState(isLoading: false, isAuthenticated: false, isOfflineSession: false);
+          if (mounted) state = AuthState(isLoading: false, isAuthenticated: true, isOfflineSession: true, user: cachedUser);
+          return;
         }
-      }).timeout(
-        const Duration(seconds: 5),
-        onTimeout: () {
-          debugPrint('[AuthDiag:AuthService] Timeout initializing auth; falling back to login screen');
-          state = AuthState(isLoading: false, isAuthenticated: false, isOfflineSession: false);
-        },
-      );
+      }
+
+      if (cachedUser != null) {
+        if (mounted) state = AuthState(isLoading: false, isAuthenticated: true, isOfflineSession: true, user: cachedUser);
+      } else {
+        if (mounted) state = AuthState(isLoading: false, isAuthenticated: false, isOfflineSession: false);
+      }
     } catch (e) {
       debugPrint('[AuthDiag:AuthService] Error initializing auth: $e');
-      state = AuthState(isLoading: false, isAuthenticated: false, isOfflineSession: false);
+      if (mounted) state = AuthState(isLoading: false, isAuthenticated: false, isOfflineSession: false);
     } finally {
       _isInitializing = false;
     }
@@ -288,7 +322,6 @@ class AuthService extends StateNotifier<AuthState> {
     required String lastName,
     required String email,
     required String password,
-    String role = 'EMPLOYEE',
   }) async {
     state = state.copyWith(isLoading: true, errorMessage: null);
     try {
@@ -299,7 +332,6 @@ class AuthService extends StateNotifier<AuthState> {
           'lastName': lastName,
           'email': email,
           'password': password,
-          'role': role,
         },
       );
       state = state.copyWith(isLoading: false);
