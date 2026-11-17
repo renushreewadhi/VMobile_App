@@ -21,6 +21,9 @@ class ApiEndpoints {
   static const String attendanceLateArrivals = '/attendance/late-arrivals';
   static const String attendanceCorrections = '/attendance/corrections';
   static const String attendanceCorrectionRequest = '/attendance/correction-request';
+  static const String wfhRequests = '/attendance/wfh-requests';
+  static const String wfhApply = '/attendance/wfh-apply';
+  static String wfhRequestStatus(String id) => '/attendance/wfh-requests/$id/status';
   static const String attendanceManualAdjust = '/attendance/manual-adjust';
   static const String attendanceRules = '/attendance/rules';
   static const String attendanceSettings = '/attendance/settings';

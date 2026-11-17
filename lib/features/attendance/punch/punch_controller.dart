@@ -68,6 +68,10 @@ class PunchController extends StateNotifier<PunchState> with WidgetsBindingObser
     }
   }
 
+  void clearError() {
+    state = state.copyWith(clearError: true);
+  }
+
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
@@ -658,9 +662,6 @@ class PunchController extends StateNotifier<PunchState> with WidgetsBindingObser
       return true;
     } catch (e) {
       final err = e.toString().replaceFirst("ApiException: ", "").replaceFirst("Exception: ", "");
-      state = state.copyWith(isActionInProgress: false, error: err);
-      emitMessage('Submission failed: $err', isError: true);
-      return false;
       state = state.copyWith(isActionInProgress: false, error: err);
       emitMessage('Submission failed: $err', isError: true);
       return false;

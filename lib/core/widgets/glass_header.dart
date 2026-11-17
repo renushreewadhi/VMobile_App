@@ -6,6 +6,7 @@ import '../theme/app_colors.dart';
 import '../theme/theme_provider.dart';
 import '../auth/auth_service.dart';
 import '../../employee/screens/my_profile_screen.dart';
+import 'theme_toggle_button.dart';
 
 class GlassHeader extends ConsumerWidget implements PreferredSizeWidget {
   final String? title;
@@ -37,7 +38,6 @@ class GlassHeader extends ConsumerWidget implements PreferredSizeWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final glass = context.glass;
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final themeNotifier = ref.read(themeProvider.notifier);
     final authState = ref.watch(authServiceProvider);
     final user = authState.user;
     final initial = userInitial ?? (authState.isAuthenticated && user != null && user.firstName.isNotEmpty ? user.firstName[0].toUpperCase() : '');
@@ -67,58 +67,33 @@ class GlassHeader extends ConsumerWidget implements PreferredSizeWidget {
                   child: SizedBox(
                     height: 54,
                     child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      padding: const EdgeInsets.only(left: 16, right: 8),
                       child: Row(
                         children: [
-                          Flexible(
-                            child: leading ??
-                                Image.asset(
-                                  'lib/assets/img.png',
-                                  height: 26,
-                                  fit: BoxFit.contain,
-                                  color: isDark ? Colors.white : null,
-                                  errorBuilder: (_, __, ___) => Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      Icon(Icons.business_rounded, color: isDark ? Colors.white : AppColors.primary, size: 22),
-                                      const SizedBox(width: 6),
-                                      Text('etaprise', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: isDark ? Colors.white : const Color(0xFF0F172A))),
-                                    ],
-                                  ),
-                                ),
-                          ),
-                          const Spacer(),
-                          if (actions != null)
-                            Flexible(
-                              child: SingleChildScrollView(
-                                scrollDirection: Axis.horizontal,
-                                physics: const BouncingScrollPhysics(),
-                                child: Row(
+                          leading ??
+                              Image.asset(
+                                'lib/assets/img.png',
+                                height: 26,
+                                fit: BoxFit.contain,
+                                color: isDark ? Colors.white : null,
+                                errorBuilder: (_, __, ___) => Row(
                                   mainAxisSize: MainAxisSize.min,
-                                  mainAxisAlignment: MainAxisAlignment.end,
-                                  children: actions!,
+                                  children: [
+                                    Icon(Icons.business_rounded, color: isDark ? Colors.white : AppColors.primary, size: 22),
+                                    const SizedBox(width: 6),
+                                    Text('etaprise', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: isDark ? Colors.white : const Color(0xFF0F172A))),
+                                  ],
                                 ),
                               ),
-                            ),
-                          if (actions == null) ...[
-                            Semantics(
-                              label: isDark ? "Switch to light mode" : "Switch to dark mode",
-                              button: true,
-                              child: IconButton(
-                                onPressed: () => themeNotifier.toggleTheme(),
-                                icon: Icon(
-                                  isDark ? Icons.wb_sunny_rounded : Icons.nightlight_round,
-                                  size: 20,
-                                  color: glass.textSecondary,
-                                ),
-                              ),
-                            ),
-                            if (authState.isAuthenticated && authState.user != null) ...[
-                              const SizedBox(width: 4),
-                              Semantics(
-                                label: "User profile",
-                                button: true,
-                                child: PopupMenuButton<String>(
+                          const Spacer(),
+                          Row(
+                            mainAxisSize: MainAxisSize.min,
+                            mainAxisAlignment: MainAxisAlignment.end,
+                            children: actions ?? [
+                              const ThemeToggleButton(size: 20),
+                              if (authState.isAuthenticated && authState.user != null) ...[
+                                const SizedBox(width: 2),
+                                PopupMenuButton<String>(
                                   offset: const Offset(0, 48),
                                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                                   color: isDark ? const Color(0xFF141D2E) : Colors.white,
@@ -162,12 +137,8 @@ class GlassHeader extends ConsumerWidget implements PreferredSizeWidget {
                                       );
 
                                       if (confirm == true && context.mounted) {
-                                        // Capture before awaiting: this header is disposed as soon as auth state flips.
                                         final authNotifier = ref.read(authServiceProvider.notifier);
                                         final navigator = Navigator.of(context, rootNavigator: true);
-                                        // Unwind any pushed screens; the auth-gated root shows the login screen.
-                                        // Do NOT push a standalone LoginScreen: it would replace the gated root,
-                                        // so the next login could never navigate to the dashboard.
                                         navigator.popUntil((route) => route.isFirst);
                                         await authNotifier.logout();
                                       }
@@ -236,9 +207,9 @@ class GlassHeader extends ConsumerWidget implements PreferredSizeWidget {
                                     ),
                                   ),
                                 ),
-                              ),
+                              ],
                             ],
-                          ],
+                          ),
                         ],
                       ),
                     ),
@@ -256,14 +227,14 @@ class GlassHeader extends ConsumerWidget implements PreferredSizeWidget {
                     ),
                     child: Row(
                       children: [
-                        if (showBackButton || canPop)
+                        if (showBackButton)
                           IconButton(
                             icon: Icon(Icons.arrow_back_ios_new_rounded, size: 18, color: glass.textPrimary),
                             onPressed: onBackPressed ?? () => Navigator.of(context).maybePop(),
                             padding: EdgeInsets.zero,
                             constraints: const BoxConstraints(),
                           ),
-                        if (showBackButton || canPop) const SizedBox(width: 12),
+                        if (showBackButton) const SizedBox(width: 12),
                         Expanded(
                           child: Text(
                             title!,

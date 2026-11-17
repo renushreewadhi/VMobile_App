@@ -26,6 +26,7 @@ class _AnnouncementsScreenState extends ConsumerState<AnnouncementsScreen> {
   String _searchTerm = '';
   String _sortBy = 'newest';
   Map<String, dynamic>? _selectedAnnouncement;
+  final Set<String> _readAnnouncementIds = {};
 
   final List<Map<String, String>> _announcementTypes = [
     {'value': 'COMPANY_EVENT', 'label': 'Event', 'icon': 'event'},
@@ -64,7 +65,7 @@ class _AnnouncementsScreenState extends ConsumerState<AnnouncementsScreen> {
     final type = (m['type'] ?? m['category'] ?? m['announcementType'] ?? 'GENERAL').toString().toUpperCase();
     final priority = (m['priority'] ?? m['importance'] ?? 'NORMAL').toString().toUpperCase();
     final isPinned = m['isPinned'] == true || m['pinned'] == true || m['isPinned']?.toString() == '1';
-    final authorName = m['authorName']?.toString() ?? m['author']?.toString() ?? m['postedBy']?.toString() ?? m['createdByName']?.toString() ?? 'Management';
+    final authorName = m['authorName']?.toString() ?? m['author']?.toString() ?? m['postedBy']?.toString() ?? m['createdByName']?.toString() ?? 'HR Manager';
     final publishedDate = m['publishedDate']?.toString() ?? m['createdAt']?.toString() ?? m['date']?.toString() ?? m['createdOn']?.toString() ?? DateTime.now().toIso8601String();
 
     return {
@@ -211,9 +212,12 @@ class _AnnouncementsScreenState extends ConsumerState<AnnouncementsScreen> {
         final dateA = _getProp(a, 'publishedDate').isNotEmpty ? _getProp(a, 'publishedDate') : _getProp(a, 'createdAt');
         return DateTime.parse(dateA.isEmpty ? '2026-01-01' : dateA).compareTo(DateTime.parse(dateB.isEmpty ? '2026-01-01' : dateB));
       });
-    } else if (_sortBy == 'priority') {
-      Map<String, int> weight = {'CRITICAL': 3, 'IMPORTANT': 2, 'NORMAL': 1};
-      list.sort((a, b) => (weight[_getProp(b, 'priority')] ?? 0).compareTo(weight[_getProp(a, 'priority')] ?? 0));
+    } else if (_sortBy == 'pinned') {
+      list.sort((a, b) {
+        final pinA = _getBoolProp(a, 'isPinned') ? 1 : 0;
+        final pinB = _getBoolProp(b, 'isPinned') ? 1 : 0;
+        return pinB.compareTo(pinA);
+      });
     }
 
     return list;
@@ -229,16 +233,32 @@ class _AnnouncementsScreenState extends ConsumerState<AnnouncementsScreen> {
     return _announcements.where((a) => _getProp(a, 'type') == type).length;
   }
 
-  Color _getTypeColor(String? type) {
-    switch (type) {
-      case 'FESTIVAL': return const Color(0xFFF59E0B);
-      case 'HOLIDAY': return const Color(0xFF10B981);
-      case 'COMPANY_EVENT': return const Color(0xFF0284C7);
-      case 'EMERGENCY': return const Color(0xFFDC2626);
-      case 'POLICY_UPDATE': return const Color(0xFF0EA5E9);
-      case 'TRAINING': return const Color(0xFF3B82F6);
-      case 'SYSTEM': return const Color(0xFFEF4444);
-      default: return AppColors.primary;
+  Color _getCategoryAccentColor(String type) {
+    switch (type.toUpperCase()) {
+      case 'IMPORTANT':
+      case 'CRITICAL':
+      case 'EMERGENCY':
+        return const Color(0xFFDC2626); // Red
+      case 'COMPANY_EVENT':
+      case 'EVENT':
+        return const Color(0xFF7C3AED); // Purple
+      case 'HOLIDAY':
+      case 'FESTIVAL':
+        return const Color(0xFFF59E0B); // Amber
+      case 'SYSTEM':
+        return const Color(0xFF2563EB); // Blue
+      case 'GENERAL':
+      case 'TRAINING':
+      default:
+        return AppColors.primary; // Teal
+    }
+  }
+
+  String _getCategoryLabel(String type) {
+    switch (type.toUpperCase()) {
+      case 'COMPANY_EVENT': return 'Event';
+      case 'POLICY_UPDATE': return 'Policy';
+      default: return type.toLowerCase();
     }
   }
 
@@ -251,6 +271,27 @@ class _AnnouncementsScreenState extends ConsumerState<AnnouncementsScreen> {
       return DateFormat('MMM d, yyyy').format(dt);
     } catch (_) {
       return d;
+    }
+  }
+
+  String _getRelativeTime(String dateStr) {
+    if (dateStr.isEmpty) return '';
+    try {
+      final dt = DateTime.parse(dateStr);
+      final now = DateTime.now();
+      final diff = now.difference(dt);
+      if (diff.inDays == 0) {
+        if (diff.inHours == 0) {
+          return '${diff.inMinutes} mins ago';
+        }
+        return '${diff.inHours} hours ago';
+      } else if (diff.inDays > 0 && diff.inDays <= 7) {
+        return '${diff.inDays} days ago';
+      } else {
+        return DateFormat('MMM d').format(dt);
+      }
+    } catch (_) {
+      return dateStr;
     }
   }
 
@@ -274,16 +315,16 @@ class _AnnouncementsScreenState extends ConsumerState<AnnouncementsScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                // 1. STAT SUMMARY CARDS (3 Cards matching Website)
-                _buildStatsGrid(isDark),
-                const SizedBox(height: 16),
+                // 1. Slim summary line under app bar
+                _buildSummaryLine(isDark),
+                const SizedBox(height: 12),
 
-                // 2. SCROLLABLE UNDERLINE NAV TABS
-                _buildUnderlineTabs(isDark),
-                const SizedBox(height: 16),
+                // 2. Search + Sort (one row)
+                _buildSearchSortRow(isDark),
+                const SizedBox(height: 12),
 
-                // 3. SEARCH & SORT CONTROLS BAR
-                _buildControlsBar(isDark),
+                // 3. Filter chips
+                _buildFilterChips(isDark),
                 const SizedBox(height: 16),
 
                 // Error State / Feed List
@@ -308,18 +349,8 @@ class _AnnouncementsScreenState extends ConsumerState<AnnouncementsScreen> {
                       ),
                     ),
                   )
-                else if (_filteredAnnouncements.isEmpty)
-                  _buildEmptyState(isDark)
                 else
-                  ListView.separated(
-                    shrinkWrap: true,
-                    physics: const NeverScrollableScrollPhysics(),
-                    itemCount: _filteredAnnouncements.length,
-                    separatorBuilder: (_, __) => const SizedBox(height: 12),
-                    itemBuilder: (context, index) {
-                      return _buildAnnouncementCard(isDark, _filteredAnnouncements[index]);
-                    },
-                  ),
+                  _buildAnnouncementsList(isDark),
               ],
             ),
           ),
@@ -336,244 +367,405 @@ class _AnnouncementsScreenState extends ConsumerState<AnnouncementsScreen> {
     );
   }
 
-  Widget _buildStatsGrid(bool isDark) {
-    return GridView.count(
-      crossAxisCount: 3,
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      crossAxisSpacing: 10,
-      mainAxisSpacing: 10,
-      childAspectRatio: 1.25,
+  Widget _buildSummaryLine(bool isDark) {
+    final total = _announcements.length;
+    final pinned = _announcements.where((a) => _getBoolProp(a, 'isPinned')).length;
+    final critical = _announcements.where((a) => _getProp(a, 'priority') == 'CRITICAL' || _getProp(a, 'priority') == 'IMPORTANT').length;
+
+    return Row(
       children: [
-        _statCard('Total Announcements', '${_announcements.length}', Icons.campaign, const Color(0xFF4F46E5), const Color(0xFFEEF2FF), 'All', isDark),
-        _statCard('Pinned Updates', '$_pinnedCount', Icons.push_pin, const Color(0xFFD97706), const Color(0xFFFFFBEB), 'Pinned', isDark),
-        _statCard('Critical Notices', '$_criticalCount', Icons.bolt, const Color(0xFFDC2626), const Color(0xFFFEF2F2), 'Important', isDark),
+        Text(
+          '$total announcements · $pinned pinned',
+          style: TextStyle(
+            fontSize: 13,
+            color: isDark ? AppColors.darkSecondaryText : const Color(0xFF4B5563), // gray-600
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+        if (critical > 0) ...[
+          const SizedBox(width: 8),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+            decoration: BoxDecoration(
+              color: Colors.red.withOpacity(0.15),
+              borderRadius: BorderRadius.circular(999),
+            ),
+            child: Text(
+              '$critical critical',
+              style: const TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.bold,
+                color: Colors.redAccent,
+              ),
+            ),
+          ),
+        ],
       ],
     );
   }
 
-  Widget _statCard(String title, String value, IconData icon, Color color, Color bg, String filterKey, bool isDark) {
-    final isSelected = _selectedFilter == filterKey;
-    return InkWell(
-      onTap: () => setState(() => _selectedFilter = filterKey),
-      borderRadius: BorderRadius.circular(14),
-      child: Container(
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: isDark ? const Color(0xFF1A2632) : Colors.white,
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: isSelected ? color : (isDark ? AppColors.darkBordersAndDividers : const Color(0xFFE2E8F0)), width: isSelected ? 2 : 1),
-          boxShadow: [BoxShadow(color: Colors.black.withOpacity(isDark ? 0.2 : 0.03), blurRadius: 8, offset: const Offset(0, 3))],
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(6),
-                  decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(8)),
-                  child: Icon(icon, color: color, size: 16),
-                ),
-                Text(value, style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: color)),
-              ],
+  Widget _buildSearchSortRow(bool isDark) {
+    return Row(
+      children: [
+        Expanded(
+          child: SizedBox(
+            height: 44,
+            child: TextField(
+              onChanged: (val) => setState(() => _searchTerm = val),
+              style: TextStyle(fontSize: 13, color: isDark ? AppColors.darkPrimaryText : AppColors.lightPrimaryText),
+              decoration: InputDecoration(
+                hintText: 'Search announcements',
+                hintStyle: TextStyle(fontSize: 12, color: isDark ? AppColors.darkSecondaryText : const Color(0xFF6B7280)),
+                prefixIcon: const Icon(Icons.search, size: 18, color: Color(0xFF6B7280)),
+                suffixIcon: _searchTerm.isNotEmpty
+                    ? IconButton(
+                        icon: const Icon(Icons.clear, size: 16),
+                        onPressed: () => setState(() => _searchTerm = ''),
+                      )
+                    : null,
+                filled: true,
+                fillColor: isDark ? const Color(0xFF1A2632) : Colors.white,
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: const BorderSide(color: Color(0xFFE5E7EB))),
+                enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: const BorderSide(color: Color(0xFFE5E7EB))),
+                focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide(color: AppColors.primary)),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 0),
+              ),
             ),
-            const SizedBox(height: 6),
-            Text(title, style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.bold, color: isDark ? AppColors.darkPrimaryText : AppColors.lightPrimaryText), overflow: TextOverflow.ellipsis),
-          ],
+          ),
         ),
-      ),
+        const SizedBox(width: 8),
+        Container(
+          width: 44,
+          height: 44,
+          decoration: BoxDecoration(
+            color: isDark ? const Color(0xFF1A2632) : Colors.white,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: isDark ? AppColors.darkBordersAndDividers : const Color(0xFFE5E7EB)),
+          ),
+          child: PopupMenuButton<String>(
+            icon: Icon(Icons.swap_vert, size: 20, color: isDark ? AppColors.darkSecondaryText : const Color(0xFF4B5563)),
+            tooltip: 'Sort announcements',
+            onSelected: (val) => setState(() => _sortBy = val),
+            itemBuilder: (context) => [
+              const PopupMenuItem(value: 'newest', child: Text('Newest First')),
+              const PopupMenuItem(value: 'oldest', child: Text('Oldest First')),
+              const PopupMenuItem(value: 'pinned', child: Text('Pinned First')),
+            ],
+          ),
+        ),
+      ],
     );
   }
 
-  Widget _buildUnderlineTabs(bool isDark) {
-    final tabs = [
+  Widget _buildFilterChips(bool isDark) {
+    final chips = [
       {'key': 'All', 'label': 'All'},
       {'key': 'Pinned', 'label': 'Pinned'},
       {'key': 'Important', 'label': 'Important'},
-      ..._announcementTypes.map((t) => {'key': t['value']!, 'label': t['label']!}),
+      {'key': 'COMPANY_EVENT', 'label': 'Event'},
+      {'key': 'HOLIDAY', 'label': 'Holiday'},
+      {'key': 'SYSTEM', 'label': 'System'},
+      {'key': 'TRAINING', 'label': 'Training'},
     ];
 
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
       physics: const BouncingScrollPhysics(),
-      child: Row(
-        children: tabs.map((tab) {
-          final key = tab['key']!;
-          final label = tab['label']!;
-          final isSelected = _selectedFilter == key;
-          final count = _getCategoryCount(key);
+      child: Padding(
+        padding: const EdgeInsets.only(right: 16),
+        child: Row(
+          children: chips.map((chip) {
+            final key = chip['key']!;
+            final label = chip['label']!;
+            final isSelected = _selectedFilter == key;
+            final count = _getCategoryCount(key);
 
-          return Padding(
-            padding: const EdgeInsets.only(right: 16),
-            child: InkWell(
-              onTap: () => setState(() => _selectedFilter = key),
-              child: Container(
-                padding: const EdgeInsets.symmetric(vertical: 8),
-                decoration: BoxDecoration(
-                  border: Border(bottom: BorderSide(color: isSelected ? AppColors.primary : Colors.transparent, width: 2.5)),
-                ),
-                child: Text(
-                  count > 0 ? '$label ($count)' : label,
-                  style: TextStyle(
-                    fontSize: 12.5,
-                    fontWeight: isSelected ? FontWeight.bold : FontWeight.w600,
-                    color: isSelected ? AppColors.primary : (isDark ? AppColors.darkSecondaryText : AppColors.lightSecondaryText),
+            return Padding(
+              padding: const EdgeInsets.only(right: 8),
+              child: InkWell(
+                onTap: () => setState(() => _selectedFilter = key),
+                borderRadius: BorderRadius.circular(999),
+                child: Container(
+                  height: 32,
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    color: isSelected ? AppColors.primary : (isDark ? const Color(0xFF1A2632) : Colors.white),
+                    borderRadius: BorderRadius.circular(999),
+                    border: Border.all(
+                      color: isSelected ? AppColors.primary : (isDark ? AppColors.darkBordersAndDividers : const Color(0xFFE5E7EB)),
+                    ),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        label,
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
+                          color: isSelected ? Colors.white : (isDark ? AppColors.darkPrimaryText : const Color(0xFF374151)), // gray-700
+                        ),
+                      ),
+                      if (count > 0) ...[
+                        const SizedBox(width: 4),
+                        Text(
+                          '($count)',
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: isSelected ? Colors.white.withOpacity(0.8) : (isDark ? AppColors.darkSecondaryText : const Color(0xFF9CA3AF)),
+                          ),
+                        ),
+                      ],
+                    ],
                   ),
                 ),
               ),
-            ),
-          );
-        }).toList(),
+            );
+          }).toList(),
+        ),
       ),
     );
   }
 
-  Widget _buildControlsBar(bool isDark) {
-    return AppCard(
-      padding: const EdgeInsets.all(12),
-      child: Column(
-        children: [
-          TextField(
-            onChanged: (val) => setState(() => _searchTerm = val),
-            style: TextStyle(fontSize: 13, color: isDark ? AppColors.darkPrimaryText : AppColors.lightPrimaryText),
-            decoration: InputDecoration(
-              hintText: 'Search announcements by title, content or author...',
-              hintStyle: TextStyle(fontSize: 12, color: isDark ? AppColors.darkSecondaryText : AppColors.lightSecondaryText),
-              prefixIcon: const Icon(Icons.search, size: 18),
-              suffixIcon: _searchTerm.isNotEmpty
-                  ? IconButton(icon: const Icon(Icons.clear, size: 16), onPressed: () => setState(() => _searchTerm = ''))
-                  : null,
-              filled: true,
-              fillColor: isDark ? const Color(0xFF1A2632) : AppColors.lightInputBackground,
-              contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide.none),
+  Widget _buildAnnouncementsList(bool isDark) {
+    final filtered = _filteredAnnouncements;
+
+    if (filtered.isEmpty) {
+      return _buildEmptyState(isDark);
+    }
+
+    final pinnedList = filtered.where((a) => _getBoolProp(a, 'isPinned')).toList();
+    final recentList = filtered.where((a) => !_getBoolProp(a, 'isPinned')).toList();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        if (pinnedList.isNotEmpty) ...[
+          const Text(
+            'PINNED',
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+              color: Color(0xFF6B7280),
+              letterSpacing: 0.5,
             ),
           ),
-          const SizedBox(height: 10),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.end,
-            children: [
-              Text('Sort by: ', style: TextStyle(fontSize: 12, color: isDark ? AppColors.darkSecondaryText : AppColors.lightSecondaryText)),
-              DropdownButton<String>(
-                value: _sortBy,
-                isDense: true,
-                underline: const SizedBox.shrink(),
-                dropdownColor: isDark ? AppColors.darkMainSurface : Colors.white,
-                style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: isDark ? AppColors.darkPrimaryText : AppColors.lightPrimaryText),
-                items: const [
-                  DropdownMenuItem(value: 'newest', child: Text('Newest First')),
-                  DropdownMenuItem(value: 'oldest', child: Text('Oldest First')),
-                  DropdownMenuItem(value: 'priority', child: Text('High Priority First')),
-                ],
-                onChanged: (val) {
-                  if (val != null) setState(() => _sortBy = val);
-                },
+          const SizedBox(height: 8),
+          ...pinnedList.map((a) => Padding(
+                padding: const EdgeInsets.only(bottom: 10),
+                child: _buildAnnouncementCard(isDark, a),
+              )),
+          const SizedBox(height: 12),
+        ],
+        if (recentList.isNotEmpty) ...[
+          if (pinnedList.isNotEmpty) ...[
+            const Text(
+              'RECENT',
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+                color: Color(0xFF6B7280),
+                letterSpacing: 0.5,
+              ),
+            ),
+            const SizedBox(height: 8),
+          ],
+          ...recentList.map((a) => Padding(
+                padding: const EdgeInsets.only(bottom: 10),
+                child: _buildAnnouncementCard(isDark, a),
+              )),
+        ],
+      ],
+    );
+  }
+
+  Widget _buildAnnouncementCard(bool isDark, dynamic a) {
+    final id = _getProp(a, 'id');
+    final title = _getProp(a, 'title', 'Notice');
+    final content = _getProp(a, 'content').isNotEmpty ? _getProp(a, 'content') : _getProp(a, 'message');
+    final author = _getProp(a, 'authorName', 'HR Manager');
+    final type = _getProp(a, 'type', 'GENERAL');
+    final isPinned = _getBoolProp(a, 'isPinned');
+    final accentColor = _getCategoryAccentColor(type);
+    final relativeTime = _getRelativeTime(_getProp(a, 'publishedDate').isNotEmpty ? _getProp(a, 'publishedDate') : _getProp(a, 'createdAt'));
+    final isUnread = !_readAnnouncementIds.contains(id);
+
+    return AppCard(
+      padding: EdgeInsets.zero,
+      child: InkWell(
+        onTap: () {
+          setState(() {
+            _readAnnouncementIds.add(id);
+            _selectedAnnouncement = a;
+          });
+        },
+        borderRadius: BorderRadius.circular(16),
+        child: Container(
+          decoration: BoxDecoration(
+            color: isDark ? const Color(0xFF1A2632) : Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: isDark ? AppColors.darkBordersAndDividers : const Color(0xFFE5E7EB)),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(isDark ? 0.2 : 0.02),
+                blurRadius: 6,
+                offset: const Offset(0, 2),
               ),
             ],
           ),
-        ],
+          clipBehavior: Clip.antiAlias,
+          child: IntrinsicHeight(
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Container(
+                  width: 4,
+                  color: accentColor,
+                ),
+                Expanded(
+                  child: Padding(
+                    padding: const EdgeInsets.all(14),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                              decoration: BoxDecoration(
+                                color: accentColor.withOpacity(isDark ? 0.25 : 0.12),
+                                borderRadius: BorderRadius.circular(999),
+                              ),
+                              child: Text(
+                                _getCategoryLabel(type).toUpperCase(),
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w700,
+                                  color: accentColor,
+                                  letterSpacing: 0.2,
+                                ),
+                              ),
+                            ),
+                            if (isPinned)
+                              const Icon(Icons.push_pin, size: 14, color: Colors.amber),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        Row(
+                          children: [
+                            if (isUnread) ...[
+                              Container(
+                                width: 8,
+                                height: 8,
+                                decoration: const BoxDecoration(
+                                  color: AppColors.primary,
+                                  shape: BoxShape.circle,
+                                ),
+                              ),
+                              const SizedBox(width: 6),
+                            ],
+                            Expanded(
+                              child: Text(
+                                title,
+                                style: TextStyle(
+                                  fontSize: 15,
+                                  fontWeight: isUnread ? FontWeight.w700 : FontWeight.w600,
+                                  color: isDark ? AppColors.darkPrimaryText : AppColors.lightPrimaryText,
+                                ),
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            const Icon(Icons.chevron_right, size: 18, color: Color(0xFF9CA3AF)),
+                          ],
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          content,
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: isDark ? AppColors.darkSecondaryText : const Color(0xFF4B5563),
+                          ),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          '$author · $relativeTime',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: isDark ? AppColors.darkMutedText : const Color(0xFF6B7280),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }
 
   Widget _buildEmptyState(bool isDark) {
+    final hasActiveFilters = _selectedFilter != 'All' || _searchTerm.trim().isNotEmpty;
+
     return AppCard(
       child: Padding(
-        padding: const EdgeInsets.all(32),
+        padding: const EdgeInsets.symmetric(vertical: 40, horizontal: 16),
         child: Column(
-          children: [
-            const Icon(Icons.campaign_outlined, size: 40, color: Colors.grey),
-            const SizedBox(height: 8),
-            Text('No Announcements Found', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: isDark ? AppColors.darkPrimaryText : AppColors.lightPrimaryText)),
-            const SizedBox(height: 4),
-            Text('There are no announcements matching your current search or filter criteria.', style: TextStyle(fontSize: 12, color: isDark ? AppColors.darkSecondaryText : AppColors.lightSecondaryText), textAlign: TextAlign.center),
-            const SizedBox(height: 16),
-            ElevatedButton.icon(
-              onPressed: () => setState(() { _selectedFilter = 'All'; _searchTerm = ''; }),
-              icon: const Icon(Icons.refresh, size: 14),
-              label: const Text('Reset Filters'),
-              style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary, foregroundColor: Colors.white),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildAnnouncementCard(bool isDark, dynamic a) {
-    final title = _getProp(a, 'title', 'Notice');
-    final content = _getProp(a, 'content').isNotEmpty ? _getProp(a, 'content') : _getProp(a, 'message');
-    final author = _getProp(a, 'authorName', 'HR Team');
-    final type = _getProp(a, 'type', 'GENERAL');
-    final priority = _getProp(a, 'priority', 'NORMAL');
-    final isPinned = _getBoolProp(a, 'isPinned');
-    final typeColor = _getTypeColor(type);
-    final dateStr = _formatDate(a);
-
-    return InkWell(
-      onTap: () => setState(() => _selectedAnnouncement = a),
-      borderRadius: BorderRadius.circular(14),
-      child: Container(
-        decoration: BoxDecoration(
-          color: isDark ? const Color(0xFF1A2632) : const Color(0xFFF8FAFC),
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: isDark ? AppColors.darkBordersAndDividers : const Color(0xFFE2E8F0)),
-        ),
-        clipBehavior: Clip.antiAlias,
-        child: Row(
+          mainAxisSize: MainAxisSize.min,
           children: [
             Container(
-              width: 4,
-              color: typeColor,
-              constraints: const BoxConstraints(minHeight: 80),
+              width: 48,
+              height: 48,
+              decoration: BoxDecoration(
+                color: AppColors.primary.withOpacity(0.12),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(Icons.campaign_outlined, size: 24, color: AppColors.primary),
             ),
-            Expanded(
-              child: Padding(
-                padding: const EdgeInsets.all(14),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Expanded(
-                          child: Text(title, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: isDark ? AppColors.darkPrimaryText : AppColors.lightPrimaryText)),
-                        ),
-                        if (isPinned)
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                            decoration: BoxDecoration(color: Colors.amber.withOpacity(0.2), borderRadius: BorderRadius.circular(8)),
-                            child: const Text('Pinned', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.amber)),
-                          ),
-                        if (priority == 'CRITICAL' && !isPinned)
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                            decoration: BoxDecoration(color: Colors.red.withOpacity(0.2), borderRadius: BorderRadius.circular(8)),
-                            child: const Text('Critical', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.red)),
-                          ),
-                      ],
-                    ),
-                    const SizedBox(height: 4),
-                    Text(content, style: TextStyle(fontSize: 12.5, color: isDark ? AppColors.darkSecondaryText : AppColors.lightSecondaryText), maxLines: 2, overflow: TextOverflow.ellipsis),
-                    const SizedBox(height: 10),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text('By $author • $dateStr', style: TextStyle(fontSize: 11, color: isDark ? AppColors.darkMutedText : Colors.grey)),
-                        TextButton(
-                          onPressed: () => setState(() => _selectedAnnouncement = a),
-                          child: const Text('View Full Notice', style: TextStyle(fontSize: 11.5)),
-                          style: TextButton.styleFrom(padding: EdgeInsets.zero, minimumSize: const Size(50, 24)),
-                        ),
-                      ],
-                    ),
-                  ],
+            const SizedBox(height: 16),
+            Text(
+              'No announcements found',
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+                color: isDark ? AppColors.darkPrimaryText : AppColors.lightPrimaryText,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 6),
+            Text(
+              'There are no announcements matching your current search or filter criteria.',
+              style: TextStyle(
+                fontSize: 13,
+                color: isDark ? AppColors.darkSecondaryText : const Color(0xFF6B7280),
+              ),
+              textAlign: TextAlign.center,
+            ),
+            if (hasActiveFilters) ...[
+              const SizedBox(height: 20),
+              TextButton(
+                onPressed: () => setState(() {
+                  _selectedFilter = 'All';
+                  _searchTerm = '';
+                }),
+                child: const Text(
+                  'Clear filters',
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.primary,
+                  ),
                 ),
               ),
-            ),
+            ],
           ],
         ),
       ),
@@ -582,66 +774,125 @@ class _AnnouncementsScreenState extends ConsumerState<AnnouncementsScreen> {
 
   Widget _buildDetailBottomSheet(BuildContext context, bool isDark) {
     final a = _selectedAnnouncement!;
-    final title = a['title']?.toString() ?? 'Notice';
-    final content = a['content']?.toString() ?? a['message']?.toString() ?? '';
-    final author = a['authorName']?.toString() ?? 'HR Team';
+    final title = _getProp(a, 'title', 'Notice');
+    final content = _getProp(a, 'content').isNotEmpty ? _getProp(a, 'content') : _getProp(a, 'message');
+    final author = _getProp(a, 'authorName', 'HR Manager');
     final dateStr = _formatDate(a);
-    final priority = a['priority']?.toString() ?? 'NORMAL';
+    final type = _getProp(a, 'type', 'GENERAL');
+    final isPinned = _getBoolProp(a, 'isPinned');
+    final accentColor = _getCategoryAccentColor(type);
+    final linkUrl = _getProp(a, 'link') ?? _getProp(a, 'url') ?? _getProp(a, 'attachment');
 
-    return Positioned.fill(
-      child: Material(
-        color: Colors.black.withOpacity(0.5),
-        child: Center(
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: () => setState(() => _selectedAnnouncement = null),
+      child: Container(
+        color: Colors.black.withOpacity(0.4),
+        alignment: Alignment.bottomCenter,
+        child: GestureDetector(
+          onTap: () {},
           child: Container(
-            width: 380,
-            margin: const EdgeInsets.all(20),
-            padding: const EdgeInsets.all(20),
+            constraints: BoxConstraints(maxHeight: MediaQuery.sizeOf(context).height * 0.85),
+            padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
             decoration: BoxDecoration(
               color: isDark ? AppColors.darkMainSurface : Colors.white,
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: isDark ? AppColors.darkBordersAndDividers : const Color(0xFFE2E8F0)),
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
             ),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                Center(
+                  child: Container(
+                    width: 40,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: Colors.grey.shade400,
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Expanded(
-                      child: Text(title, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 17, color: isDark ? AppColors.darkPrimaryText : AppColors.lightPrimaryText)),
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                          decoration: BoxDecoration(
+                            color: accentColor.withOpacity(isDark ? 0.25 : 0.12),
+                            borderRadius: BorderRadius.circular(999),
+                          ),
+                          child: Text(
+                            _getCategoryLabel(type).toUpperCase(),
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w700,
+                              color: accentColor,
+                            ),
+                          ),
+                        ),
+                        if (isPinned) ...[
+                          const SizedBox(width: 8),
+                          const Icon(Icons.push_pin, size: 14, color: Colors.amber),
+                        ],
+                      ],
                     ),
-                    IconButton(onPressed: () => setState(() => _selectedAnnouncement = null), icon: const Icon(Icons.close, size: 18)),
+                    IconButton(
+                      icon: const Icon(Icons.close, size: 18),
+                      onPressed: () => setState(() => _selectedAnnouncement = null),
+                    ),
                   ],
                 ),
-                const Divider(height: 16),
-                Row(
-                  children: [
-                    const Icon(Icons.person, size: 14, color: AppColors.lightSecondaryText),
-                    const SizedBox(width: 4),
-                    Text(author, style: const TextStyle(fontSize: 12, color: AppColors.lightSecondaryText)),
-                    const SizedBox(width: 16),
-                    const Icon(Icons.calendar_today, size: 14, color: AppColors.lightSecondaryText),
-                    const SizedBox(width: 4),
-                    Text(dateStr, style: const TextStyle(fontSize: 12, color: AppColors.lightSecondaryText)),
-                  ],
+                const SizedBox(height: 8),
+                Text(
+                  title,
+                  style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.w600,
+                    color: isDark ? AppColors.darkPrimaryText : AppColors.lightPrimaryText,
+                  ),
                 ),
-                const SizedBox(height: 14),
-                ConstrainedBox(
-                  constraints: const BoxConstraints(maxHeight: 250),
+                const SizedBox(height: 4),
+                Text(
+                  '$author · $dateStr',
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: isDark ? AppColors.darkSecondaryText : const Color(0xFF6B7280),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Divider(height: 1, color: isDark ? AppColors.darkBordersAndDividers : const Color(0xFFE5E7EB)),
+                const SizedBox(height: 12),
+                Flexible(
                   child: SingleChildScrollView(
-                    child: Text(content, style: TextStyle(fontSize: 13.5, height: 1.5, color: isDark ? AppColors.darkPrimaryText : AppColors.lightPrimaryText)),
+                    child: Text(
+                      content,
+                      style: TextStyle(
+                        fontSize: 15,
+                        height: 1.6,
+                        color: isDark ? AppColors.darkPrimaryText : AppColors.lightPrimaryText,
+                      ),
+                    ),
                   ),
                 ),
-                const SizedBox(height: 20),
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton(
-                    onPressed: () => setState(() => _selectedAnnouncement = null),
-                    style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary, foregroundColor: Colors.white),
-                    child: const Text('Close Notice'),
+                if (linkUrl.isNotEmpty) ...[
+                  const SizedBox(height: 20),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      onPressed: () {},
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.primary,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      ),
+                      child: const Text('View Attachment / Link', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
+                    ),
                   ),
-                ),
+                ],
               ],
             ),
           ),

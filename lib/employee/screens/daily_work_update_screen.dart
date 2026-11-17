@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 
@@ -26,6 +27,7 @@ class _DailyWorkUpdateScreenState extends ConsumerState<DailyWorkUpdateScreen> {
   String _date = DateTime.now().toIso8601String().split('T')[0];
   String _project = '';
   double _hoursSpent = 8.0;
+  String? _editingUpdateId;
   final _accomplishmentsController = TextEditingController();
   final _inProgressController = TextEditingController();
   final _blockersController = TextEditingController();
@@ -39,12 +41,15 @@ class _DailyWorkUpdateScreenState extends ConsumerState<DailyWorkUpdateScreen> {
 
   bool _loading = true;
   bool _submitting = false;
+  bool _isPickingMedia = false;
   String? _error;
 
   List<XFile> _selectedScreenshots = [];
   XFile? _selectedVideo;
 
   Future<void> _pickScreenshots() async {
+    if (_isPickingMedia) return;
+    _isPickingMedia = true;
     try {
       final picker = ImagePicker();
       final images = await picker.pickMultiImage(imageQuality: 80);
@@ -58,16 +63,27 @@ class _DailyWorkUpdateScreenState extends ConsumerState<DailyWorkUpdateScreen> {
           );
         }
       }
+    } on PlatformException catch (e) {
+      if (e.code == 'already_active') return;
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to pick screenshots: ${e.message ?? e.code}'), backgroundColor: AppColors.error),
+        );
+      }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Failed to pick screenshots: $e'), backgroundColor: AppColors.error),
         );
       }
+    } finally {
+      _isPickingMedia = false;
     }
   }
 
   Future<void> _pickVideo() async {
+    if (_isPickingMedia) return;
+    _isPickingMedia = true;
     try {
       final picker = ImagePicker();
       final video = await picker.pickVideo(source: ImageSource.gallery);
@@ -81,12 +97,21 @@ class _DailyWorkUpdateScreenState extends ConsumerState<DailyWorkUpdateScreen> {
           );
         }
       }
+    } on PlatformException catch (e) {
+      if (e.code == 'already_active') return;
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to pick video: ${e.message ?? e.code}'), backgroundColor: AppColors.error),
+        );
+      }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Failed to pick video: $e'), backgroundColor: AppColors.error),
         );
       }
+    } finally {
+      _isPickingMedia = false;
     }
   }
 
@@ -285,6 +310,25 @@ class _DailyWorkUpdateScreenState extends ConsumerState<DailyWorkUpdateScreen> {
     };
   }
 
+  void _editUpdate(Map<String, dynamic> item) {
+    setState(() {
+      _editingUpdateId = item['id']?.toString();
+      _date = item['date']?.toString() ?? DateTime.now().toIso8601String().split('T')[0];
+      final projName = item['project']?.toString() ?? '';
+      if (_projects.contains(projName)) {
+        _project = projName;
+      } else if (_projects.isNotEmpty) {
+        _project = _projects[0];
+      }
+      _hoursSpent = double.tryParse(item['hours']?.toString() ?? '8') ?? 8.0;
+      _accomplishmentsController.text = item['accomplishments']?.toString() ?? '';
+      _inProgressController.text = item['inProgress']?.toString() ?? '';
+      _blockersController.text = item['blockers']?.toString() != 'None' ? (item['blockers']?.toString() ?? '') : '';
+      _tomorrowPlanController.text = item['tomorrowPlan']?.toString() != '—' ? (item['tomorrowPlan']?.toString() ?? '') : '';
+      _mainTab = 0; // Switch to Submit Report tab
+    });
+  }
+
   Future<void> _submitUpdate() async {
     if (_submitting || !(_formKey.currentState?.validate() ?? false)) return;
 
@@ -311,11 +355,16 @@ class _DailyWorkUpdateScreenState extends ConsumerState<DailyWorkUpdateScreen> {
     final apiClient = ref.read(apiClientProvider);
 
     try {
-      await apiClient.post(ApiEndpoints.workUpdatesSubmit, body: payload);
+      if (_editingUpdateId != null && _editingUpdateId!.isNotEmpty) {
+        await apiClient.put('/work-updates/$_editingUpdateId', body: payload);
+      } else {
+        await apiClient.post(ApiEndpoints.workUpdatesSubmit, body: payload);
+      }
 
       if (!mounted) return;
 
       setState(() {
+        _editingUpdateId = null;
         _accomplishmentsController.clear();
         _inProgressController.clear();
         _blockersController.clear();
@@ -327,8 +376,8 @@ class _DailyWorkUpdateScreenState extends ConsumerState<DailyWorkUpdateScreen> {
       });
 
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Daily work update submitted successfully!'),
+        SnackBar(
+          content: Text(_editingUpdateId != null ? 'Daily work update updated successfully!' : 'Daily work update submitted successfully!'),
           backgroundColor: AppColors.success,
         ),
       );
@@ -374,6 +423,7 @@ class _DailyWorkUpdateScreenState extends ConsumerState<DailyWorkUpdateScreen> {
 
   Future<void> _submitReview() async {
     if (_selectedUpdate == null) return;
+
     final apiClient = ref.read(apiClientProvider);
     final id = _selectedUpdate!['id'];
     final comments = _reviewCommentsController.text.trim();
@@ -405,7 +455,6 @@ class _DailyWorkUpdateScreenState extends ConsumerState<DailyWorkUpdateScreen> {
       }
 
       if (!success) {
-        // Fallback to post on review endpoint with first payload
         await apiClient.post(ApiEndpoints.workUpdatesReview(id), body: payloads.first);
       }
 
@@ -455,17 +504,17 @@ class _DailyWorkUpdateScreenState extends ConsumerState<DailyWorkUpdateScreen> {
           onRefresh: _loadData,
           child: SingleChildScrollView(
             physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 40),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                // 1. Stats Overview Row (Always at the top)
+                // 1. Stats Overview Row (Height ~64px, 18px numbers, 11px labels)
                 _buildStatsRow(isDark),
-                const SizedBox(height: 16),
+                const SizedBox(height: 12),
 
-                // 2. Segmented Tab Bar (Submit Report vs Work Logs)
+                // 2. Segmented Tab Bar (Submit Report vs Work Logs: height 40px, radius 12px)
                 _buildMainTabBar(isDark),
-                const SizedBox(height: 16),
+                const SizedBox(height: 12),
 
                 // 3. Tab Content
                 if (_mainTab == 0) ...[
@@ -475,7 +524,7 @@ class _DailyWorkUpdateScreenState extends ConsumerState<DailyWorkUpdateScreen> {
                   // Tab 2: Work Logs (Submitted Daily Work Logs)
                   if (_isReviewer) ...[
                     _buildTabBar(isDark),
-                    const SizedBox(height: 14),
+                    const SizedBox(height: 12),
                   ],
                   if (_isReviewer && _activeTab == 'team') ...[
                     _buildHistoryCard(isDark, 'Team Work Updates — Today', _teamUpdates, isTeam: true),
@@ -501,23 +550,24 @@ class _DailyWorkUpdateScreenState extends ConsumerState<DailyWorkUpdateScreen> {
 
   Widget _buildMainTabBar(bool isDark) {
     return Container(
+      height: 40,
       decoration: BoxDecoration(
         color: isDark ? AppColors.darkSecondarySurface : AppColors.lightSecondarySurface,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: isDark ? AppColors.darkBordersAndDividers : const Color(0xFFE2E8F0)),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: isDark ? AppColors.darkBordersAndDividers : const Color(0xFFE5E7EB)),
       ),
-      padding: const EdgeInsets.all(4),
+      padding: const EdgeInsets.all(3),
       child: Row(
         children: [
           Expanded(
             child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
               onTap: () => setState(() => _mainTab = 0),
               child: AnimatedContainer(
                 duration: const Duration(milliseconds: 200),
-                padding: const EdgeInsets.symmetric(vertical: 10),
                 decoration: BoxDecoration(
                   color: _mainTab == 0 ? AppColors.primary : Colors.transparent,
-                  borderRadius: BorderRadius.circular(10),
+                  borderRadius: BorderRadius.circular(9),
                 ),
                 alignment: Alignment.center,
                 child: Row(
@@ -525,10 +575,10 @@ class _DailyWorkUpdateScreenState extends ConsumerState<DailyWorkUpdateScreen> {
                   children: [
                     Icon(
                       Icons.edit_note_rounded,
-                      size: 18,
+                      size: 16,
                       color: _mainTab == 0 ? Colors.white : (isDark ? AppColors.darkSecondaryText : AppColors.lightSecondaryText),
                     ),
-                    const SizedBox(width: 6),
+                    const SizedBox(width: 5),
                     Text(
                       'Submit Report',
                       style: TextStyle(
@@ -544,13 +594,13 @@ class _DailyWorkUpdateScreenState extends ConsumerState<DailyWorkUpdateScreen> {
           ),
           Expanded(
             child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
               onTap: () => setState(() => _mainTab = 1),
               child: AnimatedContainer(
                 duration: const Duration(milliseconds: 200),
-                padding: const EdgeInsets.symmetric(vertical: 10),
                 decoration: BoxDecoration(
                   color: _mainTab == 1 ? AppColors.primary : Colors.transparent,
-                  borderRadius: BorderRadius.circular(10),
+                  borderRadius: BorderRadius.circular(9),
                 ),
                 alignment: Alignment.center,
                 child: Row(
@@ -558,10 +608,10 @@ class _DailyWorkUpdateScreenState extends ConsumerState<DailyWorkUpdateScreen> {
                   children: [
                     Icon(
                       Icons.folder_outlined,
-                      size: 17,
+                      size: 16,
                       color: _mainTab == 1 ? Colors.white : (isDark ? AppColors.darkSecondaryText : AppColors.lightSecondaryText),
                     ),
-                    const SizedBox(width: 6),
+                    const SizedBox(width: 5),
                     Text(
                       'Work Logs',
                       style: TextStyle(
@@ -584,38 +634,47 @@ class _DailyWorkUpdateScreenState extends ConsumerState<DailyWorkUpdateScreen> {
     return Row(
       children: [
         Expanded(child: _statCard('Submitted', '${_stats['submitted']}', Icons.file_copy_rounded, AppColors.primary, isDark)),
-        const SizedBox(width: 10),
+        const SizedBox(width: 8),
         Expanded(child: _statCard('Approved', '${_stats['approved']}', Icons.check_circle_rounded, AppColors.success, isDark)),
-        const SizedBox(width: 10),
+        const SizedBox(width: 8),
         Expanded(child: _statCard('Pending', '${_stats['pending']}', Icons.access_time_rounded, const Color(0xFFD97706), isDark)),
       ],
     );
   }
 
   Widget _statCard(String label, String val, IconData icon, Color color, bool isDark) {
-    return AppCard(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
+    return Container(
+      height: 64,
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF1A2632) : Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: isDark ? AppColors.darkBordersAndDividers : const Color(0xFFE5E7EB)),
+        boxShadow: [BoxShadow(color: Colors.black.withOpacity(isDark ? 0.2 : 0.015), blurRadius: 4, offset: const Offset(0, 1))],
+      ),
       child: Row(
         children: [
           Container(
             padding: const EdgeInsets.all(6),
-            decoration: BoxDecoration(color: color.withOpacity(0.15), borderRadius: BorderRadius.circular(8)),
-            child: Icon(icon, color: color, size: 18),
+            decoration: BoxDecoration(color: color.withOpacity(0.12), borderRadius: BorderRadius.circular(8)),
+            child: Icon(icon, color: color, size: 16),
           ),
           const SizedBox(width: 6),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 Text(
                   val,
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: isDark ? AppColors.darkPrimaryText : AppColors.lightPrimaryText),
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: color),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
+                const SizedBox(height: 1),
                 Text(
                   label,
-                  style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: isDark ? AppColors.darkSecondaryText : AppColors.lightSecondaryText),
+                  style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: isDark ? AppColors.darkSecondaryText : AppColors.lightSecondaryText),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
@@ -629,43 +688,44 @@ class _DailyWorkUpdateScreenState extends ConsumerState<DailyWorkUpdateScreen> {
 
   Widget _buildTabBar(bool isDark) {
     return Container(
+      height: 40,
       decoration: BoxDecoration(
         color: isDark ? AppColors.darkSecondarySurface : AppColors.lightSecondarySurface,
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(12),
       ),
-      padding: const EdgeInsets.all(4),
+      padding: const EdgeInsets.all(3),
       child: Row(
         children: [
           Expanded(
             child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
               onTap: () => setState(() {
                 _activeTab = 'team';
                 _updateStats(_teamUpdates);
               }),
               child: Container(
-                padding: const EdgeInsets.symmetric(vertical: 10),
+                alignment: Alignment.center,
                 decoration: BoxDecoration(
                   color: _activeTab == 'team' ? AppColors.primary : Colors.transparent,
-                  borderRadius: BorderRadius.circular(10),
+                  borderRadius: BorderRadius.circular(9),
                 ),
-                alignment: Alignment.center,
                 child: Text('Team Updates', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: _activeTab == 'team' ? Colors.white : (isDark ? AppColors.darkSecondaryText : AppColors.lightSecondaryText))),
               ),
             ),
           ),
           Expanded(
             child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
               onTap: () => setState(() {
                 _activeTab = 'my';
                 _updateStats(_pastUpdates);
               }),
               child: Container(
-                padding: const EdgeInsets.symmetric(vertical: 10),
+                alignment: Alignment.center,
                 decoration: BoxDecoration(
                   color: _activeTab == 'my' ? AppColors.primary : Colors.transparent,
-                  borderRadius: BorderRadius.circular(10),
+                  borderRadius: BorderRadius.circular(9),
                 ),
-                alignment: Alignment.center,
                 child: Text('My Updates', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: _activeTab == 'my' ? Colors.white : (isDark ? AppColors.darkSecondaryText : AppColors.lightSecondaryText))),
               ),
             ),
@@ -677,6 +737,7 @@ class _DailyWorkUpdateScreenState extends ConsumerState<DailyWorkUpdateScreen> {
 
   Widget _buildSubmitForm(bool isDark) {
     return AppCard(
+      padding: const EdgeInsets.all(16),
       child: Form(
         key: _formKey,
         child: Column(
@@ -687,130 +748,265 @@ class _DailyWorkUpdateScreenState extends ConsumerState<DailyWorkUpdateScreen> {
                 const Icon(Icons.edit_note, color: AppColors.primary, size: 20),
                 const SizedBox(width: 8),
                 Expanded(
-                  child: Text('Submit Today\'s Work Report', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: isDark ? AppColors.darkPrimaryText : AppColors.lightPrimaryText), overflow: TextOverflow.ellipsis),
+                  child: Text(
+                    _editingUpdateId != null ? 'Edit Work Report' : 'Submit Today\'s Work Report',
+                    style: TextStyle(fontWeight: FontWeight.w600, fontSize: 16, color: isDark ? AppColors.darkPrimaryText : AppColors.lightPrimaryText),
+                    overflow: TextOverflow.ellipsis,
+                  ),
                 ),
+                if (_editingUpdateId != null)
+                  TextButton(
+                    onPressed: () {
+                      setState(() {
+                        _editingUpdateId = null;
+                        _accomplishmentsController.clear();
+                        _inProgressController.clear();
+                        _blockersController.clear();
+                        _tomorrowPlanController.clear();
+                        _hoursSpent = 8.0;
+                      });
+                    },
+                    child: const Text('Cancel Edit', style: TextStyle(fontSize: 12, color: Colors.redAccent)),
+                  ),
               ],
             ),
-            const Divider(height: 24),
+            const SizedBox(height: 10),
+            Divider(height: 1, color: isDark ? AppColors.darkBordersAndDividers : const Color(0xFFE5E7EB)),
+            const SizedBox(height: 12),
             Row(
               children: [
                 Expanded(
-                  child: InkWell(
-                    onTap: _pickDate,
-                    child: InputDecorator(
-                      decoration: const InputDecoration(
-                        labelText: 'Date',
-                        border: OutlineInputBorder(),
-                        suffixIcon: Icon(Icons.calendar_today, size: 18),
-                      ),
-                      child: Text(
-                        _date,
-                        style: TextStyle(
-                          fontSize: 14,
-                          color: isDark ? AppColors.darkPrimaryText : AppColors.lightPrimaryText,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text('Date', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500)),
+                      const SizedBox(height: 6),
+                      SizedBox(
+                        height: 48,
+                        child: InkWell(
+                          onTap: _pickDate,
+                          borderRadius: BorderRadius.circular(12),
+                          child: InputDecorator(
+                            decoration: InputDecoration(
+                              filled: true,
+                              fillColor: isDark ? const Color(0xFF1A2632) : Colors.white,
+                              contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: isDark ? AppColors.darkBordersAndDividers : const Color(0xFFE5E7EB))),
+                              enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: isDark ? AppColors.darkBordersAndDividers : const Color(0xFFE5E7EB))),
+                              focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: AppColors.primary, width: 1.5)),
+                              suffixIcon: const Icon(Icons.calendar_today, size: 16),
+                            ),
+                            child: Text(
+                              _date,
+                              style: TextStyle(
+                                fontSize: 14,
+                                color: isDark ? AppColors.darkPrimaryText : AppColors.lightPrimaryText,
+                              ),
+                            ),
+                          ),
                         ),
                       ),
-                    ),
+                    ],
                   ),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
-                  child: DropdownButtonFormField<String>(
-                    value: _project.isNotEmpty ? _project : null,
-                    decoration: const InputDecoration(labelText: 'Project / Module', border: OutlineInputBorder()),
-                    items: _projects.map((p) => DropdownMenuItem(value: p, child: Text(p, overflow: TextOverflow.ellipsis))).toList(),
-                    onChanged: (val) {
-                      if (val != null) setState(() => _project = val);
-                    },
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text('Project / Module', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500)),
+                      const SizedBox(height: 6),
+                      SizedBox(
+                        height: 48,
+                        child: DropdownButtonFormField<String>(
+                          value: _project.isNotEmpty ? _project : null,
+                          decoration: InputDecoration(
+                            filled: true,
+                            fillColor: isDark ? const Color(0xFF1A2632) : Colors.white,
+                            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: isDark ? AppColors.darkBordersAndDividers : const Color(0xFFE5E7EB))),
+                            enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: isDark ? AppColors.darkBordersAndDividers : const Color(0xFFE5E7EB))),
+                            focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: AppColors.primary, width: 1.5)),
+                          ),
+                          items: _projects.map((p) => DropdownMenuItem(value: p, child: Text(p, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 14, color: isDark ? AppColors.darkPrimaryText : AppColors.lightPrimaryText)))).toList(),
+                          onChanged: (val) {
+                            if (val != null) setState(() => _project = val);
+                          },
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ],
             ),
-            const SizedBox(height: 14),
-            TextFormField(
-              initialValue: _hoursSpent.toString(),
-              keyboardType: TextInputType.number,
-              decoration: const InputDecoration(labelText: 'Hours Spent', border: OutlineInputBorder()),
-              onChanged: (val) => _hoursSpent = double.tryParse(val) ?? 8.0,
-            ),
-            const SizedBox(height: 14),
-            TextFormField(
-              controller: _accomplishmentsController,
-              maxLines: 3,
-              decoration: const InputDecoration(labelText: "Today's Accomplishments *", hintText: 'Describe key deliverables...', border: OutlineInputBorder()),
-              validator: (v) => v == null || v.trim().isEmpty ? 'Please enter accomplishments' : null,
-            ),
-            const SizedBox(height: 14),
-            TextFormField(
-              controller: _inProgressController,
-              maxLines: 2,
-              decoration: const InputDecoration(labelText: 'Tasks In-Progress', hintText: 'Tasks currently in development...', border: OutlineInputBorder()),
-            ),
-            const SizedBox(height: 14),
-            Row(
+            const SizedBox(height: 12),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Expanded(
+                const Text('Hours Spent', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500)),
+                const SizedBox(height: 6),
+                SizedBox(
+                  height: 48,
                   child: TextFormField(
-                    controller: _blockersController,
-                    maxLines: 2,
-                    decoration: const InputDecoration(labelText: 'Blockers / Challenges', border: OutlineInputBorder()),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: TextFormField(
-                    controller: _tomorrowPlanController,
-                    maxLines: 2,
-                    decoration: const InputDecoration(labelText: 'Tomorrow\'s Planned Tasks', border: OutlineInputBorder()),
+                    initialValue: _hoursSpent.toString(),
+                    keyboardType: TextInputType.number,
+                    style: TextStyle(fontSize: 14, color: isDark ? AppColors.darkPrimaryText : AppColors.lightPrimaryText),
+                    decoration: InputDecoration(
+                      filled: true,
+                      fillColor: isDark ? const Color(0xFF1A2632) : Colors.white,
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: isDark ? AppColors.darkBordersAndDividers : const Color(0xFFE5E7EB))),
+                      enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: isDark ? AppColors.darkBordersAndDividers : const Color(0xFFE5E7EB))),
+                      focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: AppColors.primary, width: 1.5)),
+                    ),
+                    onChanged: (val) => _hoursSpent = double.tryParse(val) ?? 8.0,
                   ),
                 ),
               ],
             ),
-            const SizedBox(height: 14),
+            const SizedBox(height: 12),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Text('Today\'s Accomplishments', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: isDark ? AppColors.darkPrimaryText : AppColors.lightPrimaryText)),
+                    const Text(' *', style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
+                  ],
+                ),
+                const SizedBox(height: 6),
+                TextFormField(
+                  controller: _accomplishmentsController,
+                  maxLines: 4,
+                  style: TextStyle(fontSize: 14, color: isDark ? AppColors.darkPrimaryText : AppColors.lightPrimaryText),
+                  decoration: InputDecoration(
+                    hintText: 'Describe key deliverables...',
+                    hintStyle: TextStyle(fontSize: 13, color: isDark ? AppColors.darkSecondaryText : AppColors.lightSecondaryText),
+                    filled: true,
+                    fillColor: isDark ? const Color(0xFF1A2632) : Colors.white,
+                    contentPadding: const EdgeInsets.all(12),
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: isDark ? AppColors.darkBordersAndDividers : const Color(0xFFE5E7EB))),
+                    enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: isDark ? AppColors.darkBordersAndDividers : const Color(0xFFE5E7EB))),
+                    focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: AppColors.primary, width: 1.5)),
+                  ),
+                  validator: (v) => v == null || v.trim().isEmpty ? 'Please enter accomplishments' : null,
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('Tasks In-Progress', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500)),
+                const SizedBox(height: 6),
+                TextFormField(
+                  controller: _inProgressController,
+                  maxLines: 3,
+                  style: TextStyle(fontSize: 14, color: isDark ? AppColors.darkPrimaryText : AppColors.lightPrimaryText),
+                  decoration: InputDecoration(
+                    hintText: 'Tasks currently in development...',
+                    hintStyle: TextStyle(fontSize: 13, color: isDark ? AppColors.darkSecondaryText : AppColors.lightSecondaryText),
+                    filled: true,
+                    fillColor: isDark ? const Color(0xFF1A2632) : Colors.white,
+                    contentPadding: const EdgeInsets.all(12),
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: isDark ? AppColors.darkBordersAndDividers : const Color(0xFFE5E7EB))),
+                    enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: isDark ? AppColors.darkBordersAndDividers : const Color(0xFFE5E7EB))),
+                    focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: AppColors.primary, width: 1.5)),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('Blockers / Challenges', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500)),
+                const SizedBox(height: 6),
+                TextFormField(
+                  controller: _blockersController,
+                  maxLines: 3,
+                  style: TextStyle(fontSize: 14, color: isDark ? AppColors.darkPrimaryText : AppColors.lightPrimaryText),
+                  decoration: InputDecoration(
+                    filled: true,
+                    fillColor: isDark ? const Color(0xFF1A2632) : Colors.white,
+                    contentPadding: const EdgeInsets.all(12),
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: isDark ? AppColors.darkBordersAndDividers : const Color(0xFFE5E7EB))),
+                    enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: isDark ? AppColors.darkBordersAndDividers : const Color(0xFFE5E7EB))),
+                    focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: AppColors.primary, width: 1.5)),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('Tomorrow\'s Planned Tasks', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500)),
+                const SizedBox(height: 6),
+                TextFormField(
+                  controller: _tomorrowPlanController,
+                  maxLines: 3,
+                  style: TextStyle(fontSize: 14, color: isDark ? AppColors.darkPrimaryText : AppColors.lightPrimaryText),
+                  decoration: InputDecoration(
+                    filled: true,
+                    fillColor: isDark ? const Color(0xFF1A2632) : Colors.white,
+                    contentPadding: const EdgeInsets.all(12),
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: isDark ? AppColors.darkBordersAndDividers : const Color(0xFFE5E7EB))),
+                    enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: isDark ? AppColors.darkBordersAndDividers : const Color(0xFFE5E7EB))),
+                    focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: AppColors.primary, width: 1.5)),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
                 color: isDark ? AppColors.darkSecondarySurface : const Color(0xFFF8FAFC),
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: isDark ? AppColors.darkBordersAndDividers : const Color(0xFFE2E8F0)),
+                border: Border.all(color: isDark ? AppColors.darkBordersAndDividers : const Color(0xFFE5E7EB)),
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Row(
-                    children: const [
-                      Icon(Icons.attachment_rounded, size: 16, color: AppColors.primary),
-                      SizedBox(width: 6),
-                      Expanded(
-                        child: Text('Attach Work Proof (Screenshots & Video Demo)', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold), overflow: TextOverflow.ellipsis),
-                      ),
-                    ],
-                  ),
+                  const Text('Attach Work Proof (Screenshots & Video Demo)', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500)),
                   const SizedBox(height: 10),
                   Row(
                     children: [
                       Expanded(
-                        child: OutlinedButton.icon(
-                          onPressed: _pickScreenshots,
-                          icon: const Icon(Icons.camera_alt_outlined, size: 16),
-                          label: const Text('Screenshots', style: TextStyle(fontSize: 11), overflow: TextOverflow.ellipsis),
-                          style: OutlinedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 8)),
+                        child: SizedBox(
+                          height: 44,
+                          child: OutlinedButton.icon(
+                            onPressed: _pickScreenshots,
+                            icon: const Icon(Icons.camera_alt_outlined, size: 18),
+                            label: const Text('Screenshots', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500), overflow: TextOverflow.ellipsis),
+                            style: OutlinedButton.styleFrom(
+                              side: const BorderSide(color: Color(0xFFCBD5E1), width: 1),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                            ),
+                          ),
                         ),
                       ),
                       const SizedBox(width: 8),
                       Expanded(
-                        child: OutlinedButton.icon(
-                          onPressed: _pickVideo,
-                          icon: const Icon(Icons.videocam_outlined, size: 16),
-                          label: const Text('Video Demo', style: TextStyle(fontSize: 11), overflow: TextOverflow.ellipsis),
-                          style: OutlinedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 8)),
+                        child: SizedBox(
+                          height: 44,
+                          child: OutlinedButton.icon(
+                            onPressed: _pickVideo,
+                            icon: const Icon(Icons.videocam_outlined, size: 18),
+                            label: const Text('Video Demo', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500), overflow: TextOverflow.ellipsis),
+                            style: OutlinedButton.styleFrom(
+                              side: const BorderSide(color: Color(0xFFCBD5E1), width: 1),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                            ),
+                          ),
                         ),
                       ),
                     ],
                   ),
                   if (_selectedScreenshots.isNotEmpty || _selectedVideo != null) ...[
                     const SizedBox(height: 12),
-                    const Divider(height: 1),
+                    Divider(height: 1, color: isDark ? AppColors.darkBordersAndDividers : const Color(0xFFE5E7EB)),
                     const SizedBox(height: 10),
                     if (_selectedScreenshots.isNotEmpty) ...[
                       const Text('Attached Screenshots:', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
@@ -857,17 +1053,22 @@ class _DailyWorkUpdateScreenState extends ConsumerState<DailyWorkUpdateScreen> {
                 ],
               ),
             ),
-            const SizedBox(height: 20),
-            SizedBox(
-              width: double.infinity,
-              height: 48,
-              child: ElevatedButton.icon(
-                onPressed: _submitting ? null : _submitUpdate,
-                icon: const Icon(Icons.send, color: Colors.white),
-                label: const Text('Submit Work Update', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.primary,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            const SizedBox(height: 16),
+            Padding(
+              padding: EdgeInsets.only(bottom: MediaQuery.paddingOf(context).bottom + 24),
+              child: SizedBox(
+                width: double.infinity,
+                height: 48,
+                child: ElevatedButton.icon(
+                  onPressed: _submitting ? null : _submitUpdate,
+                  icon: Icon(_editingUpdateId != null ? Icons.save_rounded : Icons.upload_rounded, color: Colors.white, size: 18),
+                  label: Text(_editingUpdateId != null ? 'Update Work Report' : 'Submit Work Update', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 15)),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primary,
+                    elevation: 3,
+                    shadowColor: AppColors.primary.withOpacity(0.35),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                  ),
                 ),
               ),
             ),
@@ -878,30 +1079,30 @@ class _DailyWorkUpdateScreenState extends ConsumerState<DailyWorkUpdateScreen> {
   }
 
   Widget _buildHistoryCard(bool isDark, String title, List<Map<String, dynamic>> items, {bool isTeam = false}) {
-    return AppCard(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(title, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: isDark ? AppColors.darkPrimaryText : AppColors.lightPrimaryText)),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                decoration: BoxDecoration(
-                  color: AppColors.primary.withOpacity(0.12),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Text(
-                  '${items.length} Records',
-                  style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: AppColors.primary),
-                ),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(title, style: TextStyle(fontWeight: FontWeight.w600, fontSize: 16, color: isDark ? AppColors.darkPrimaryText : AppColors.lightPrimaryText)),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              decoration: BoxDecoration(
+                color: AppColors.primary.withOpacity(0.12),
+                borderRadius: BorderRadius.circular(12),
               ),
-            ],
-          ),
-          const Divider(height: 24),
-          items.isEmpty
-              ? Padding(
+              child: Text(
+                '${items.length} Records',
+                style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: AppColors.primary),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        items.isEmpty
+            ? AppCard(
+                child: Padding(
                   padding: const EdgeInsets.all(32),
                   child: Center(
                     child: Column(
@@ -912,18 +1113,18 @@ class _DailyWorkUpdateScreenState extends ConsumerState<DailyWorkUpdateScreen> {
                       ],
                     ),
                   ),
-                )
-              : ListView.separated(
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  itemCount: items.length,
-                  separatorBuilder: (_, __) => const SizedBox(height: 12),
-                  itemBuilder: (context, index) {
-                    return _buildWorkLogCard(isDark, items[index], isTeam);
-                  },
                 ),
-        ],
-      ),
+              )
+            : ListView.separated(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                itemCount: items.length,
+                separatorBuilder: (_, __) => const SizedBox(height: 10),
+                itemBuilder: (context, index) {
+                  return _buildWorkLogCard(isDark, items[index], isTeam);
+                },
+              ),
+      ],
     );
   }
 
@@ -939,135 +1140,126 @@ class _DailyWorkUpdateScreenState extends ConsumerState<DailyWorkUpdateScreen> {
     final employeeName = item['employeeName']?.toString() ?? '';
 
     return Container(
-      padding: const EdgeInsets.all(14),
+      padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: isDark ? const Color(0xFF1A2632) : Colors.white,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: isDark ? AppColors.darkBordersAndDividers : const Color(0xFFE2E8F0)),
+        border: Border.all(color: isDark ? AppColors.darkBordersAndDividers : const Color(0xFFE5E7EB)),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(isDark ? 0.2 : 0.03),
-            blurRadius: 8,
-            offset: const Offset(0, 3),
+            color: Colors.black.withOpacity(isDark ? 0.2 : 0.015),
+            blurRadius: 4,
+            offset: const Offset(0, 1),
           ),
         ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // 1. Header Row
+          // Row 1: Date & Status
           Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        const Icon(Icons.calendar_month_rounded, size: 15, color: AppColors.primary),
-                        const SizedBox(width: 6),
-                        Expanded(
-                          child: Text(
-                            isTeam && employeeName.isNotEmpty ? '$date • $employeeName' : date,
-                            style: TextStyle(
-                              fontSize: 13,
-                              fontWeight: FontWeight.bold,
-                              color: isDark ? AppColors.darkPrimaryText : AppColors.lightPrimaryText,
-                            ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                      ],
+              Row(
+                children: [
+                  const Icon(Icons.calendar_month_rounded, size: 15, color: AppColors.primary),
+                  const SizedBox(width: 6),
+                  Text(
+                    isTeam && employeeName.isNotEmpty ? '$date • $employeeName' : date,
+                    style: TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w600,
+                      color: isDark ? AppColors.darkPrimaryText : AppColors.lightPrimaryText,
                     ),
-                    const SizedBox(height: 6),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                      decoration: BoxDecoration(
-                        color: isDark ? Colors.white10 : const Color(0xFFF1F5F9),
-                        borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: isDark ? Colors.white12 : const Color(0xFFCBD5E1)),
-                      ),
-                      child: Text(
-                        project,
-                        style: TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w600,
-                          color: isDark ? AppColors.darkSecondaryText : AppColors.lightSecondaryText,
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
+                  ),
+                ],
+              ),
+              StatusChip(status: status),
+            ],
+          ),
+          const SizedBox(height: 8),
+          // Row 2: General work chip, Hours chip, and action icons (Edit + Delete)
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(
+                  color: isDark ? Colors.white10 : const Color(0xFFF1F5F9),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: isDark ? Colors.white12 : const Color(0xFFCBD5E1)),
+                ),
+                child: Text(
+                  project,
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    color: isDark ? AppColors.darkSecondaryText : AppColors.lightSecondaryText,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 6),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFFFBEB),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: const Color(0xFFFCD34D)),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.access_time_rounded, size: 12, color: Color(0xFFD97706)),
+                    const SizedBox(width: 4),
+                    Text(
+                      '$hours Hours',
+                      style: const TextStyle(fontSize: 10.5, fontWeight: FontWeight.bold, color: Color(0xFFD97706)),
                     ),
                   ],
                 ),
               ),
-              const SizedBox(width: 8),
-              // Right side: Hours badge, Status chip & Actions
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  Wrap(
-                    spacing: 6,
-                    runSpacing: 4,
-                    alignment: WrapAlignment.end,
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFFFFBEB),
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(color: const Color(0xFFFCD34D)),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            const Icon(Icons.access_time_rounded, size: 12, color: Color(0xFFD97706)),
-                            const SizedBox(width: 4),
-                            Text(
-                              '$hours Hours',
-                              style: const TextStyle(fontSize: 10.5, fontWeight: FontWeight.bold, color: Color(0xFFD97706)),
-                            ),
-                          ],
-                        ),
-                      ),
-                      StatusChip(status: status),
-                    ],
+              const Spacer(),
+              if (isTeam && (status == 'Submitted' || status == 'Revised')) ...[
+                GestureDetector(
+                  onTap: () => _openReviewModal(item),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: AppColors.primary.withOpacity(0.12),
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: const Text('Review', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: AppColors.primary)),
                   ),
-                  const SizedBox(height: 6),
-                  Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      if (isTeam && (status == 'Submitted' || status == 'Revised')) ...[
-                        GestureDetector(
-                          onTap: () => _openReviewModal(item),
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                            decoration: BoxDecoration(
-                              color: AppColors.primary.withOpacity(0.12),
-                              borderRadius: BorderRadius.circular(6),
-                            ),
-                            child: const Text('Review', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: AppColors.primary)),
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                      ],
-                      GestureDetector(
-                        onTap: () => _deleteUpdate(item),
-                        child: const Icon(Icons.delete_outline_rounded, size: 18, color: Colors.redAccent),
-                      ),
-                    ],
+                ),
+                const SizedBox(width: 8),
+              ],
+              SizedBox(
+                width: 32,
+                height: 44,
+                child: Center(
+                  child: GestureDetector(
+                    onTap: () => _editUpdate(item),
+                    child: const Icon(Icons.edit_outlined, size: 18, color: AppColors.primary),
                   ),
-                ],
+                ),
+              ),
+              const SizedBox(width: 4),
+              SizedBox(
+                width: 32,
+                height: 44,
+                child: Center(
+                  child: GestureDetector(
+                    onTap: () => _deleteUpdate(item),
+                    child: const Icon(Icons.delete_outline_rounded, size: 18, color: Colors.redAccent),
+                  ),
+                ),
               ),
             ],
           ),
-          const SizedBox(height: 12),
-          const Divider(height: 1),
-          const SizedBox(height: 12),
+          const SizedBox(height: 8),
+          Divider(height: 1, color: isDark ? AppColors.darkBordersAndDividers : const Color(0xFFE5E7EB)),
+          const SizedBox(height: 8),
 
-          // 2. Work Detail Sections (Web-matching Structured Layout)
+          // Accomplishments & In Progress sections
           if (accomplishments.isNotEmpty) ...[
             _workDetailSection(
               icon: Icons.check_circle_rounded,
@@ -1109,7 +1301,6 @@ class _DailyWorkUpdateScreenState extends ConsumerState<DailyWorkUpdateScreen> {
               content: blockers,
               isDark: isDark,
             ),
-            const SizedBox(height: 8),
           ],
         ],
       ),
@@ -1136,7 +1327,7 @@ class _DailyWorkUpdateScreenState extends ConsumerState<DailyWorkUpdateScreen> {
               title,
               style: TextStyle(
                 fontSize: 12,
-                fontWeight: FontWeight.bold,
+                fontWeight: FontWeight.w600,
                 color: isDark ? AppColors.darkPrimaryText : AppColors.lightPrimaryText,
               ),
             ),
@@ -1154,9 +1345,9 @@ class _DailyWorkUpdateScreenState extends ConsumerState<DailyWorkUpdateScreen> {
                 child: Text(
                   cleanLine,
                   style: TextStyle(
-                    fontSize: 11.5,
+                    fontSize: 13,
                     color: isDark ? AppColors.darkSecondaryText : AppColors.lightSecondaryText,
-                    height: 1.3,
+                    height: 1.5,
                   ),
                 ),
               );

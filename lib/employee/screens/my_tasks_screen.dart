@@ -171,8 +171,6 @@ class _MyTasksScreenState extends ConsumerState<MyTasksScreen> {
         }
       }
 
-      // No dummy tasks fallback: reflect true API response (empty list when 0 tasks assigned)
-
       setState(() {
         _tasks = List<TaskItem>.from(items);
         _isLoading = false;
@@ -363,55 +361,38 @@ class _MyTasksScreenState extends ConsumerState<MyTasksScreen> {
           onRefresh: _fetchTasks,
           child: SingleChildScrollView(
             physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 96),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                // Header Action Button
-                Align(
-                  alignment: Alignment.centerRight,
-                  child: ElevatedButton.icon(
-                    onPressed: _openAddTaskModal,
-                    icon: const Icon(Icons.add, size: 16),
-                    label: const Text('Create Personal Task'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.primary,
-                      foregroundColor: Colors.white,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                if (!widget.showAppBar) ...[
+                  Text(
+                    'My Tasks & Deliverables',
+                    style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                      color: isDark ? AppColors.darkPrimaryText : AppColors.lightPrimaryText,
                     ),
                   ),
-                ),
-                const SizedBox(height: 14),
+                  const SizedBox(height: 12),
+                ],
 
-                // 1. TOP STATS SUMMARY BANNER (4 Cards)
+                // 1. STATS STRIP
                 _buildStatsGrid(isDark),
-                const SizedBox(height: 16),
+                const SizedBox(height: 12),
 
-                // 2. SEARCH & FILTER CARD
-                _buildFilterCard(isDark),
-                const SizedBox(height: 16),
+                // 2. SEARCH AND FILTERS
+                _buildSearchAndFilters(isDark),
+                const SizedBox(height: 12),
 
-                // 3. TASKS GRID / LIST
+                // 3. TASKS LIST OR VERTICALLY CENTERED EMPTY STATE
                 _filteredTasks.isEmpty
-                    ? AppCard(
-                        child: Padding(
-                          padding: const EdgeInsets.all(32),
-                          child: Column(
-                            children: const [
-                              Icon(Icons.assignment_outlined, size: 40, color: Colors.grey),
-                              SizedBox(height: 8),
-                              Text('No tasks found', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-                              SizedBox(height: 4),
-                              Text('You currently have no tasks matching the selected filter criteria.', style: TextStyle(fontSize: 12, color: Colors.grey)),
-                            ],
-                          ),
-                        ),
-                      )
+                    ? _buildEmptyState(isDark)
                     : ListView.separated(
                         shrinkWrap: true,
                         physics: const NeverScrollableScrollPhysics(),
                         itemCount: _filteredTasks.length,
-                        separatorBuilder: (_, __) => const SizedBox(height: 14),
+                        separatorBuilder: (_, __) => const SizedBox(height: 10),
                         itemBuilder: (context, index) {
                           return _taskCard(isDark, _filteredTasks[index]);
                         },
@@ -420,8 +401,67 @@ class _MyTasksScreenState extends ConsumerState<MyTasksScreen> {
             ),
           ),
         ),
-        if (_showAddTaskModal) _buildAddTaskModal(isDark),
-        if (_showReviewModal && _selectedTaskForReview != null) _buildReviewModal(isDark),
+
+        // Sticky Bottom Action Bar
+        Positioned(
+          bottom: 0,
+          left: 0,
+          right: 0,
+          child: ClipRect(
+            child: Container(
+              padding: EdgeInsets.fromLTRB(16, 12, 16, 12 + MediaQuery.of(context).padding.bottom),
+              decoration: BoxDecoration(
+                color: (isDark ? AppColors.darkMainSurface : Colors.white).withOpacity(0.9),
+                border: Border(
+                  top: BorderSide(
+                    color: isDark ? AppColors.darkBordersAndDividers : const Color(0xFFE5E7EB),
+                    width: 1,
+                  ),
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.05),
+                    blurRadius: 10,
+                    offset: const Offset(0, -4),
+                  ),
+                ],
+              ),
+              child: SizedBox(
+                height: 48,
+                child: ElevatedButton.icon(
+                  onPressed: _openAddTaskModal,
+                  icon: const Icon(Icons.add, size: 18, color: Colors.white),
+                  label: const Text(
+                    'Create Personal Task',
+                    style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: Colors.white),
+                  ),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primary,
+                    foregroundColor: Colors.white,
+                    elevation: 0,
+                    shadowColor: AppColors.primary.withOpacity(0.25),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+
+        if (_showAddTaskModal)
+          Positioned.fill(
+            child: Container(
+              color: Colors.black54,
+              child: _buildAddTaskModal(isDark),
+            ),
+          ),
+        if (_showReviewModal && _selectedTaskForReview != null)
+          Positioned.fill(
+            child: Container(
+              color: Colors.black54,
+              child: _buildReviewModal(isDark),
+            ),
+          ),
       ],
     );
 
@@ -434,100 +474,268 @@ class _MyTasksScreenState extends ConsumerState<MyTasksScreen> {
   }
 
   Widget _buildStatsGrid(bool isDark) {
-    return GridView.count(
-      crossAxisCount: 2,
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      crossAxisSpacing: 10,
-      mainAxisSpacing: 10,
-      childAspectRatio: 1.8,
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
+      decoration: BoxDecoration(
+        color: isDark ? AppColors.darkSecondarySurface : Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: isDark ? AppColors.darkBordersAndDividers : const Color(0xFFE5E7EB),
+          width: 1,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.02),
+            blurRadius: 4,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          _taskSummaryCell('Total', '$_totalCount', Icons.checklist_rounded, const Color(0xFF6366F1), isDark),
+          _vDivider(isDark),
+          _taskSummaryCell('Active', '$_activeCount', Icons.play_circle_rounded, const Color(0xFF3B82F6), isDark),
+          _vDivider(isDark),
+          _taskSummaryCell('Done', '$_completedCount', Icons.check_circle_rounded, const Color(0xFF10B981), isDark),
+          _vDivider(isDark),
+          _taskSummaryCell('On Hold', '$_onHoldCount', Icons.pause_circle_rounded, const Color(0xFFF59E0B), isDark),
+        ],
+      ),
+    );
+  }
+
+  Widget _taskSummaryCell(String label, String value, IconData icon, Color color, bool isDark) {
+    final int valInt = int.tryParse(value) ?? 0;
+    final bool isZero = valInt == 0;
+    final numColor = isZero
+        ? (isDark ? AppColors.darkSecondaryText : const Color(0xFF94A3B8))
+        : (isDark ? AppColors.darkPrimaryText : AppColors.lightPrimaryText);
+
+    return Expanded(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(icon, color: color, size: 16),
+          const SizedBox(height: 4),
+          Text(
+            value,
+            style: TextStyle(
+              fontSize: 20,
+              fontWeight: FontWeight.w600,
+              height: 1.1,
+              color: numColor,
+            ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 2),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 11,
+              color: isDark ? AppColors.darkSecondaryText : const Color(0xFF4B5563),
+            ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            textAlign: TextAlign.center,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _vDivider(bool isDark) {
+    return Container(
+      width: 1,
+      height: 24,
+      color: isDark ? AppColors.darkBordersAndDividers : const Color(0xFFE2E8F0),
+    );
+  }
+
+  Widget _buildSearchAndFilters(bool isDark) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _statCard('Total Assigned', '$_totalCount', Icons.checklist_rounded, const Color(0xFF6366F1), const Color(0xFFEEF2FF), isDark),
-        _statCard('Active Tasks', '$_activeCount', Icons.play_circle_rounded, const Color(0xFF3B82F6), const Color(0xFFEFF6FF), isDark),
-        _statCard('Completed', '$_completedCount', Icons.check_circle_rounded, const Color(0xFF10B981), const Color(0xFFECFDF5), isDark),
-        _statCard('On Hold', '$_onHoldCount', Icons.pause_circle_rounded, const Color(0xFFF59E0B), const Color(0xFFFFFBEB), isDark),
+        SizedBox(
+          height: 44,
+          child: TextField(
+            onChanged: (val) => setState(() => _searchQuery = val),
+            style: TextStyle(fontSize: 14, color: isDark ? AppColors.darkPrimaryText : AppColors.lightPrimaryText),
+            decoration: InputDecoration(
+              hintText: 'Search tasks...',
+              hintStyle: TextStyle(fontSize: 14, color: isDark ? AppColors.darkSecondaryText : const Color(0xFF94A3B8)),
+              prefixIcon: const Icon(Icons.search_rounded, size: 18, color: Color(0xFF94A3B8)),
+              suffixIcon: _searchQuery.isNotEmpty
+                  ? IconButton(
+                      icon: const Icon(Icons.clear_rounded, size: 16),
+                      onPressed: () => setState(() => _searchQuery = ''),
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(),
+                    )
+                  : null,
+              filled: true,
+              fillColor: isDark ? AppColors.darkSecondarySurface : Colors.white,
+              contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 0),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(14),
+                borderSide: BorderSide(color: isDark ? AppColors.darkBordersAndDividers : const Color(0xFFE5E7EB), width: 1),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(14),
+                borderSide: BorderSide(color: isDark ? AppColors.darkBordersAndDividers : const Color(0xFFE5E7EB), width: 1),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(14),
+                borderSide: BorderSide(color: AppColors.primary, width: 1.5),
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(height: 8),
+        Stack(
+          children: [
+            SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              physics: const BouncingScrollPhysics(),
+              child: Padding(
+                padding: const EdgeInsets.only(right: 16),
+                child: Row(
+                  children: [
+                    _filterChip('All Status', 'All Status ($_totalCount)'),
+                    const SizedBox(width: 8),
+                    _filterChip('Active', 'Active ($_activeCount)'),
+                    const SizedBox(width: 8),
+                    _filterChip('Completed', 'Completed ($_completedCount)'),
+                    const SizedBox(width: 8),
+                    _filterChip('On Hold', 'On Hold ($_onHoldCount)'),
+                    const SizedBox(width: 8),
+                    _filterChip('Planning', 'Planning ($_planningCount)'),
+                  ],
+                ),
+              ),
+            ),
+            Positioned(
+              right: 0,
+              top: 0,
+              bottom: 0,
+              width: 20,
+              child: IgnorePointer(
+                child: Container(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [
+                        (isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC)).withOpacity(0),
+                        (isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC)),
+                      ],
+                      begin: Alignment.centerLeft,
+                      end: Alignment.centerRight,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
       ],
     );
   }
 
-  Widget _statCard(String label, String value, IconData icon, Color color, Color bg, bool isDark) {
-    return AppCard(
-      padding: const EdgeInsets.all(12),
-      child: Row(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(10)),
-            child: Icon(icon, color: color, size: 20),
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Text(value, style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: isDark ? AppColors.darkPrimaryText : AppColors.lightPrimaryText)),
-                Text(label, style: TextStyle(fontSize: 11, color: isDark ? AppColors.darkSecondaryText : AppColors.lightSecondaryText)),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildFilterCard(bool isDark) {
-    return AppCard(
-      child: Column(
-        children: [
-          TextField(
-            onChanged: (val) => setState(() => _searchQuery = val),
-            style: TextStyle(fontSize: 13, color: isDark ? AppColors.darkPrimaryText : AppColors.lightPrimaryText),
-            decoration: InputDecoration(
-              hintText: 'Search tasks by title, description, lead...',
-              hintStyle: TextStyle(fontSize: 12, color: isDark ? AppColors.darkSecondaryText : AppColors.lightSecondaryText),
-              prefixIcon: const Icon(Icons.search, size: 18),
-              suffixIcon: _searchQuery.isNotEmpty
-                  ? IconButton(icon: const Icon(Icons.clear, size: 16), onPressed: () => setState(() => _searchQuery = ''))
-                  : null,
-              filled: true,
-              fillColor: isDark ? const Color(0xFF1A2632) : AppColors.lightInputBackground,
-              contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide.none),
-            ),
-          ),
-          const SizedBox(height: 10),
-          SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: Row(
-              children: [
-                _statusPill('All Status', 'All Status ($_totalCount)'),
-                const SizedBox(width: 6),
-                _statusPill('Active', 'Active ($_activeCount)'),
-                const SizedBox(width: 6),
-                _statusPill('Completed', 'Completed ($_completedCount)'),
-                const SizedBox(width: 6),
-                _statusPill('On Hold', 'On Hold ($_onHoldCount)'),
-                const SizedBox(width: 6),
-                _statusPill('Planning', 'Planning ($_planningCount)'),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _statusPill(String value, String label) {
+  Widget _filterChip(String value, String label) {
     final isSelected = _selectedStatus == value;
-    return Material(
-      color: Colors.transparent,
-      child: ChoiceChip(
-        label: Text(label, style: TextStyle(fontSize: 11.5, fontWeight: isSelected ? FontWeight.bold : FontWeight.normal)),
-        selected: isSelected,
-        onSelected: (selected) {
-          if (selected) setState(() => _selectedStatus = value);
-        },
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return GestureDetector(
+      onTap: () => setState(() => _selectedStatus = value),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        height: 32,
+        padding: const EdgeInsets.symmetric(horizontal: 12),
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: isSelected
+              ? AppColors.primary
+              : (isDark ? AppColors.darkSecondarySurface : Colors.white),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: isSelected
+                ? AppColors.primary
+                : (isDark ? AppColors.darkBordersAndDividers : const Color(0xFFE5E7EB)),
+            width: 1,
+          ),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            fontSize: 13,
+            fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+            color: isSelected
+                ? Colors.white
+                : (isDark ? const Color(0xFFCBD5E1) : const Color(0xFF475569)),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildEmptyState(bool isDark) {
+    final isSearching = _searchQuery.isNotEmpty || _selectedStatus != 'All Status';
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 40, horizontal: 16),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              width: 56,
+              height: 56,
+              decoration: BoxDecoration(
+                color: AppColors.primary.withOpacity(0.12),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(Icons.assignment_outlined, size: 28, color: AppColors.primary),
+            ),
+            const SizedBox(height: 14),
+            Text(
+              isSearching ? 'No tasks match your filters' : 'No tasks yet',
+              style: TextStyle(
+                fontWeight: FontWeight.w600,
+                fontSize: 17,
+                color: isDark ? AppColors.darkPrimaryText : AppColors.lightPrimaryText,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 6),
+            Text(
+              isSearching
+                  ? 'No tasks match your current filter or search criteria.'
+                  : 'Tasks assigned to you will appear here. You can also create a personal task.',
+              style: TextStyle(
+                fontSize: 14,
+                color: isDark ? AppColors.darkSecondaryText : const Color(0xFF4B5563),
+              ),
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              textAlign: TextAlign.center,
+            ),
+            if (isSearching) ...[
+              const SizedBox(height: 12),
+              TextButton(
+                onPressed: () => setState(() {
+                  _searchQuery = '';
+                  _selectedStatus = 'All Status';
+                }),
+                child: const Text(
+                  'Clear filters',
+                  style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.bold, color: AppColors.primary),
+                ),
+              ),
+            ],
+          ],
+        ),
       ),
     );
   }
@@ -689,223 +897,414 @@ class _MyTasksScreenState extends ConsumerState<MyTasksScreen> {
 
   Widget _buildAddTaskModal(bool isDark) {
     final dueDateFormatted = '${_targetEndDate.day.toString().padLeft(2, '0')}/${_targetEndDate.month.toString().padLeft(2, '0')}/${_targetEndDate.year}';
+    final screenWidth = MediaQuery.sizeOf(context).width;
+    final viewInsetsBottom = MediaQuery.viewInsetsOf(context).bottom;
+    final screenHeight = MediaQuery.sizeOf(context).height;
 
-    return Positioned.fill(
-      child: Material(
-        color: Colors.black.withOpacity(0.5),
-        child: Center(
-          child: SingleChildScrollView(
-            child: Container(
-              width: 380,
-              margin: const EdgeInsets.all(20),
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                color: isDark ? AppColors.darkMainSurface : Colors.white,
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: isDark ? AppColors.darkBordersAndDividers : const Color(0xFFE2E8F0)),
-              ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
+    return Container(
+      color: Colors.black.withOpacity(0.45),
+      alignment: Alignment.center,
+      padding: EdgeInsets.only(bottom: viewInsetsBottom),
+      child: ConstrainedBox(
+        constraints: BoxConstraints(
+          maxWidth: screenWidth - 32,
+          maxHeight: screenHeight * 0.9,
+        ),
+        child: Container(
+          margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: isDark ? AppColors.darkMainSurface : Colors.white,
+            borderRadius: BorderRadius.circular(24),
+            border: Border.all(color: isDark ? AppColors.darkBordersAndDividers : const Color(0xFFE5E7EB)),
+            boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.25), blurRadius: 20, offset: const Offset(0, 8))],
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // Header
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text('Create Personal Task', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: isDark ? AppColors.darkPrimaryText : AppColors.lightPrimaryText)),
-                      IconButton(onPressed: () => setState(() => _showAddTaskModal = false), icon: const Icon(Icons.close, size: 18)),
-                    ],
+                  Text(
+                    'Create Personal Task',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w600,
+                      fontSize: 17,
+                      color: isDark ? AppColors.darkPrimaryText : AppColors.lightPrimaryText,
+                    ),
                   ),
-                  const Divider(height: 16),
-                  TextFormField(
-                    controller: _titleController,
-                    decoration: const InputDecoration(labelText: 'Task Title *', hintText: 'Enter title...', border: OutlineInputBorder()),
-                  ),
-                  const SizedBox(height: 12),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: TextFormField(
-                          controller: _departmentController,
-                          decoration: const InputDecoration(labelText: 'Category / Module *', hintText: 'e.g. AI & Research', border: OutlineInputBorder()),
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: DropdownButtonFormField<String>(
-                          value: _newPriority,
-                          decoration: const InputDecoration(labelText: 'Priority *', border: OutlineInputBorder()),
-                          items: const [
-                            DropdownMenuItem(value: 'LOW', child: Text('Low')),
-                            DropdownMenuItem(value: 'MEDIUM', child: Text('Medium')),
-                            DropdownMenuItem(value: 'HIGH', child: Text('High')),
-                            DropdownMenuItem(value: 'URGENT', child: Text('Urgent')),
-                          ],
-                          onChanged: (val) {
-                            if (val != null) setState(() => _newPriority = val);
-                          },
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: InkWell(
-                          onTap: _pickDueDate,
-                          child: InputDecorator(
-                            decoration: const InputDecoration(
-                              labelText: 'Due Date *',
-                              border: OutlineInputBorder(),
-                              suffixIcon: Icon(Icons.calendar_today, size: 16),
-                            ),
-                            child: Text(
-                              dueDateFormatted,
-                              style: TextStyle(fontSize: 13, color: isDark ? AppColors.darkPrimaryText : AppColors.lightPrimaryText),
-                            ),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: DropdownButtonFormField<String>(
-                          value: _newStatus,
-                          decoration: const InputDecoration(labelText: 'Status', border: OutlineInputBorder()),
-                          items: const [
-                            DropdownMenuItem(value: 'Active', child: Text('Active')),
-                            DropdownMenuItem(value: 'Planning', child: Text('Planning')),
-                            DropdownMenuItem(value: 'On Hold', child: Text('On Hold')),
-                            DropdownMenuItem(value: 'Completed', child: Text('Completed')),
-                          ],
-                          onChanged: (val) {
-                            if (val != null) setState(() => _newStatus = val);
-                          },
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  TextFormField(
-                    initialValue: _estimatedHours.toString(),
-                    keyboardType: TextInputType.number,
-                    decoration: const InputDecoration(labelText: 'Estimated Hours', hintText: 'e.g. 8', border: OutlineInputBorder()),
-                    onChanged: (val) {
-                      _estimatedHours = double.tryParse(val) ?? 8.0;
-                    },
-                  ),
-                  const SizedBox(height: 12),
-                  TextFormField(
-                    controller: _descriptionController,
-                    maxLines: 3,
-                    decoration: const InputDecoration(labelText: 'Description & Scope', hintText: 'Provide details on deliverables...', border: OutlineInputBorder()),
-                  ),
-                  const SizedBox(height: 16),
                   SizedBox(
-                    width: double.infinity,
-                    height: 46,
-                    child: ElevatedButton.icon(
-                      onPressed: _saveNewTask,
-                      icon: const Icon(Icons.add_circle_outline, size: 18),
-                      label: const Text('Add Task', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColors.primary,
-                        foregroundColor: Colors.white,
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    width: 36,
+                    height: 36,
+                    child: Material(
+                      color: isDark ? Colors.white12 : const Color(0xFFF1F5F9),
+                      shape: const CircleBorder(),
+                      child: InkWell(
+                        onTap: () => setState(() => _showAddTaskModal = false),
+                        customBorder: const CircleBorder(),
+                        child: Center(
+                          child: Icon(Icons.close_rounded, size: 18, color: isDark ? AppColors.darkSecondaryText : const Color(0xFF475569)),
+                        ),
                       ),
                     ),
                   ),
                 ],
               ),
-            ),
+              const SizedBox(height: 10),
+              Divider(height: 1, color: isDark ? AppColors.darkBordersAndDividers : const Color(0xFFE5E7EB)),
+              const SizedBox(height: 10),
+
+              // Scrollable Fields
+              Flexible(
+                child: SingleChildScrollView(
+                  physics: const BouncingScrollPhysics(),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _buildTaskFieldLabel('Task Title', isMandatory: true, isDark: isDark),
+                      const SizedBox(height: 6),
+                      SizedBox(
+                        height: 48,
+                        child: TextFormField(
+                          controller: _titleController,
+                          style: TextStyle(fontSize: 14, color: isDark ? AppColors.darkPrimaryText : AppColors.lightPrimaryText),
+                          decoration: _taskInputDecoration(isDark, 'Enter title...'),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+
+                      // Row 1: Category + Priority
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                _buildTaskFieldLabel('Category / Module', isMandatory: true, isDark: isDark),
+                                const SizedBox(height: 6),
+                                SizedBox(
+                                  height: 48,
+                                  child: TextFormField(
+                                    controller: _departmentController,
+                                    style: TextStyle(fontSize: 14, color: isDark ? AppColors.darkPrimaryText : AppColors.lightPrimaryText),
+                                    decoration: _taskInputDecoration(isDark, 'e.g. AI & Research'),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                _buildTaskFieldLabel('Priority', isMandatory: true, isDark: isDark),
+                                const SizedBox(height: 6),
+                                SizedBox(
+                                  height: 48,
+                                  child: DropdownButtonFormField<String>(
+                                    value: _newPriority,
+                                    isExpanded: true,
+                                    dropdownColor: isDark ? AppColors.darkMainSurface : Colors.white,
+                                    style: TextStyle(fontSize: 14, color: isDark ? AppColors.darkPrimaryText : AppColors.lightPrimaryText, fontWeight: FontWeight.w500),
+                                    decoration: _taskInputDecoration(isDark, 'Priority'),
+                                    icon: const Icon(Icons.arrow_drop_down_rounded, color: AppColors.primary, size: 20),
+                                    items: const [
+                                      DropdownMenuItem(value: 'LOW', child: Text('Low', overflow: TextOverflow.ellipsis)),
+                                      DropdownMenuItem(value: 'MEDIUM', child: Text('Medium', overflow: TextOverflow.ellipsis)),
+                                      DropdownMenuItem(value: 'HIGH', child: Text('High', overflow: TextOverflow.ellipsis)),
+                                      DropdownMenuItem(value: 'URGENT', child: Text('Urgent', overflow: TextOverflow.ellipsis)),
+                                    ],
+                                    onChanged: (val) {
+                                      if (val != null) setState(() => _newPriority = val);
+                                    },
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+
+                      // Row 2: Due Date + Status
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                _buildTaskFieldLabel('Due Date', isMandatory: true, isDark: isDark),
+                                const SizedBox(height: 6),
+                                SizedBox(
+                                  height: 48,
+                                  child: Material(
+                                    color: isDark ? AppColors.darkMainSurface : Colors.white,
+                                    borderRadius: BorderRadius.circular(12),
+                                    child: InkWell(
+                                      onTap: _pickDueDate,
+                                      borderRadius: BorderRadius.circular(12),
+                                      child: Container(
+                                        height: 48,
+                                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                                        decoration: BoxDecoration(
+                                          borderRadius: BorderRadius.circular(12),
+                                          border: Border.all(color: isDark ? AppColors.darkBordersAndDividers : const Color(0xFFE5E7EB), width: 1),
+                                        ),
+                                        child: Row(
+                                          children: [
+                                            Expanded(
+                                              child: Text(
+                                                dueDateFormatted,
+                                                style: TextStyle(fontSize: 14, color: isDark ? AppColors.darkPrimaryText : AppColors.lightPrimaryText, fontWeight: FontWeight.w500),
+                                                overflow: TextOverflow.ellipsis,
+                                              ),
+                                            ),
+                                            const Icon(Icons.calendar_today_rounded, size: 18, color: AppColors.primary),
+                                          ],
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                _buildTaskFieldLabel('Status', isDark: isDark),
+                                const SizedBox(height: 6),
+                                SizedBox(
+                                  height: 48,
+                                  child: DropdownButtonFormField<String>(
+                                    value: _newStatus,
+                                    isExpanded: true,
+                                    dropdownColor: isDark ? AppColors.darkMainSurface : Colors.white,
+                                    style: TextStyle(fontSize: 14, color: isDark ? AppColors.darkPrimaryText : AppColors.lightPrimaryText, fontWeight: FontWeight.w500),
+                                    decoration: _taskInputDecoration(isDark, 'Status'),
+                                    icon: const Icon(Icons.arrow_drop_down_rounded, color: AppColors.primary, size: 20),
+                                    items: const [
+                                      DropdownMenuItem(value: 'Active', child: Text('Active', overflow: TextOverflow.ellipsis)),
+                                      DropdownMenuItem(value: 'Planning', child: Text('Planning', overflow: TextOverflow.ellipsis)),
+                                      DropdownMenuItem(value: 'On Hold', child: Text('On Hold', overflow: TextOverflow.ellipsis)),
+                                      DropdownMenuItem(value: 'Completed', child: Text('Completed', overflow: TextOverflow.ellipsis)),
+                                    ],
+                                    onChanged: (val) {
+                                      if (val != null) setState(() => _newStatus = val);
+                                    },
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+
+                      // Estimated Hours
+                      _buildTaskFieldLabel('Estimated Hours', isDark: isDark),
+                      const SizedBox(height: 6),
+                      SizedBox(
+                        height: 48,
+                        child: TextFormField(
+                          initialValue: _estimatedHours.toString(),
+                          keyboardType: TextInputType.number,
+                          style: TextStyle(fontSize: 14, color: isDark ? AppColors.darkPrimaryText : AppColors.lightPrimaryText),
+                          decoration: _taskInputDecoration(isDark, 'e.g. 8'),
+                          onChanged: (val) {
+                            _estimatedHours = double.tryParse(val) ?? 8.0;
+                          },
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+
+                      // Description & Scope
+                      _buildTaskFieldLabel('Description & Scope', isDark: isDark),
+                      const SizedBox(height: 6),
+                      TextFormField(
+                        controller: _descriptionController,
+                        minLines: 3,
+                        maxLines: 4,
+                        style: TextStyle(fontSize: 14, color: isDark ? AppColors.darkPrimaryText : AppColors.lightPrimaryText, height: 1.4),
+                        decoration: _taskInputDecoration(isDark, 'Provide details on deliverables...'),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+
+              // Fixed Add Task Button Area
+              Container(
+                padding: const EdgeInsets.only(top: 12),
+                decoration: BoxDecoration(
+                  color: isDark ? AppColors.darkMainSurface : Colors.white,
+                ),
+                child: SizedBox(
+                  height: 48,
+                  width: double.infinity,
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      color: AppColors.primary,
+                      borderRadius: BorderRadius.circular(14),
+                      boxShadow: const [
+                        BoxShadow(
+                          color: Color.fromRGBO(13, 110, 100, 0.22),
+                          blurRadius: 12,
+                          offset: Offset(0, 4),
+                        ),
+                      ],
+                    ),
+                    child: ElevatedButton.icon(
+                      onPressed: _saveNewTask,
+                      icon: const Icon(Icons.add_circle_outline, size: 18, color: Colors.white),
+                      label: const Text('Add Task', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 15, color: Colors.white)),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.transparent,
+                        shadowColor: Colors.transparent,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
           ),
         ),
       ),
     );
   }
 
-  Widget _buildReviewModal(bool isDark) {
-    final t = _selectedTaskForReview!;
-    return Positioned.fill(
-      child: Material(
-        color: Colors.black.withOpacity(0.5),
-        child: Center(
-          child: Container(
-            width: 380,
-            margin: const EdgeInsets.all(20),
-            padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(
-              color: isDark ? AppColors.darkMainSurface : Colors.white,
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: isDark ? AppColors.darkBordersAndDividers : const Color(0xFFE2E8F0)),
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text('Team Lead Review & Rating', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: isDark ? AppColors.darkPrimaryText : AppColors.lightPrimaryText)),
-                    IconButton(onPressed: () => setState(() => _showReviewModal = false), icon: const Icon(Icons.close, size: 18)),
-                  ],
-                ),
-                const Divider(height: 16),
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: isDark ? AppColors.darkSecondarySurface : const Color(0xFFF8FAFC),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(t.title, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: isDark ? AppColors.darkPrimaryText : AppColors.lightPrimaryText)),
-                      const SizedBox(height: 4),
-                      Text('Assigned by: ${t.leadName}', style: TextStyle(fontSize: 12, color: isDark ? AppColors.darkSecondaryText : AppColors.lightSecondaryText)),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 14),
-                Row(
-                  children: [
-                    const Icon(Icons.star, color: Color(0xFFF59E0B), size: 22),
-                    const SizedBox(width: 8),
-                    Text('${(t.reviewRating ?? 5.0).toStringAsFixed(1)} / 5 Stars', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: Color(0xFFB45309))),
-                  ],
-                ),
-                if (t.reviewQuality != null) ...[
-                  const SizedBox(height: 10),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                    decoration: BoxDecoration(color: const Color(0xFFECFDF5), borderRadius: BorderRadius.circular(10), border: Border.all(color: const Color(0xFFA7F3D0))),
-                    child: Text('Grade: ${t.reviewQuality}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: Color(0xFF059669))),
-                  ),
-                ],
-                const SizedBox(height: 14),
-                Text('Review Notes:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: isDark ? AppColors.darkSecondaryText : AppColors.lightSecondaryText)),
-                const SizedBox(height: 4),
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  width: double.infinity,
-                  decoration: BoxDecoration(
-                    color: isDark ? AppColors.darkSecondarySurface : const Color(0xFFF8FAFC),
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: isDark ? AppColors.darkBordersAndDividers : const Color(0xFFE2E8F0)),
-                  ),
-                  child: Text(t.reviewComment ?? 'No feedback notes provided by Team Lead yet.', style: TextStyle(fontSize: 12, fontStyle: FontStyle.italic, color: isDark ? AppColors.darkPrimaryText : AppColors.lightPrimaryText)),
-                ),
-                const SizedBox(height: 16),
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton(
-                    onPressed: () => setState(() => _showReviewModal = false),
-                    style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary, foregroundColor: Colors.white),
-                    child: const Text('Close'),
-                  ),
-                ),
-              ],
+  Widget _buildTaskFieldLabel(String label, {bool isMandatory = false, required bool isDark}) {
+    return Row(
+      children: [
+        Text(
+          label,
+          style: TextStyle(
+            color: isDark ? const Color(0xFFCBD5E1) : const Color(0xFF334155),
+            fontSize: 12,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+        if (isMandatory)
+          const Text(
+            ' *',
+            style: TextStyle(
+              color: Colors.redAccent,
+              fontSize: 12,
+              fontWeight: FontWeight.bold,
             ),
           ),
+      ],
+    );
+  }
+
+  InputDecoration _taskInputDecoration(bool dark, String hint) {
+    return InputDecoration(
+      hintText: hint,
+      hintStyle: TextStyle(color: dark ? AppColors.darkMutedText : const Color(0xFF94A3B8), fontSize: 13),
+      filled: true,
+      fillColor: dark ? AppColors.darkMainSurface : Colors.white,
+      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: BorderSide(color: dark ? AppColors.darkBordersAndDividers : const Color(0xFFE5E7EB), width: 1),
+      ),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: BorderSide(color: dark ? AppColors.darkBordersAndDividers : const Color(0xFFE5E7EB), width: 1),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: const BorderSide(color: AppColors.primary, width: 1.5),
+      ),
+      errorStyle: const TextStyle(fontSize: 11),
+    );
+  }
+
+  Widget _buildReviewModal(bool isDark) {
+    final t = _selectedTaskForReview!;
+    return Center(
+      child: Container(
+        width: 380,
+        margin: const EdgeInsets.all(20),
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: isDark ? AppColors.darkMainSurface : Colors.white,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: isDark ? AppColors.darkBordersAndDividers : const Color(0xFFE2E8F0)),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text('Team Lead Review & Rating', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: isDark ? AppColors.darkPrimaryText : AppColors.lightPrimaryText)),
+                IconButton(onPressed: () => setState(() => _showReviewModal = false), icon: const Icon(Icons.close, size: 18)),
+              ],
+            ),
+            const Divider(height: 16),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: isDark ? AppColors.darkSecondarySurface : const Color(0xFFF8FAFC),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(t.title, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: isDark ? AppColors.darkPrimaryText : AppColors.lightPrimaryText)),
+                  const SizedBox(height: 4),
+                  Text('Assigned by: ${t.leadName}', style: TextStyle(fontSize: 12, color: isDark ? AppColors.darkSecondaryText : AppColors.lightSecondaryText)),
+                ],
+              ),
+            ),
+            const SizedBox(height: 14),
+            Row(
+              children: [
+                const Icon(Icons.star, color: Color(0xFFF59E0B), size: 22),
+                const SizedBox(width: 8),
+                Text('${(t.reviewRating ?? 5.0).toStringAsFixed(1)} / 5 Stars', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: Color(0xFFB45309))),
+              ],
+            ),
+            if (t.reviewQuality != null) ...[
+              const SizedBox(height: 10),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(color: const Color(0xFFECFDF5), borderRadius: BorderRadius.circular(10), border: Border.all(color: const Color(0xFFA7F3D0))),
+                child: Text('Grade: ${t.reviewQuality}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: Color(0xFF059669))),
+              ),
+            ],
+            const SizedBox(height: 14),
+            Text('Review Notes:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: isDark ? AppColors.darkSecondaryText : AppColors.lightSecondaryText)),
+            const SizedBox(height: 4),
+            Container(
+              padding: const EdgeInsets.all(12),
+              width: double.infinity,
+              decoration: BoxDecoration(
+                color: isDark ? AppColors.darkSecondarySurface : const Color(0xFFF8FAFC),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: isDark ? AppColors.darkBordersAndDividers : const Color(0xFFE2E8F0)),
+              ),
+              child: Text(t.reviewComment ?? 'No feedback notes provided by Team Lead yet.', style: TextStyle(fontSize: 12, fontStyle: FontStyle.italic, color: isDark ? AppColors.darkPrimaryText : AppColors.lightPrimaryText)),
+            ),
+            const SizedBox(height: 16),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: () => setState(() => _showReviewModal = false),
+                style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary, foregroundColor: Colors.white),
+                child: const Text('Close'),
+              ),
+            ),
+          ],
         ),
       ),
     );

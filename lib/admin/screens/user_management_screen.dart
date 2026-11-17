@@ -7,11 +7,14 @@ import '../../core/errors/api_exception.dart';
 import '../../core/models/user_model.dart';
 import '../../core/storage/storage_service.dart';
 import '../../core/theme/app_colors.dart';
+import '../../core/theme/app_theme_tokens.dart';
 import '../../core/theme/glass_theme.dart';
 import '../../core/widgets/app_button.dart';
 import '../../core/widgets/app_card.dart';
 import '../../core/widgets/glass_scaffold.dart';
 import '../../core/widgets/glass_header.dart';
+import '../widgets/admin_dashboard_widgets.dart';
+import '../widgets/user_management_widgets.dart';
 import 'user_form_screen.dart';
 
 class UserManagementScreen extends ConsumerStatefulWidget {
@@ -229,17 +232,12 @@ class _UserManagementScreenState extends ConsumerState<UserManagementScreen> {
 
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text('Reset Password for $name?'),
-        content: Text('A temporary password reset link will be sent to $email.'),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF0F6B66)),
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Send Reset Link'),
-          ),
-        ],
+      barrierColor: Colors.black45,
+      builder: (ctx) => ConfirmResetPasswordDialog(
+        name: name,
+        email: email,
+        onConfirm: () => Navigator.pop(ctx, true),
+        onCancel: () => Navigator.pop(ctx, false),
       ),
     );
 
@@ -274,9 +272,9 @@ class _UserManagementScreenState extends ConsumerState<UserManagementScreen> {
   Widget build(BuildContext context) {
     final glass = context.glass;
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final cardBgColor = isDark ? const Color(0xFF141D2E) : Colors.white;
+    final cardBgColor = isDark ? AppColors.darkMainSurface : Colors.white;
+    final borderColor = isDark ? AppColors.darkBordersAndDividers : const Color(0xFFE5E7EB);
 
-    // Account switching listener
     ref.listen<AuthState>(authServiceProvider, (previous, next) {
       if (next.user?.id != _currentUserId) {
         _checkUserAndLoad();
@@ -314,7 +312,7 @@ class _UserManagementScreenState extends ConsumerState<UserManagementScreen> {
     }
 
     if (_isLoading) {
-      const loadingWidget = Center(child: CircularProgressIndicator());
+      const loadingWidget = Center(child: CircularProgressIndicator(color: AppColors.primary));
       if (!widget.showAppBar) return Material(color: Colors.transparent, child: loadingWidget);
       return GlassScaffold(
         appBar: GlassHeader(title: 'User Management'),
@@ -368,72 +366,169 @@ class _UserManagementScreenState extends ConsumerState<UserManagementScreen> {
       return matchesSearch && matchesRole && matchesStatus;
     }).toList();
 
+    // Scroll padding 110px so last card scrolls fully above bottom nav
+    final bottomNavInset = 110.0;
+
     final content = RefreshIndicator(
       onRefresh: _fetchUsers,
       child: SingleChildScrollView(
-        physics: const AlwaysScrollableScrollPhysics(),
-        padding: const EdgeInsets.all(16),
+        physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
+        padding: EdgeInsets.fromLTRB(16, 12, 16, bottomNavInset),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // 4 KPI Summary Cards Row matching web reference
+            // TOP HEADER BANNER matching web HRMS reference
+            Container(
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: cardBgColor,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: borderColor, width: 1),
+                boxShadow: [
+                  BoxShadow(
+                    color: isDark ? Colors.black12 : const Color(0x060F6B66),
+                    blurRadius: 4,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'User Management',
+                          style: TextStyle(
+                            fontSize: 17,
+                            fontWeight: FontWeight.bold,
+                            color: isDark ? AppColors.darkPrimaryText : AppColors.lightPrimaryText,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          'Manage system users, access roles, security settings, and permissions',
+                          style: TextStyle(
+                            fontSize: 11.5,
+                            color: isDark ? AppColors.darkSecondaryText : const Color(0xFF64748B),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  ConstrainedBox(
+                    constraints: const BoxConstraints(minHeight: 44),
+                    child: ElevatedButton.icon(
+                      onPressed: () async {
+                        final created = await Navigator.push<bool>(
+                          context,
+                          MaterialPageRoute(builder: (_) => const UserFormScreen()),
+                        );
+                        if (created == true) _fetchUsers();
+                      },
+                      icon: const Icon(Icons.person_add_alt_1_rounded, size: 16, color: Colors.white),
+                      label: const FittedBox(
+                        fit: BoxFit.scaleDown,
+                        child: Text(
+                          'Add New User',
+                          style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.bold, color: Colors.white),
+                        ),
+                      ),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFFC2410C),
+                        foregroundColor: Colors.white,
+                        elevation: 2,
+                        shadowColor: const Color(0x33C2410C),
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 12),
+
+            // 1. STAT CARDS: Single row of 4 compact cards (padding 10px 6px, radius 16px, min-height 72px, 1px #E5E7EB border)
             Row(
               children: [
-                Expanded(child: _buildStatTile(glass, cardBgColor, label: 'Total Users', value: '$totalCount', icon: Icons.groups_rounded, iconColor: const Color(0xFF2563EB))),
+                Expanded(child: UserStatTile(label: 'Total', value: '$totalCount', icon: Icons.groups_rounded, iconColor: const Color(0xFF2563EB))),
                 const SizedBox(width: 8),
-                Expanded(child: _buildStatTile(glass, cardBgColor, label: 'Active Users', value: '$activeCount', icon: Icons.check_circle_outline_rounded, iconColor: const Color(0xFF10B981))),
+                Expanded(child: UserStatTile(label: 'Active', value: '$activeCount', icon: Icons.check_circle_outline_rounded, iconColor: const Color(0xFF16A34A))),
                 const SizedBox(width: 8),
-                Expanded(child: _buildStatTile(glass, cardBgColor, label: 'System Admins', value: '$adminCount', icon: Icons.admin_panel_settings_rounded, iconColor: const Color(0xFF8B5CF6))),
+                Expanded(child: UserStatTile(label: 'System', value: '$adminCount', icon: Icons.admin_panel_settings_rounded, iconColor: const Color(0xFF8B5CF6))),
                 const SizedBox(width: 8),
-                Expanded(child: _buildStatTile(glass, cardBgColor, label: 'Inactive Users', value: '$inactiveCount', icon: Icons.pause_circle_outline_rounded, iconColor: const Color(0xFFF59E0B))),
+                Expanded(child: UserStatTile(label: 'Inactive', value: '$inactiveCount', icon: Icons.pause_circle_outline_rounded, iconColor: const Color(0xFFF59E0B))),
               ],
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 12),
 
-            // Search & Role Filters Bar matching web reference
+            // 2. SEARCH + ROLE FILTER (44px height, radius 14px, 1px #E5E7EB border, 14px text, 8px gap)
             Row(
               children: [
                 Expanded(
-                  child: TextField(
-                    decoration: InputDecoration(
-                      hintText: 'Search users by name, username, email...',
-                      hintStyle: TextStyle(color: glass.textSecondary, fontSize: 13),
-                      prefixIcon: Icon(Icons.search_rounded, color: glass.textSecondary),
-                      filled: true,
-                      fillColor: cardBgColor,
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: glass.cardBorder)),
-                      enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: glass.cardBorder)),
+                  child: SizedBox(
+                    height: 44,
+                    child: TextField(
+                      decoration: InputDecoration(
+                        hintText: 'Search users',
+                        hintStyle: TextStyle(color: isDark ? AppColors.darkMutedText : const Color(0xFF94A3B8), fontSize: 14),
+                        prefixIcon: Icon(Icons.search_rounded, size: 18, color: isDark ? AppColors.darkSecondaryText : const Color(0xFF64748B)),
+                        filled: true,
+                        fillColor: cardBgColor,
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide(color: borderColor)),
+                        enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide(color: borderColor)),
+                        focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: const BorderSide(color: AppColors.primary, width: 1.5)),
+                      ),
+                      style: TextStyle(color: isDark ? AppColors.darkPrimaryText : AppColors.lightPrimaryText, fontSize: 14),
+                      onChanged: (val) => setState(() => _searchQuery = val),
                     ),
-                    style: TextStyle(color: glass.textPrimary),
-                    onChanged: (val) => setState(() => _searchQuery = val),
                   ),
                 ),
                 const SizedBox(width: 8),
-                DropdownButton<String>(
-                  value: _roleFilter,
-                  underline: const SizedBox.shrink(),
-                  items: const [
-                    DropdownMenuItem(value: 'ALL', child: Text('All Roles', style: TextStyle(fontSize: 12))),
-                    DropdownMenuItem(value: 'SUPER ADMIN', child: Text('Super Admin', style: TextStyle(fontSize: 12))),
-                    DropdownMenuItem(value: 'HR ADMIN', child: Text('HR Admin', style: TextStyle(fontSize: 12))),
-                    DropdownMenuItem(value: 'FINANCE ADMIN', child: Text('Finance Admin', style: TextStyle(fontSize: 12))),
-                    DropdownMenuItem(value: 'DEPARTMENT MANAGER', child: Text('Department Manager', style: TextStyle(fontSize: 12))),
-                    DropdownMenuItem(value: 'TEAM LEAD', child: Text('Team Lead', style: TextStyle(fontSize: 12))),
-                    DropdownMenuItem(value: 'EMPLOYEE', child: Text('Employee', style: TextStyle(fontSize: 12))),
-                  ],
-                  onChanged: (val) => setState(() => _roleFilter = val ?? 'ALL'),
+                Container(
+                  width: 135,
+                  height: 44,
+                  padding: const EdgeInsets.symmetric(horizontal: 10),
+                  decoration: BoxDecoration(
+                    color: cardBgColor,
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: borderColor, width: 1),
+                  ),
+                  child: DropdownButtonHideUnderline(
+                    child: DropdownButton<String>(
+                      value: _roleFilter,
+                      isDense: true,
+                      isExpanded: true,
+                      icon: const Icon(Icons.keyboard_arrow_down_rounded, size: 20, color: AppColors.primary),
+                      dropdownColor: cardBgColor,
+                      style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: isDark ? AppColors.darkPrimaryText : AppColors.lightPrimaryText),
+                      items: const [
+                        DropdownMenuItem(value: 'ALL', child: Text('All Roles', overflow: TextOverflow.ellipsis)),
+                        DropdownMenuItem(value: 'SUPER ADMIN', child: Text('Super Admin', overflow: TextOverflow.ellipsis)),
+                        DropdownMenuItem(value: 'HR ADMIN', child: Text('HR Admin', overflow: TextOverflow.ellipsis)),
+                        DropdownMenuItem(value: 'FINANCE ADMIN', child: Text('Finance Admin', overflow: TextOverflow.ellipsis)),
+                        DropdownMenuItem(value: 'DEPARTMENT MANAGER', child: Text('Dept Manager', overflow: TextOverflow.ellipsis)),
+                        DropdownMenuItem(value: 'TEAM LEAD', child: Text('Team Lead', overflow: TextOverflow.ellipsis)),
+                        DropdownMenuItem(value: 'EMPLOYEE', child: Text('Employee', overflow: TextOverflow.ellipsis)),
+                      ],
+                      onChanged: (val) => setState(() => _roleFilter = val ?? 'ALL'),
+                    ),
+                  ),
                 ),
               ],
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 12),
 
-            // Users List Feed
+            // 3. USER CARDS LIST
             if (filtered.isEmpty)
-              Container(
-                padding: const EdgeInsets.symmetric(vertical: 48),
-                alignment: Alignment.center,
-                child: Text('No users found matching criteria.', style: TextStyle(color: glass.textSecondary)),
+              const EmptyPlaceholder(
+                icon: Icons.person_search_outlined,
+                title: 'No users found matching criteria',
+                message: 'Try adjusting your search query or role filter',
               )
             else
               ListView.builder(
@@ -442,93 +537,21 @@ class _UserManagementScreenState extends ConsumerState<UserManagementScreen> {
                 itemCount: filtered.length,
                 itemBuilder: (context, index) {
                   final u = filtered.elementAt(index);
-                  final name = u['name']?.toString() ?? u['fullName']?.toString() ?? 'User';
-                  final email = u['email']?.toString() ?? 'user@company.com';
-                  final role = u['role']?.toString() ?? 'EMPLOYEE';
-                  final status = (u['status'] ?? 'ACTIVE').toString().toUpperCase();
-                  final dept = u['department']?.toString() ?? 'General';
                   final userId = (u['id'] ?? u['_id'])?.toString() ?? '1';
 
-                  return AppCard(
-                    backgroundColor: cardBgColor,
-                    margin: const EdgeInsets.only(bottom: 12),
-                    padding: const EdgeInsets.all(14),
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        CircleAvatar(
-                          radius: 20,
-                          backgroundColor: const Color(0xFF0F6B66).withAlpha(30),
-                          child: Text(name.isNotEmpty ? name[0].toUpperCase() : 'U', style: const TextStyle(color: Color(0xFF0F6B66), fontWeight: FontWeight.bold)),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Row(
-                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                children: [
-                                  Expanded(
-                                    child: Text(name, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: glass.textPrimary)),
-                                  ),
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                                    decoration: BoxDecoration(
-                                      color: status == 'ACTIVE' ? const Color(0xFF10B981).withAlpha(30) : Colors.grey.withAlpha(30),
-                                      borderRadius: BorderRadius.circular(8),
-                                    ),
-                                    child: Text(
-                                      status,
-                                      style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: status == 'ACTIVE' ? const Color(0xFF10B981) : Colors.grey),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: 4),
-                              Text('$email • $dept', style: TextStyle(fontSize: 12, color: glass.textSecondary)),
-                              const SizedBox(height: 4),
-                              Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                decoration: BoxDecoration(color: const Color(0xFF2563EB).withAlpha(30), borderRadius: BorderRadius.circular(6)),
-                                child: Text(role, style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Color(0xFF2563EB))),
-                              ),
-                              const SizedBox(height: 10),
-                              Wrap(
-                                spacing: 6,
-                                runSpacing: 6,
-                                alignment: WrapAlignment.end,
-                                children: [
-                                  OutlinedButton.icon(
-                                    icon: const Icon(Icons.key_outlined, size: 14),
-                                    label: const Text('Reset', style: TextStyle(fontSize: 11.5)),
-                                    style: OutlinedButton.styleFrom(visualDensity: VisualDensity.compact, padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4)),
-                                    onPressed: () => _resetPassword(u),
-                                  ),
-                                  OutlinedButton.icon(
-                                    icon: const Icon(Icons.edit_outlined, size: 14),
-                                    label: const Text('Edit', style: TextStyle(fontSize: 11.5)),
-                                    style: OutlinedButton.styleFrom(visualDensity: VisualDensity.compact, padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4)),
-                                    onPressed: () async {
-                                      final updated = await Navigator.push<bool>(
-                                        context,
-                                        MaterialPageRoute(builder: (_) => UserFormScreen(userId: userId, initialData: u)),
-                                      );
-                                      if (updated == true) _fetchUsers();
-                                    },
-                                  ),
-                                  OutlinedButton.icon(
-                                    icon: const Icon(Icons.delete_outline, size: 14, color: Colors.red),
-                                    label: const Text('Delete', style: TextStyle(fontSize: 11.5, color: Colors.red)),
-                                    style: OutlinedButton.styleFrom(visualDensity: VisualDensity.compact, padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4)),
-                                    onPressed: () => _deleteUser(u),
-                                  ),
-                                ],
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
+                  return FadeSlideEntrance(
+                    delay: (index * 0.05).clamp(0.0, 0.3),
+                    child: UserCardTile(
+                      user: u,
+                      onEdit: () async {
+                        final updated = await Navigator.push<bool>(
+                          context,
+                          MaterialPageRoute(builder: (_) => UserFormScreen(userId: userId, initialData: u)),
+                        );
+                        if (updated == true) _fetchUsers();
+                      },
+                      onReset: () => _resetPassword(u),
+                      onDelete: () => _deleteUser(u),
                     ),
                   );
                 },
@@ -542,7 +565,6 @@ class _UserManagementScreenState extends ConsumerState<UserManagementScreen> {
 
     return GlassScaffold(
       appBar: GlassHeader(
-        title: 'User Management',
         actions: [
           IconButton(
             icon: const Icon(Icons.person_add_alt_1_rounded, size: 20),
@@ -558,34 +580,6 @@ class _UserManagementScreenState extends ConsumerState<UserManagementScreen> {
         ],
       ),
       body: content,
-    );
-  }
-
-  Widget _buildStatTile(
-    GlassTheme glass,
-    Color cardBgColor, {
-    required String label,
-    required String value,
-    required IconData icon,
-    required Color iconColor,
-  }) {
-    return AppCard(
-      backgroundColor: cardBgColor,
-      padding: const EdgeInsets.all(10),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(icon, size: 16, color: iconColor),
-              const SizedBox(width: 4),
-              Expanded(child: Text(label, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 10, color: glass.textSecondary, fontWeight: FontWeight.w600))),
-            ],
-          ),
-          const SizedBox(height: 4),
-          Text(value, style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: glass.textPrimary)),
-        ],
-      ),
     );
   }
 }

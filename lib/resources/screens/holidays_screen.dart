@@ -14,7 +14,7 @@ class HolidayItem {
   String holidayName;
   String holidayDate;
   String description;
-  String type; // Public, Optional, Company
+  String type; // Public, Optional, Company, Gazetted
   bool isRecurring;
 
   HolidayItem({
@@ -65,12 +65,11 @@ class _HolidaysScreenState extends ConsumerState<HolidaysScreen> {
   List<HolidayItem> _holidays = <HolidayItem>[];
 
   _HolidayViewMode _viewMode = _HolidayViewMode.month;
-  DateTime _focusedMonth = DateTime(2026, 10, 1);
+  DateTime _focusedMonth = DateTime(DateTime.now().year, DateTime.now().month, 1);
+  DateTime? _selectedCalendarDate;
 
   // Filters
   String _searchTerm = '';
-  String _filterType = ''; // '' | 'Public' | 'Optional' | 'Company'
-  String _filterRecurring = ''; // '' | 'true' | 'false'
 
   // Modals
   bool _showAddForm = false;
@@ -160,7 +159,7 @@ class _HolidaysScreenState extends ConsumerState<HolidaysScreen> {
   int get _publicHolidaysCount => _holidays.where((h) => h.type.toLowerCase() == 'public' || h.type.toLowerCase() == 'gazetted').length;
 
   List<HolidayItem> get _upcomingHolidays {
-    final today = DateTime(2026, 10, 26);
+    final today = DateTime.now();
     return _holidays.where((h) {
       final d = DateTime.tryParse(h.holidayDate);
       return d != null && (d.isAfter(today) || d.isAtSameMomentAs(today));
@@ -171,13 +170,7 @@ class _HolidaysScreenState extends ConsumerState<HolidaysScreen> {
     return _holidays.where((h) {
       final name = h.holidayName.toLowerCase();
       final desc = h.description.toLowerCase();
-      final type = h.type.toLowerCase();
-
-      final matchesSearch = _searchTerm.isEmpty || name.contains(_searchTerm.toLowerCase()) || desc.contains(_searchTerm.toLowerCase());
-      final matchesType = _filterType.isEmpty || type == _filterType.toLowerCase();
-      final matchesRec = _filterRecurring.isEmpty || h.isRecurring.toString() == _filterRecurring;
-
-      return matchesSearch && matchesType && matchesRec;
+      return _searchTerm.isEmpty || name.contains(_searchTerm.toLowerCase()) || desc.contains(_searchTerm.toLowerCase());
     }).toList();
   }
 
@@ -198,6 +191,20 @@ class _HolidaysScreenState extends ConsumerState<HolidaysScreen> {
       return DateFormat('MMM d, yyyy').format(dt);
     } catch (_) {
       return dateStr;
+    }
+  }
+
+  Color _getHolidayTypeColor(String type) {
+    switch (type.toLowerCase()) {
+      case 'public':
+        return const Color(0xFF2563EB); // Blue
+      case 'gazetted':
+        return AppColors.primary; // Teal
+      case 'company':
+        return const Color(0xFF7C3AED); // Purple
+      case 'optional':
+      default:
+        return const Color(0xFFD97706); // Amber
     }
   }
 
@@ -231,7 +238,6 @@ class _HolidaysScreenState extends ConsumerState<HolidaysScreen> {
       backgroundColor: Colors.transparent,
       builder: (context) {
         final dayOfWeek = _getDayOfWeek(h.holidayDate);
-        final formattedDate = _formatDate(h.holidayDate);
 
         return Container(
           padding: const EdgeInsets.all(20),
@@ -260,14 +266,14 @@ class _HolidaysScreenState extends ConsumerState<HolidaysScreen> {
                       children: [
                         Text(h.holidayName, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: isDark ? AppColors.darkPrimaryText : AppColors.lightPrimaryText)),
                         const SizedBox(height: 2),
-                        Text('$formattedDate • $dayOfWeek', style: TextStyle(fontSize: 12.5, color: isDark ? AppColors.darkSecondaryText : AppColors.lightSecondaryText)),
+                        Text('${_formatDate(h.holidayDate)} • $dayOfWeek', style: TextStyle(fontSize: 12.5, color: isDark ? AppColors.darkSecondaryText : AppColors.lightSecondaryText)),
                       ],
                     ),
                   ),
-                  StatusChip(status: h.type.toUpperCase()),
+                  _buildTypeChip(h.type, isDark),
                 ],
               ),
-              const Divider(height: 24),
+              const Divider(height: 24, color: Color(0xFFE5E7EB)),
               Row(
                 children: [
                   const Icon(Icons.info_outline, size: 16, color: AppColors.primary),
@@ -292,13 +298,31 @@ class _HolidaysScreenState extends ConsumerState<HolidaysScreen> {
                 ],
               ),
               const SizedBox(height: 20),
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: () => Navigator.pop(context),
-                  style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary, foregroundColor: Colors.white),
-                  child: const Text('Close'),
-                ),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: () {
+                        Navigator.pop(context);
+                        _openEditModal(h);
+                      },
+                      icon: const Icon(Icons.edit_outlined, size: 16),
+                      label: const Text('Edit'),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: ElevatedButton.icon(
+                      onPressed: () {
+                        Navigator.pop(context);
+                        _deleteHoliday(h);
+                      },
+                      style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent, foregroundColor: Colors.white),
+                      icon: const Icon(Icons.delete_outline, size: 16),
+                      label: const Text('Delete'),
+                    ),
+                  ),
+                ],
               ),
             ],
           ),
@@ -392,6 +416,27 @@ class _HolidaysScreenState extends ConsumerState<HolidaysScreen> {
     }
   }
 
+  Widget _buildTypeChip(String type, bool isDark) {
+    final color = _getHolidayTypeColor(type);
+    final bgColor = color.withOpacity(isDark ? 0.25 : 0.12);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: bgColor,
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Text(
+        type.toUpperCase(),
+        style: TextStyle(
+          fontSize: 11,
+          fontWeight: FontWeight.w700,
+          color: color,
+          letterSpacing: 0.2,
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -402,34 +447,28 @@ class _HolidaysScreenState extends ConsumerState<HolidaysScreen> {
       return GlassScaffold(title: 'Holiday Calendar', body: skeleton);
     }
 
+    final floatingBtn = FloatingActionButton(
+      onPressed: _openAddModal,
+      backgroundColor: AppColors.primary,
+      elevation: 6,
+      shape: const CircleBorder(),
+      child: const Icon(Icons.add, color: Colors.white, size: 24),
+    );
+
     final content = Stack(
       children: [
         RefreshIndicator(
           onRefresh: _fetchHolidays,
           child: SingleChildScrollView(
             physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 96),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                _buildHeaderRow(isDark),
-                const SizedBox(height: 14),
-
-                // KPI SUMMARY CARDS (4 Cards matching Website)
-                _buildKpiGrid(isDark),
-                const SizedBox(height: 16),
-
-                // VIEW MODE TAB SELECTOR (Month, List, Year, Upcoming)
-                _buildViewModeSelector(isDark),
-                const SizedBox(height: 16),
-
-                // MONTH / YEAR NAVIGATION TOOLBAR
-                if (_viewMode == _HolidayViewMode.month || _viewMode == _HolidayViewMode.year)
-                  _buildNavToolbar(isDark),
-
+                _buildSlimKpiCard(isDark),
                 const SizedBox(height: 12),
-
-                // DYNAMIC VIEW CONTENT (Month Calendar, List Table, Year Grid, Upcoming List)
+                _buildViewModeSelector(isDark),
+                const SizedBox(height: 12),
                 if (_viewMode == _HolidayViewMode.month) _buildMonthCalendarView(isDark),
                 if (_viewMode == _HolidayViewMode.list) _buildListView(isDark),
                 if (_viewMode == _HolidayViewMode.year) _buildYearGridView(isDark),
@@ -442,91 +481,84 @@ class _HolidaysScreenState extends ConsumerState<HolidaysScreen> {
       ],
     );
 
-    if (!widget.showAppBar) return content;
+    if (!widget.showAppBar) {
+      return Scaffold(
+        backgroundColor: Colors.transparent,
+        body: content,
+        floatingActionButton: floatingBtn,
+      );
+    }
 
     return GlassScaffold(
       title: 'Holiday Calendar',
       body: content,
+      floatingActionButton: floatingBtn,
     );
   }
 
-  Widget _buildHeaderRow(bool isDark) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+  Widget _buildSlimKpiCard(bool isDark) {
+    return AppCard(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
+      child: Row(
+        children: [
+          _kpiColumn('Total', '$_totalHolidaysCount', Icons.event_available, AppColors.primary, isDark),
+          _verticalDivider(isDark),
+          _kpiColumn('Public', '$_publicHolidaysCount', Icons.account_balance, const Color(0xFF2563EB), isDark),
+          _verticalDivider(isDark),
+          _kpiColumn('Company', '$_companyHolidaysCount', Icons.apartment, const Color(0xFF7C3AED), isDark),
+          _verticalDivider(isDark),
+          _kpiColumn('Upcoming', '${_upcomingHolidays.length}', Icons.upcoming, const Color(0xFFD97706), isDark),
+        ],
+      ),
+    );
+  }
+
+  Widget _kpiColumn(String label, String count, IconData icon, Color color, bool isDark) {
+    return Expanded(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
             children: [
+              Icon(icon, size: 16, color: color),
+              const SizedBox(width: 4),
               Text(
-                'Holiday Calendar',
-                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: isDark ? AppColors.darkPrimaryText : AppColors.lightPrimaryText),
-              ),
-              const SizedBox(height: 2),
-              Text(
-                'View company holidays, public holidays and important dates.',
-                style: TextStyle(fontSize: 12, color: isDark ? AppColors.darkSecondaryText : AppColors.lightSecondaryText),
+                count,
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w600,
+                  color: isDark ? AppColors.darkPrimaryText : AppColors.lightPrimaryText,
+                ),
               ),
             ],
           ),
-        ),
-        ElevatedButton.icon(
-          onPressed: _openAddModal,
-          icon: const Icon(Icons.add, size: 16),
-          label: const Text('Add Holiday'),
-          style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary, foregroundColor: Colors.white),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildKpiGrid(bool isDark) {
-    return GridView.count(
-      crossAxisCount: 2,
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      crossAxisSpacing: 10,
-      mainAxisSpacing: 10,
-      childAspectRatio: 1.8,
-      children: [
-        _kpiCard('Total Holidays', '$_totalHolidaysCount', 'This Year', Icons.event_available, AppColors.primary, isDark),
-        _kpiCard('Company Holidays', '$_companyHolidaysCount', 'Internal', Icons.apartment, Colors.purple, isDark),
-        _kpiCard('Public Holidays', '$_publicHolidaysCount', 'Government', Icons.account_balance, Colors.teal, isDark),
-        _kpiCard('Upcoming Holidays', '${_upcomingHolidays.length}', 'In next 3 months', Icons.upcoming, const Color(0xFFF59E0B), isDark),
-      ],
-    );
-  }
-
-  Widget _kpiCard(String label, String value, String sub, IconData icon, Color color, bool isDark) {
-    return AppCard(
-      padding: const EdgeInsets.all(12),
-      child: Row(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(color: color.withOpacity(0.15), borderRadius: BorderRadius.circular(10)),
-            child: Icon(icon, color: color, size: 18),
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Text(value, style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: color)),
-                const SizedBox(height: 2),
-                Text(label, style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.bold, color: isDark ? AppColors.darkPrimaryText : AppColors.lightPrimaryText), overflow: TextOverflow.ellipsis),
-                Text(sub, style: TextStyle(fontSize: 9.5, color: isDark ? AppColors.darkSecondaryText : AppColors.lightSecondaryText), overflow: TextOverflow.ellipsis),
-              ],
+          const SizedBox(height: 2),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 11,
+              color: isDark ? AppColors.darkSecondaryText : const Color(0xFF4B5563),
             ),
+            textAlign: TextAlign.center,
+            overflow: TextOverflow.ellipsis,
           ),
         ],
       ),
     );
   }
 
+  Widget _verticalDivider(bool isDark) {
+    return Container(
+      height: 32,
+      width: 1,
+      color: isDark ? AppColors.darkBordersAndDividers : const Color(0xFFE5E7EB),
+    );
+  }
+
   Widget _buildViewModeSelector(bool isDark) {
     return Container(
+      height: 40,
       padding: const EdgeInsets.all(4),
       decoration: BoxDecoration(
         color: isDark ? AppColors.darkSecondarySurface : const Color(0xFFF1F5F9),
@@ -534,47 +566,68 @@ class _HolidaysScreenState extends ConsumerState<HolidaysScreen> {
       ),
       child: Row(
         children: [
-          _viewTab('Month', _HolidayViewMode.month),
-          _viewTab('List', _HolidayViewMode.list),
-          _viewTab('Year', _HolidayViewMode.year),
-          _viewTab('Upcoming (${_upcomingHolidays.length})', _HolidayViewMode.upcoming),
+          _viewTab('Month', _HolidayViewMode.month, isDark),
+          _viewTab('List', _HolidayViewMode.list, isDark),
+          _viewTab('Year', _HolidayViewMode.year, isDark),
+          _viewTab('Upcoming', _HolidayViewMode.upcoming, isDark, badgeCount: _upcomingHolidays.length),
         ],
       ),
     );
   }
 
-  Widget _viewTab(String label, _HolidayViewMode mode) {
+  Widget _viewTab(String label, _HolidayViewMode mode, bool isDark, {int? badgeCount}) {
     final isSelected = _viewMode == mode;
     return Expanded(
       child: GestureDetector(
         onTap: () => setState(() => _viewMode = mode),
         child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 8),
           alignment: Alignment.center,
           decoration: BoxDecoration(
             color: isSelected ? AppColors.primary : Colors.transparent,
             borderRadius: BorderRadius.circular(10),
           ),
-          child: Text(
-            label,
-            style: TextStyle(
-              fontSize: 11.5,
-              fontWeight: isSelected ? FontWeight.bold : FontWeight.w600,
-              color: isSelected ? Colors.white : AppColors.lightSecondaryText,
-            ),
-            overflow: TextOverflow.ellipsis,
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
+                  color: isSelected ? Colors.white : (isDark ? AppColors.darkSecondaryText : const Color(0xFF64748B)),
+                ),
+                overflow: TextOverflow.ellipsis,
+              ),
+              if (badgeCount != null) ...[
+                const SizedBox(width: 4),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                  decoration: BoxDecoration(
+                    color: isSelected ? Colors.white.withOpacity(0.25) : (isDark ? AppColors.darkBordersAndDividers : const Color(0xFFE2E8F0)),
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                  child: Text(
+                    '$badgeCount',
+                    style: TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold,
+                      color: isSelected ? Colors.white : (isDark ? AppColors.darkPrimaryText : const Color(0xFF475569)),
+                    ),
+                  ),
+                ),
+              ],
+            ],
           ),
         ),
       ),
     );
   }
 
-  Widget _buildNavToolbar(bool isDark) {
+  Widget _buildMonthNavToolbar(bool isDark) {
     final monthStr = DateFormat('MMMM yyyy').format(_focusedMonth);
-    final yearStr = '${_focusedMonth.year}';
-
     return AppCard(
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
@@ -582,45 +635,50 @@ class _HolidaysScreenState extends ConsumerState<HolidaysScreen> {
             children: [
               IconButton(
                 icon: const Icon(Icons.chevron_left, size: 20),
+                constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+                padding: EdgeInsets.zero,
                 onPressed: () {
                   setState(() {
-                    if (_viewMode == _HolidayViewMode.year) {
-                      _focusedMonth = DateTime(_focusedMonth.year - 1, _focusedMonth.month, 1);
-                    } else {
-                      _focusedMonth = DateTime(_focusedMonth.year, _focusedMonth.month - 1, 1);
-                    }
+                    _focusedMonth = DateTime(_focusedMonth.year, _focusedMonth.month - 1, 1);
                   });
                 },
               ),
+              const SizedBox(width: 4),
               Text(
-                _viewMode == _HolidayViewMode.year ? yearStr : monthStr,
-                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: isDark ? AppColors.darkPrimaryText : AppColors.lightPrimaryText),
+                monthStr,
+                style: TextStyle(
+                  fontWeight: FontWeight.w600,
+                  fontSize: 14,
+                  color: isDark ? AppColors.darkPrimaryText : AppColors.lightPrimaryText,
+                ),
               ),
+              const SizedBox(width: 4),
               IconButton(
                 icon: const Icon(Icons.chevron_right, size: 20),
+                constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+                padding: EdgeInsets.zero,
                 onPressed: () {
                   setState(() {
-                    if (_viewMode == _HolidayViewMode.year) {
-                      _focusedMonth = DateTime(_focusedMonth.year + 1, _focusedMonth.month, 1);
-                    } else {
-                      _focusedMonth = DateTime(_focusedMonth.year, _focusedMonth.month + 1, 1);
-                    }
+                    _focusedMonth = DateTime(_focusedMonth.year, _focusedMonth.month + 1, 1);
                   });
                 },
               ),
             ],
           ),
-          ElevatedButton(
-            onPressed: () {
-              setState(() => _focusedMonth = DateTime(2026, 10, 1));
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.primary.withOpacity(0.12),
-              foregroundColor: AppColors.primary,
-              elevation: 0,
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+          SizedBox(
+            height: 36,
+            child: TextButton(
+              onPressed: () {
+                setState(() => _focusedMonth = DateTime(DateTime.now().year, DateTime.now().month, 1));
+              },
+              style: TextButton.styleFrom(
+                foregroundColor: AppColors.primary,
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                minimumSize: const Size(0, 36),
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
+              child: const Text('Today', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
             ),
-            child: const Text('Current Month', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.bold)),
           ),
         ],
       ),
@@ -631,174 +689,362 @@ class _HolidaysScreenState extends ConsumerState<HolidaysScreen> {
     final daysInMonth = DateUtils.getDaysInMonth(_focusedMonth.year, _focusedMonth.month);
     final firstWeekday = DateTime(_focusedMonth.year, _focusedMonth.month, 1).weekday % 7; // Sun = 0
 
-    return AppCard(
-      child: Column(
-        children: [
-          // Days of week header
-          Row(
-            children: const [
-              Expanded(child: Center(child: Text('Sun', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.redAccent)))),
-              Expanded(child: Center(child: Text('Mon', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)))),
-              Expanded(child: Center(child: Text('Tue', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)))),
-              Expanded(child: Center(child: Text('Wed', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)))),
-              Expanded(child: Center(child: Text('Thu', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)))),
-              Expanded(child: Center(child: Text('Fri', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)))),
-              Expanded(child: Center(child: Text('Sat', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.redAccent)))),
-            ],
-          ),
-          const Divider(height: 16),
+    final monthHolidays = _holidays.where((h) {
+      final dt = DateTime.tryParse(h.holidayDate);
+      return dt != null && dt.year == _focusedMonth.year && dt.month == _focusedMonth.month;
+    }).toList();
 
-          GridView.builder(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 7,
-              childAspectRatio: 0.85,
-            ),
-            itemCount: firstWeekday + daysInMonth,
-            itemBuilder: (context, index) {
-              if (index < firstWeekday) return const SizedBox();
-              final dayNum = index - firstWeekday + 1;
+    final activeDate = _selectedCalendarDate ?? DateTime.now();
+    final selectedDayHolidays = _holidays.where((h) => _isSameDay(h.holidayDate, activeDate.year, activeDate.month, activeDate.day)).toList();
 
-              final dayHolidays = _holidays.where((h) => _isSameDay(h.holidayDate, _focusedMonth.year, _focusedMonth.month, dayNum)).toList();
-              final hasHoliday = dayHolidays.isNotEmpty;
-              final isToday = dayNum == 26 && _focusedMonth.month == 10 && _focusedMonth.year == 2026;
-
-              return InkWell(
-                onTap: hasHoliday ? () => _showHolidayDetailsModal(dayHolidays.first, isDark) : null,
-                borderRadius: BorderRadius.circular(8),
-                child: Column(
-                  children: [
-                    Container(
-                      width: 24,
-                      height: 24,
-                      alignment: Alignment.center,
-                      decoration: BoxDecoration(
-                        color: isToday
-                            ? AppColors.primary
-                            : (hasHoliday ? Colors.redAccent.withOpacity(0.2) : Colors.transparent),
-                        shape: BoxShape.circle,
-                        border: hasHoliday ? Border.all(color: Colors.redAccent, width: 1.5) : null,
-                      ),
-                      child: Text(
-                        '$dayNum',
-                        style: TextStyle(
-                          fontSize: 11,
-                          fontWeight: (isToday || hasHoliday) ? FontWeight.bold : FontWeight.normal,
-                          color: isToday
-                              ? Colors.white
-                              : (hasHoliday ? Colors.redAccent : (isDark ? AppColors.darkPrimaryText : AppColors.lightPrimaryText)),
-                        ),
-                      ),
-                    ),
-                    if (hasHoliday) ...[
-                      const SizedBox(height: 2),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 1),
-                        decoration: BoxDecoration(
-                          color: Colors.redAccent.withOpacity(0.15),
-                          borderRadius: BorderRadius.circular(4),
-                          border: Border.all(color: Colors.redAccent.withOpacity(0.3)),
-                        ),
-                        child: Text(
-                          dayHolidays.first.holidayName,
-                          style: const TextStyle(fontSize: 7.5, fontWeight: FontWeight.bold, color: Colors.redAccent),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          textAlign: TextAlign.center,
-                        ),
-                      ),
-                    ],
-                  ],
-                ),
-              );
-            },
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildListView(bool isDark) {
     return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        AppCard(
-          child: TextField(
-            onChanged: (val) => setState(() => _searchTerm = val),
-            style: TextStyle(fontSize: 13, color: isDark ? AppColors.darkPrimaryText : AppColors.lightPrimaryText),
-            decoration: InputDecoration(
-              hintText: 'Search holidays by name or description...',
-              hintStyle: TextStyle(fontSize: 12, color: isDark ? AppColors.darkSecondaryText : AppColors.lightSecondaryText),
-              prefixIcon: const Icon(Icons.search, size: 18),
-              border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide.none),
-              filled: true,
-              fillColor: isDark ? const Color(0xFF1A2632) : AppColors.lightInputBackground,
-              contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            ),
-          ),
-        ),
+        _buildMonthNavToolbar(isDark),
         const SizedBox(height: 12),
-        _filteredHolidays.isEmpty
-            ? AppCard(
-                child: Padding(
-                  padding: const EdgeInsets.all(32),
-                  child: Center(child: Text('No holidays found matching your search.', style: TextStyle(color: isDark ? AppColors.darkSecondaryText : AppColors.lightSecondaryText))),
-                ),
-              )
-            : ListView.separated(
+        AppCard(
+          child: Column(
+            children: [
+              Row(
+                children: const [
+                  Expanded(child: Center(child: Text('Sun', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Colors.redAccent)))),
+                  Expanded(child: Center(child: Text('Mon', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Color(0xFF6B7280))))),
+                  Expanded(child: Center(child: Text('Tue', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Color(0xFF6B7280))))),
+                  Expanded(child: Center(child: Text('Wed', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Color(0xFF6B7280))))),
+                  Expanded(child: Center(child: Text('Thu', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Color(0xFF6B7280))))),
+                  Expanded(child: Center(child: Text('Fri', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Color(0xFF6B7280))))),
+                  Expanded(child: Center(child: Text('Sat', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Color(0xFF6B7280))))),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Divider(height: 1, color: isDark ? AppColors.darkBordersAndDividers : const Color(0xFFE5E7EB)),
+              const SizedBox(height: 8),
+
+              GridView.builder(
                 shrinkWrap: true,
                 physics: const NeverScrollableScrollPhysics(),
-                itemCount: _filteredHolidays.length,
-                separatorBuilder: (_, __) => const SizedBox(height: 10),
+                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: 7,
+                  mainAxisExtent: 44,
+                ),
+                itemCount: firstWeekday + daysInMonth,
                 itemBuilder: (context, index) {
-                  final h = _filteredHolidays[index];
-                  final dayStr = _getDayOfWeek(h.holidayDate);
-                  final formattedDate = _formatDate(h.holidayDate);
+                  if (index < firstWeekday) return const SizedBox();
+                  final dayNum = index - firstWeekday + 1;
+                  final currentDate = DateTime(_focusedMonth.year, _focusedMonth.month, dayNum);
 
-                  return AppCard(
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                  final dayHolidays = _holidays.where((h) => _isSameDay(h.holidayDate, _focusedMonth.year, _focusedMonth.month, dayNum)).toList();
+                  final hasHoliday = dayHolidays.isNotEmpty;
+                  final now = DateTime.now();
+                  final isToday = dayNum == now.day && _focusedMonth.month == now.month && _focusedMonth.year == now.year;
+                  final isSelected = _selectedCalendarDate != null && _isSameDay(_selectedCalendarDate!.toIso8601String(), _focusedMonth.year, _focusedMonth.month, dayNum);
+
+                  Color? dotColor;
+                  if (hasHoliday) {
+                    dotColor = _getHolidayTypeColor(dayHolidays.first.type);
+                  }
+
+                  return InkWell(
+                    onTap: () {
+                      setState(() {
+                        _selectedCalendarDate = currentDate;
+                      });
+                      if (hasHoliday) {
+                        _showHolidayDetailsModal(dayHolidays.first, isDark);
+                      }
+                    },
+                    borderRadius: BorderRadius.circular(8),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         Container(
-                          padding: const EdgeInsets.all(10),
-                          decoration: BoxDecoration(color: AppColors.primary.withOpacity(0.12), borderRadius: BorderRadius.circular(10)),
-                          child: Icon(Icons.event, color: AppColors.primary, size: 20),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Row(
-                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                children: [
-                                  Expanded(child: Text(h.holidayName, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14.5, color: isDark ? AppColors.darkPrimaryText : AppColors.lightPrimaryText))),
-                                  StatusChip(status: h.type.toUpperCase()),
-                                ],
-                              ),
-                              const SizedBox(height: 2),
-                              Text('$formattedDate ($dayStr)', style: TextStyle(fontSize: 11.5, color: isDark ? AppColors.darkSecondaryText : AppColors.lightSecondaryText)),
-                              if (h.description.isNotEmpty) ...[
-                                const SizedBox(height: 4),
-                                Text(h.description, style: TextStyle(fontSize: 11, color: isDark ? AppColors.darkMutedText : Colors.grey)),
-                              ],
-                            ],
+                          width: 32,
+                          height: 32,
+                          alignment: Alignment.center,
+                          decoration: BoxDecoration(
+                            color: isToday
+                                ? AppColors.primary
+                                : (isSelected ? AppColors.primary.withOpacity(0.2) : Colors.transparent),
+                            shape: BoxShape.circle,
+                            border: isSelected && !isToday ? Border.all(color: AppColors.primary, width: 1.5) : null,
+                          ),
+                          child: Text(
+                            '$dayNum',
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: isToday || isSelected ? FontWeight.w600 : FontWeight.normal,
+                              color: isToday
+                                  ? Colors.white
+                                  : (isDark ? AppColors.darkPrimaryText : AppColors.lightPrimaryText),
+                            ),
                           ),
                         ),
-                        IconButton(
-                          icon: const Icon(Icons.edit_outlined, size: 18, color: AppColors.primary),
-                          onPressed: () => _openEditModal(h),
-                        ),
-                        IconButton(
-                          icon: const Icon(Icons.delete_outline, size: 18, color: Colors.redAccent),
-                          onPressed: () => _deleteHoliday(h),
+                        const SizedBox(height: 2),
+                        SizedBox(
+                          height: 6,
+                          child: hasHoliday
+                              ? Container(
+                                  width: 5,
+                                  height: 5,
+                                  decoration: BoxDecoration(
+                                    color: dotColor ?? AppColors.primary,
+                                    shape: BoxShape.circle,
+                                  ),
+                                )
+                              : null,
                         ),
                       ],
                     ),
                   );
                 },
               ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 12),
+        Text(
+          _selectedCalendarDate != null
+              ? 'Holidays on ${DateFormat('MMM d, yyyy').format(_selectedCalendarDate!)}'
+              : 'Holidays in ${DateFormat('MMMM yyyy').format(_focusedMonth)}',
+          style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13.5, color: isDark ? AppColors.darkPrimaryText : AppColors.lightPrimaryText),
+        ),
+        const SizedBox(height: 8),
+        (_selectedCalendarDate != null ? selectedDayHolidays : monthHolidays).isEmpty
+            ? _buildEmptyState('No holidays scheduled', 'There are no holidays for this selected period.', isDark)
+            : ListView.separated(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                itemCount: (_selectedCalendarDate != null ? selectedDayHolidays : monthHolidays).length,
+                separatorBuilder: (_, __) => const SizedBox(height: 8),
+                itemBuilder: (context, index) {
+                  final h = (_selectedCalendarDate != null ? selectedDayHolidays : monthHolidays)[index];
+                  return _buildHolidayRowCard(h, isDark);
+                },
+              ),
       ],
+    );
+  }
+
+  Widget _buildHolidayRowCard(HolidayItem h, bool isDark) {
+    final dt = DateTime.tryParse(h.holidayDate);
+    final dayNum = dt != null ? dt.day.toString().padLeft(2, '0') : '';
+    const monthNames = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
+    final monthStr = dt != null ? monthNames[dt.month - 1] : '';
+    final weekday = _getDayOfWeek(h.holidayDate);
+    final typeColor = _getHolidayTypeColor(h.type);
+
+    return AppCard(
+      padding: const EdgeInsets.all(12),
+      child: InkWell(
+        onTap: () => _showHolidayDetailsModal(h, isDark),
+        child: Row(
+          children: [
+            Container(
+              width: 48,
+              height: 52,
+              decoration: BoxDecoration(
+                color: typeColor.withOpacity(isDark ? 0.25 : 0.12),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(
+                    dayNum,
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: typeColor,
+                    ),
+                  ),
+                  Text(
+                    monthStr,
+                    style: TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w700,
+                      color: typeColor,
+                      letterSpacing: 0.5,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    h.holidayName,
+                    style: TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w600,
+                      color: isDark ? AppColors.darkPrimaryText : AppColors.lightPrimaryText,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Row(
+                    children: [
+                      _buildTypeChip(h.type, isDark),
+                      const SizedBox(width: 8),
+                      Text(
+                        weekday,
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: isDark ? AppColors.darkSecondaryText : const Color(0xFF6B7280),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            PopupMenuButton<String>(
+              icon: Icon(Icons.more_vert, size: 20, color: isDark ? AppColors.darkSecondaryText : const Color(0xFF6B7280)),
+              onSelected: (val) {
+                if (val == 'edit') {
+                  _openEditModal(h);
+                } else if (val == 'delete') {
+                  _deleteHoliday(h);
+                }
+              },
+              itemBuilder: (context) => [
+                const PopupMenuItem(value: 'edit', child: Text('Edit')),
+                const PopupMenuItem(value: 'delete', child: Text('Delete', style: TextStyle(color: Colors.redAccent))),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildListView(bool isDark) {
+    final filtered = _filteredHolidays;
+
+    final Map<String, List<HolidayItem>> grouped = {};
+    for (final h in filtered) {
+      final dt = DateTime.tryParse(h.holidayDate);
+      final monthKey = dt != null ? DateFormat('MMMM yyyy').format(dt) : 'Other';
+      grouped.putIfAbsent(monthKey, () => []).add(h);
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        SizedBox(
+          height: 44,
+          child: TextField(
+            onChanged: (val) => setState(() => _searchTerm = val),
+            style: TextStyle(fontSize: 13, color: isDark ? AppColors.darkPrimaryText : AppColors.lightPrimaryText),
+            decoration: InputDecoration(
+              hintText: 'Search holidays...',
+              hintStyle: TextStyle(fontSize: 12, color: isDark ? AppColors.darkSecondaryText : const Color(0xFF6B7280)),
+              prefixIcon: const Icon(Icons.search, size: 18, color: Color(0xFF6B7280)),
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: const BorderSide(color: Color(0xFFE5E7EB))),
+              enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: const BorderSide(color: Color(0xFFE5E7EB))),
+              focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide(color: AppColors.primary)),
+              filled: true,
+              fillColor: isDark ? const Color(0xFF1A2632) : Colors.white,
+              contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 0),
+            ),
+          ),
+        ),
+        const SizedBox(height: 12),
+        filtered.isEmpty
+            ? _buildEmptyState('No holidays found', 'Try adjusting your search query.', isDark)
+            : ListView.builder(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                itemCount: grouped.keys.length,
+                itemBuilder: (context, groupIndex) {
+                  final monthKey = grouped.keys.elementAt(groupIndex);
+                  final items = grouped[monthKey]!;
+
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 8),
+                        child: Text(
+                          monthKey,
+                          style: TextStyle(
+                            fontWeight: FontWeight.w600,
+                            fontSize: 13,
+                            color: isDark ? AppColors.darkSecondaryText : const Color(0xFF4B5563),
+                          ),
+                        ),
+                      ),
+                      ...items.map((h) => Padding(
+                            padding: const EdgeInsets.only(bottom: 8),
+                            child: _buildHolidayRowCard(h, isDark),
+                          )),
+                    ],
+                  );
+                },
+              ),
+      ],
+    );
+  }
+
+  Widget _buildYearNavToolbar(bool isDark) {
+    final yearStr = '${_focusedMonth.year}';
+    return AppCard(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Row(
+            children: [
+              IconButton(
+                icon: const Icon(Icons.chevron_left, size: 20),
+                constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+                padding: EdgeInsets.zero,
+                onPressed: () {
+                  setState(() {
+                    _focusedMonth = DateTime(_focusedMonth.year - 1, _focusedMonth.month, 1);
+                  });
+                },
+              ),
+              const SizedBox(width: 4),
+              Text(
+                yearStr,
+                style: TextStyle(
+                  fontWeight: FontWeight.w600,
+                  fontSize: 14,
+                  color: isDark ? AppColors.darkPrimaryText : AppColors.lightPrimaryText,
+                ),
+              ),
+              const SizedBox(width: 4),
+              IconButton(
+                icon: const Icon(Icons.chevron_right, size: 20),
+                constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+                padding: EdgeInsets.zero,
+                onPressed: () {
+                  setState(() {
+                    _focusedMonth = DateTime(_focusedMonth.year + 1, _focusedMonth.month, 1);
+                  });
+                },
+              ),
+            ],
+          ),
+          SizedBox(
+            height: 36,
+            child: TextButton(
+              onPressed: () {
+                setState(() => _focusedMonth = DateTime(DateTime.now().year, 1, 1));
+              },
+              style: TextButton.styleFrom(
+                foregroundColor: AppColors.primary,
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                minimumSize: const Size(0, 36),
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
+              child: const Text('This Year', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -807,91 +1053,196 @@ class _HolidaysScreenState extends ConsumerState<HolidaysScreen> {
       'January', 'February', 'March', 'April', 'May', 'June',
       'July', 'August', 'September', 'October', 'November', 'December'
     ];
+    final year = _focusedMonth.year;
 
-    return ListView.separated(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      itemCount: 12,
-      separatorBuilder: (_, __) => const SizedBox(height: 10),
-      itemBuilder: (context, index) {
-        final monthIdx = index + 1;
-        final monthName = monthNames[index];
-        final year = _focusedMonth.year;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _buildYearNavToolbar(isDark),
+        const SizedBox(height: 12),
+        ListView.separated(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          itemCount: 12,
+          separatorBuilder: (_, __) => const SizedBox(height: 8),
+          itemBuilder: (context, index) {
+            final monthIdx = index + 1;
+            final monthName = monthNames[index];
 
-        final monthHolidays = _holidays.where((h) {
-          final dt = DateTime.tryParse(h.holidayDate);
-          return dt != null && dt.year == year && dt.month == monthIdx;
-        }).toList();
+            final monthHolidays = _holidays.where((h) {
+              final dt = DateTime.tryParse(h.holidayDate);
+              return dt != null && dt.year == year && dt.month == monthIdx;
+            }).toList();
 
-        return AppCard(
-          padding: const EdgeInsets.all(12),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text('$monthName $year', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: isDark ? AppColors.darkPrimaryText : AppColors.lightPrimaryText)),
-              const Divider(height: 12),
-              monthHolidays.isEmpty
-                  ? Center(child: Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 8),
-                      child: Text('No holidays scheduled', style: TextStyle(fontSize: 11, fontStyle: FontStyle.italic, color: isDark ? AppColors.darkSecondaryText : AppColors.lightSecondaryText)),
-                    ))
-                  : Column(
-                      children: monthHolidays.map((h) {
-                        final dt = DateTime.tryParse(h.holidayDate);
-                        final dayNum = dt != null ? dt.day.toString().padLeft(2, '0') : '';
+            if (monthHolidays.isEmpty) {
+              return Container(
+                height: 40,
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                decoration: BoxDecoration(
+                  color: isDark ? AppColors.darkSecondarySurface : const Color(0xFFF8FAFC),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: isDark ? AppColors.darkBordersAndDividers : const Color(0xFFE5E7EB)),
+                ),
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  '$monthName: no holidays',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: isDark ? AppColors.darkSecondaryText : const Color(0xFF6B7280),
+                  ),
+                ),
+              );
+            }
 
-                        return Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 3),
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              Row(
-                                children: [
-                                  Text(dayNum, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: AppColors.primary)),
-                                  const SizedBox(width: 8),
-                                  Text(h.holidayName, style: TextStyle(fontSize: 12, color: isDark ? AppColors.darkPrimaryText : AppColors.lightPrimaryText)),
-                                ],
-                              ),
-                              StatusChip(status: h.type.toUpperCase()),
-                            ],
-                          ),
-                        );
-                      }).toList(),
-                    ),
-            ],
-          ),
-        );
-      },
+            return AppCard(
+              padding: const EdgeInsets.all(12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        monthName,
+                        style: TextStyle(
+                          fontWeight: FontWeight.w600,
+                          fontSize: 15,
+                          color: isDark ? AppColors.darkPrimaryText : AppColors.lightPrimaryText,
+                        ),
+                      ),
+                      Text(
+                        '${monthHolidays.length} holiday${monthHolidays.length > 1 ? 's' : ''}',
+                        style: TextStyle(
+                          fontSize: 11.5,
+                          color: isDark ? AppColors.darkSecondaryText : const Color(0xFF6B7280),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Divider(height: 1, color: isDark ? AppColors.darkBordersAndDividers : const Color(0xFFE5E7EB)),
+                  const SizedBox(height: 8),
+                  Column(
+                    children: monthHolidays.map((h) {
+                      final dt = DateTime.tryParse(h.holidayDate);
+                      final dayNum = dt != null ? dt.day.toString() : '';
+
+                      return Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 4),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Row(
+                              children: [
+                                Text(
+                                  dayNum,
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 13,
+                                    color: AppColors.primary,
+                                  ),
+                                ),
+                                const SizedBox(width: 10),
+                                Text(
+                                  h.holidayName,
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    color: isDark ? AppColors.darkPrimaryText : AppColors.lightPrimaryText,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            _buildTypeChip(h.type, isDark),
+                          ],
+                        ),
+                      );
+                    }).toList(),
+                  ),
+                ],
+              ),
+            );
+          },
+        ),
+      ],
     );
+  }
+
+  String _getRelativeLabel(String dateStr) {
+    final dt = DateTime.tryParse(dateStr);
+    if (dt == null) return '';
+    final today = DateTime.now();
+    final diff = DateTime(dt.year, dt.month, dt.day).difference(DateTime(today.year, today.month, today.day)).inDays;
+
+    if (diff == 0) return 'Today';
+    if (diff == 1) return 'Tomorrow';
+    if (diff > 1 && diff <= 90) return 'In $diff days';
+    if (diff < 0) return '${-diff} days ago';
+    return DateFormat('MMM d').format(dt);
   }
 
   Widget _buildUpcomingView(bool isDark) {
     final list = _upcomingHolidays;
 
     return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Text('Upcoming Holidays', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: isDark ? AppColors.darkPrimaryText : AppColors.lightPrimaryText)),
-            Text('${list.length} Next 3 Months', style: TextStyle(fontSize: 12, color: isDark ? AppColors.darkSecondaryText : AppColors.lightSecondaryText)),
+            Text(
+              'Upcoming Holidays',
+              style: TextStyle(
+                fontWeight: FontWeight.w600,
+                fontSize: 15,
+                color: isDark ? AppColors.darkPrimaryText : AppColors.lightPrimaryText,
+              ),
+            ),
+            Row(
+              children: [
+                Text(
+                  'Next 3 months',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: isDark ? AppColors.darkSecondaryText : const Color(0xFF6B7280),
+                  ),
+                ),
+                const SizedBox(width: 6),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: AppColors.primary.withOpacity(0.15),
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                  child: Text(
+                    '${list.length}',
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.primary,
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ],
         ),
         const SizedBox(height: 12),
         list.isEmpty
-            ? AppCard(child: Padding(padding: const EdgeInsets.all(28), child: Center(child: Text('No upcoming holidays.', style: TextStyle(color: isDark ? AppColors.darkSecondaryText : AppColors.lightSecondaryText)))))
+            ? _buildEmptyState('No upcoming holidays', 'There are no holidays scheduled for the next 3 months.', isDark)
             : ListView.separated(
                 shrinkWrap: true,
                 physics: const NeverScrollableScrollPhysics(),
                 itemCount: list.length,
-                separatorBuilder: (_, __) => const SizedBox(height: 10),
+                separatorBuilder: (_, __) => const SizedBox(height: 8),
                 itemBuilder: (context, index) {
                   final h = list[index];
                   final dt = DateTime.tryParse(h.holidayDate);
-                  final dayStr = dt != null ? dt.day.toString().padLeft(2, '0') : '';
+                  final dayNum = dt != null ? dt.day.toString().padLeft(2, '0') : '';
                   const monthNames = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
-                  final monthStr = dt != null ? monthNames[dt.month - 1] : 'OCT';
+                  final monthStr = dt != null ? monthNames[dt.month - 1] : '';
                   final weekday = _getDayOfWeek(h.holidayDate);
+                  final relativeLabel = _getRelativeLabel(h.holidayDate);
+                  final typeColor = _getHolidayTypeColor(h.type);
 
                   return AppCard(
                     padding: const EdgeInsets.all(12),
@@ -900,12 +1251,32 @@ class _HolidaysScreenState extends ConsumerState<HolidaysScreen> {
                       child: Row(
                         children: [
                           Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                            decoration: BoxDecoration(color: Colors.redAccent.withOpacity(0.15), borderRadius: BorderRadius.circular(10)),
+                            width: 48,
+                            height: 52,
+                            decoration: BoxDecoration(
+                              color: typeColor.withOpacity(isDark ? 0.25 : 0.12),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
                             child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
                               children: [
-                                Text(dayStr, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.redAccent)),
-                                Text(monthStr, style: const TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: Colors.redAccent)),
+                                Text(
+                                  dayNum,
+                                  style: TextStyle(
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.bold,
+                                    color: typeColor,
+                                  ),
+                                ),
+                                Text(
+                                  monthStr,
+                                  style: TextStyle(
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.w700,
+                                    color: typeColor,
+                                    letterSpacing: 0.5,
+                                  ),
+                                ),
                               ],
                             ),
                           ),
@@ -914,19 +1285,32 @@ class _HolidaysScreenState extends ConsumerState<HolidaysScreen> {
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Text(h.holidayName, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: isDark ? AppColors.darkPrimaryText : AppColors.lightPrimaryText)),
-                                const SizedBox(height: 2),
+                                Text(
+                                  h.holidayName,
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.w600,
+                                    fontSize: 15,
+                                    color: isDark ? AppColors.darkPrimaryText : AppColors.lightPrimaryText,
+                                  ),
+                                ),
+                                const SizedBox(height: 4),
                                 Row(
                                   children: [
-                                    StatusChip(status: h.type.toUpperCase()),
-                                    const SizedBox(width: 6),
-                                    Text(weekday, style: TextStyle(fontSize: 11, color: isDark ? AppColors.darkSecondaryText : AppColors.lightSecondaryText)),
+                                    _buildTypeChip(h.type, isDark),
+                                    const SizedBox(width: 8),
+                                    Text(
+                                      '$weekday • $relativeLabel',
+                                      style: TextStyle(
+                                        fontSize: 11.5,
+                                        color: isDark ? AppColors.darkSecondaryText : const Color(0xFF6B7280),
+                                      ),
+                                    ),
                                   ],
                                 ),
                               ],
                             ),
                           ),
-                          const Icon(Icons.chevron_right, color: Colors.grey),
+                          Icon(Icons.chevron_right, size: 20, color: isDark ? AppColors.darkSecondaryText : const Color(0xFF9CA3AF)),
                         ],
                       ),
                     ),
@@ -934,6 +1318,58 @@ class _HolidaysScreenState extends ConsumerState<HolidaysScreen> {
                 },
               ),
       ],
+    );
+  }
+
+  Widget _buildEmptyState(String title, String subtitle, bool isDark) {
+    return AppCard(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 32, horizontal: 16),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 48,
+              height: 48,
+              decoration: BoxDecoration(
+                color: AppColors.primary.withOpacity(0.12),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(Icons.event_busy, size: 24, color: AppColors.primary),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              title,
+              style: TextStyle(
+                fontSize: 15,
+                fontWeight: FontWeight.w600,
+                color: isDark ? AppColors.darkPrimaryText : AppColors.lightPrimaryText,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 6),
+            Text(
+              subtitle,
+              style: TextStyle(
+                fontSize: 12.5,
+                color: isDark ? AppColors.darkSecondaryText : const Color(0xFF6B7280),
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 20),
+            ElevatedButton(
+              onPressed: _openAddModal,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.primary,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              ),
+              child: const Text('Add Holiday', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -1004,6 +1440,7 @@ class _HolidaysScreenState extends ConsumerState<HolidaysScreen> {
                       DropdownMenuItem(value: 'Public', child: Text('Public')),
                       DropdownMenuItem(value: 'Optional', child: Text('Optional')),
                       DropdownMenuItem(value: 'Company', child: Text('Company')),
+                      DropdownMenuItem(value: 'Gazetted', child: Text('Gazetted')),
                     ],
                     onChanged: (val) {
                       if (val != null) setState(() => _holidayType = val);

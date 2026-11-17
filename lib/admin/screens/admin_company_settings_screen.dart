@@ -30,6 +30,10 @@ class _AdminCompanySettingsScreenState extends ConsumerState<AdminCompanySetting
   bool _isLoading = true;
   String? _errorMessage;
   bool _isSaving = false;
+  bool _isSavePressed = false;
+  bool _isLiveLocationPressed = false;
+  bool _isPinHqPressed = false;
+  bool _isLocationConfigured = false;
 
   final TextEditingController _nameController = TextEditingController(text: 'Envision Beyond India Pvt Ltd');
   final TextEditingController _websiteController = TextEditingController(text: 'https://www.envisionbeyond.com');
@@ -96,6 +100,7 @@ class _AdminCompanySettingsScreenState extends ConsumerState<AdminCompanySetting
     setState(() {
       _latController.text = latLng.latitude.toStringAsFixed(7);
       _lngController.text = latLng.longitude.toStringAsFixed(7);
+      _isLocationConfigured = true;
     });
     _mapController?.animateCamera(
       CameraUpdate.newLatLng(latLng),
@@ -107,7 +112,9 @@ class _AdminCompanySettingsScreenState extends ConsumerState<AdminCompanySetting
     final lat = double.tryParse(_latController.text.trim());
     final lng = double.tryParse(_lngController.text.trim());
     if (lat != null && lng != null && lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180) {
-      setState(() {});
+      setState(() {
+        _isLocationConfigured = true;
+      });
       _mapController?.animateCamera(CameraUpdate.newLatLng(LatLng(lat, lng)));
       _fetchAddressFromCoordinates(lat, lng);
     }
@@ -121,7 +128,6 @@ class _AdminCompanySettingsScreenState extends ConsumerState<AdminCompanySetting
     });
 
     try {
-      // 1. Try Google Maps Geocoding API if key is configured
       final googleApiKey = AppConfig.googleMapsApiKey;
       if (googleApiKey.isNotEmpty) {
         final googleUrl = Uri.parse(
@@ -166,7 +172,6 @@ class _AdminCompanySettingsScreenState extends ConsumerState<AdminCompanySetting
       }
     } catch (_) {}
 
-    // 2. Fallback to OpenStreetMap Nominatim reverse geocoding API
     try {
       final osmUrl = Uri.parse(
         'https://nominatim.openstreetmap.org/reverse?format=json&lat=$lat&lon=$lng&zoom=18&addressdetails=1',
@@ -263,6 +268,7 @@ class _AdminCompanySettingsScreenState extends ConsumerState<AdminCompanySetting
     if (pos != null) {
       final latLng = LatLng(pos.latitude, pos.longitude);
       _updateLocationFromMap(latLng);
+      setState(() => _isLocationConfigured = true);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -362,6 +368,7 @@ class _AdminCompanySettingsScreenState extends ConsumerState<AdminCompanySetting
     _latController.text = '21.1986872';
     _lngController.text = '72.7965515';
     _radiusController.text = '100';
+    _isLocationConfigured = true;
   }
 
   Future<void> _loadProfile() async {
@@ -390,6 +397,20 @@ class _AdminCompanySettingsScreenState extends ConsumerState<AdminCompanySetting
       if (!mounted || currentReq != _requestId) return;
 
       dynamic rawData = res is Map<String, dynamic> && res.containsKey('data') ? res['data'] : res;
+      bool isLocationSet = false;
+
+      if (rawData is Map<String, dynamic>) {
+        final lat = rawData['latitude'] ?? rawData['lat'];
+        final lng = rawData['longitude'] ?? rawData['lng'] ?? rawData['lon'];
+        if (lat != null && lng != null) {
+          final latD = double.tryParse(lat.toString());
+          final lngD = double.tryParse(lng.toString());
+          if (latD != null && lngD != null && (latD != 0.0 || lngD != 0.0)) {
+            isLocationSet = true;
+          }
+        }
+      }
+
       if (rawData == null || rawData is! Map || (rawData as Map).isEmpty) {
         rawData = {
           'companyName': 'Etaprise Technologies',
@@ -410,6 +431,7 @@ class _AdminCompanySettingsScreenState extends ConsumerState<AdminCompanySetting
           'longitude': 77.5946,
           'geofenceRadiusMeters': 100,
         };
+        isLocationSet = true;
       }
 
       if (rawData is Map<String, dynamic>) {
@@ -433,7 +455,10 @@ class _AdminCompanySettingsScreenState extends ConsumerState<AdminCompanySetting
       }
 
       if (!mounted || currentReq != _requestId) return;
-      setState(() => _isLoading = false);
+      setState(() {
+        _isLoading = false;
+        _isLocationConfigured = isLocationSet || (_latController.text.trim().isNotEmpty && _lngController.text.trim().isNotEmpty);
+      });
 
       final loadedLat = double.tryParse(_latController.text.trim());
       final loadedLng = double.tryParse(_lngController.text.trim());
@@ -488,7 +513,10 @@ class _AdminCompanySettingsScreenState extends ConsumerState<AdminCompanySetting
       await apiClient.put(ApiEndpoints.companyProfile, body: payload);
       if (!mounted || currentReq != _requestId) return;
 
-      setState(() => _isSaving = false);
+      setState(() {
+        _isSaving = false;
+        _isLocationConfigured = true;
+      });
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Company profile & geofence updated successfully!')),
       );
@@ -502,11 +530,74 @@ class _AdminCompanySettingsScreenState extends ConsumerState<AdminCompanySetting
     }
   }
 
+  Widget _buildFieldWrapper({
+    required String label,
+    required bool isRequired,
+    required Widget child,
+    String? helperText,
+    required bool isDark,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text.rich(
+          TextSpan(
+            text: label,
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w500,
+              color: isDark ? AppColors.darkSecondaryText : const Color(0xFF334155),
+            ),
+            children: isRequired
+                ? [
+                    const TextSpan(
+                      text: ' *',
+                      style: TextStyle(color: Colors.red, fontSize: 12, fontWeight: FontWeight.bold),
+                    ),
+                  ]
+                : [],
+          ),
+        ),
+        const SizedBox(height: 6),
+        child,
+        if (helperText != null) ...[
+          const SizedBox(height: 4),
+          Text(
+            helperText,
+            style: TextStyle(
+              fontSize: 12,
+              color: isDark ? AppColors.darkMutedText : const Color(0xFF475569),
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+
+  InputDecoration _fieldDecoration({
+    required IconData icon,
+    required bool isDark,
+    required Color borderColor,
+  }) {
+    return InputDecoration(
+      prefixIcon: Icon(icon, size: 18, color: const Color(0xFF64748B)),
+      filled: true,
+      fillColor: isDark ? AppColors.darkMainSurface : Colors.white,
+      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: borderColor, width: 1)),
+      enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: borderColor, width: 1)),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: const BorderSide(color: Color(0xFF0F6B63), width: 1.5),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final glass = context.glass;
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final cardBgColor = isDark ? const Color(0xFF141D2E) : Colors.white;
+    final cardBgColor = isDark ? AppColors.darkMainSurface : Colors.white;
 
     ref.listen<AuthState>(authServiceProvider, (previous, next) {
       if (next.user?.id != _currentUserId) {
@@ -549,25 +640,7 @@ class _AdminCompanySettingsScreenState extends ConsumerState<AdminCompanySetting
       appBar: GlassHeader(
         title: 'Company Settings',
         actions: [
-          if (canEdit)
-            Container(
-              margin: const EdgeInsets.only(right: 8),
-              child: ElevatedButton.icon(
-                onPressed: _isSaving ? null : _save,
-                icon: _isSaving
-                    ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                    : const Icon(Icons.save_rounded, size: 16),
-                label: const Text('Save Changes', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFFD97706),
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                  elevation: 0,
-                ),
-              ),
-            )
-          else
+          if (!canEdit)
             Container(
               margin: const EdgeInsets.only(right: 12),
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
@@ -593,7 +666,7 @@ class _AdminCompanySettingsScreenState extends ConsumerState<AdminCompanySetting
 
   Widget _buildMainContent(GlassTheme glass, Color cardBgColor, bool dark, bool canEdit) {
     if (_isLoading) {
-      return const Center(child: CircularProgressIndicator());
+      return const Center(child: CircularProgressIndicator(color: Color(0xFF0F6B63)));
     }
 
     if (_errorMessage != null) {
@@ -619,730 +692,1035 @@ class _AdminCompanySettingsScreenState extends ConsumerState<AdminCompanySetting
       );
     }
 
-    return SingleChildScrollView(
-      physics: const AlwaysScrollableScrollPhysics(),
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // HR Read-Only Banner
-          if (!canEdit)
-            Container(
-              margin: const EdgeInsets.only(bottom: 16),
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-              decoration: BoxDecoration(
-                color: dark ? AppColors.darkSecondarySurface : const Color(0xFFFEF3C7),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: const Color(0xFFF59E0B)),
-              ),
-              child: Row(
-                children: const [
-                  Icon(Icons.info_outline_rounded, color: Color(0xFFD97706), size: 18),
-                  SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      'Read-Only Mode: You are viewing company settings as HR. Only System Admins can modify settings.',
-                      style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.bold, color: Color(0xFFB45309)),
-                    ),
+    final borderColor = dark ? AppColors.darkBordersAndDividers : const Color(0xFFE5E7EB);
+    final fieldBorderColor = dark ? AppColors.darkBordersAndDividers : const Color(0xFFCBD5E1);
+
+    return Stack(
+      children: [
+        SingleChildScrollView(
+          physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 170),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // HR Read-Only Banner
+              if (!canEdit)
+                Container(
+                  margin: const EdgeInsets.only(bottom: 12),
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                  decoration: BoxDecoration(
+                    color: dark ? AppColors.darkSecondarySurface : const Color(0xFFFEF3C7),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: const Color(0xFFF59E0B), width: 1),
                   ),
-                ],
-              ),
-            ),
+                  child: Row(
+                    children: const [
+                      Icon(Icons.info_outline_rounded, color: Color(0xFFD97706), size: 18),
+                      SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'Read-Only Mode: You are viewing company settings as HR. Only System Admins can modify settings.',
+                          style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.bold, color: Color(0xFFB45309)),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
 
-          // 4 Top KPI Stat Cards matching Website
-          Row(
-            children: [
-              Expanded(child: _buildMetricTile('COMPANY ENTITY', _nameController.text, Icons.apartment_rounded, const Color(0xFFD97706), const Color(0xFFFEF3C7))),
-              const SizedBox(width: 8),
-              Expanded(child: _buildMetricTile('TAX REGISTRATION', _taxController.text, Icons.verified_rounded, const Color(0xFF16A34A), const Color(0xFFDCFCE7))),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Row(
-            children: [
-              Expanded(child: _buildMetricTile('GEOFENCE RADIUS', '${_radiusController.text} Meters', Icons.location_on_rounded, const Color(0xFF2563EB), const Color(0xFFE0EDFF))),
-              const SizedBox(width: 8),
-              Expanded(child: _buildMetricTile('FISCAL YEAR', '${_fiscalYearController.text} Cycle', Icons.calendar_month_rounded, const Color(0xFF9333EA), const Color(0xFFF3E8FF))),
-            ],
-          ),
-          const SizedBox(height: 20),
-
-          // Geofence & Map Location Card
-          AppCard(
-            backgroundColor: dark ? AppColors.darkMainSurface : Colors.white,
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: const [
-                    Icon(Icons.location_on_rounded, color: Color(0xFFD97706), size: 20),
-                    SizedBox(width: 8),
+              // Default Company Location Status Banner (Checks if default company location is set or not)
+              Container(
+                margin: const EdgeInsets.only(bottom: 12),
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                decoration: BoxDecoration(
+                  color: dark ? AppColors.darkSecondarySurface : (_isLocationConfigured ? const Color(0xFFECFDF5) : const Color(0xFFFEF3C7)),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(
+                    color: _isLocationConfigured ? const Color(0xFF10B981) : const Color(0xFFF59E0B),
+                    width: 1,
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      _isLocationConfigured ? Icons.check_circle_rounded : Icons.warning_amber_rounded,
+                      color: _isLocationConfigured ? const Color(0xFF10B981) : const Color(0xFFD97706),
+                      size: 18,
+                    ),
+                    const SizedBox(width: 8),
                     Expanded(
                       child: Text(
-                        'Office Location & Dynamic Geofence Radius',
-                        style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Color(0xFF0F172A)),
+                        _isLocationConfigured
+                            ? 'Default Company HQ Location is configured & active.'
+                            : 'Default Company HQ Location is NOT set. Please select on map or pin GPS.',
+                        style: TextStyle(
+                          fontSize: 11.5,
+                          fontWeight: FontWeight.bold,
+                          color: _isLocationConfigured ? const Color(0xFF047857) : const Color(0xFFB45309),
+                        ),
                       ),
                     ),
                   ],
                 ),
-                const SizedBox(height: 4),
-                Text(
-                  canEdit
-                      ? 'Click anywhere on the map or drag the HQ marker to pinpoint corporate location. Select Google Maps or Satellite view mode above. Live GPS dot shows your current device position.'
-                      : 'Viewing corporate HQ location and geofence radius on map.',
-                  style: const TextStyle(fontSize: 11, color: Color(0xFF94A3B8)),
-                ),
-                const Divider(height: 20),
+              ),
 
-                // Map Toolbar: Mode Switcher & GPS Action Buttons
-                Wrap(
-                  alignment: WrapAlignment.spaceBetween,
-                  crossAxisAlignment: WrapCrossAlignment.center,
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: [
-                    // Map Type Selector (Google Maps / Satellite)
-                    Container(
-                      decoration: BoxDecoration(
-                        color: dark ? AppColors.darkSecondarySurface : const Color(0xFFF1F5F9),
-                        borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: const Color(0xFFE2E8F0)),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          InkWell(
-                            onTap: () => setState(() => _mapType = MapType.normal),
-                            borderRadius: BorderRadius.circular(6),
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                              decoration: BoxDecoration(
-                                color: _mapType == MapType.normal ? const Color(0xFFFEF3C7) : Colors.transparent,
-                                borderRadius: BorderRadius.circular(6),
-                              ),
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Icon(
-                                    Icons.map_rounded,
-                                    size: 14,
-                                    color: _mapType == MapType.normal ? const Color(0xFFD97706) : const Color(0xFF64748B),
+              // 1. SUMMARY TILES (2x2 grid, neutral white cards, 1px #E5E7EB border, radius 16px, padding 12px, 8px gap)
+              GridView.count(
+                crossAxisCount: 2,
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                crossAxisSpacing: 8,
+                mainAxisSpacing: 8,
+                childAspectRatio: 2.6,
+                children: [
+                  _buildSummaryTile('COMPANY ENTITY', _nameController.text, Icons.apartment_rounded, dark, cardBgColor, borderColor),
+                  _buildSummaryTile('TAX REGISTRATION', _taxController.text, Icons.verified_rounded, dark, cardBgColor, borderColor, isMonospace: true),
+                  _buildSummaryTile('GEOFENCE RADIUS', '${_radiusController.text} Meters', Icons.location_on_rounded, dark, cardBgColor, borderColor),
+                  _buildSummaryTile('FISCAL YEAR', '${_fiscalYearController.text} Cycle', Icons.calendar_month_rounded, dark, cardBgColor, borderColor),
+                ],
+              ),
+              const SizedBox(height: 16),
+
+              // 2. LOCATION CARD (Office Location & Dynamic Geofence Radius)
+              _buildSectionCard(
+                title: 'Office Location & Dynamic Geofence Radius',
+                helper: canEdit
+                    ? 'Click anywhere on the map or drag the HQ marker to pinpoint corporate location. Select Google Maps or Satellite view mode above. Live GPS dot shows your current device position.'
+                    : 'Viewing corporate HQ location and geofence radius on map.',
+                icon: Icons.location_on_rounded,
+                dark: dark,
+                cardBgColor: cardBgColor,
+                borderColor: borderColor,
+                children: [
+                  // Map Type Segmented Control
+                  Row(
+                    children: [
+                      Container(
+                        height: 32,
+                        decoration: BoxDecoration(
+                          color: dark ? AppColors.darkSecondarySurface : const Color(0xFFF1F5F9),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            InkWell(
+                              onTap: () => setState(() => _mapType = MapType.normal),
+                              borderRadius: BorderRadius.circular(10),
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 12),
+                                alignment: Alignment.center,
+                                decoration: BoxDecoration(
+                                  color: _mapType == MapType.normal ? cardBgColor : Colors.transparent,
+                                  borderRadius: BorderRadius.circular(10),
+                                  boxShadow: _mapType == MapType.normal
+                                      ? [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 2, offset: const Offset(0, 1))]
+                                      : [],
+                                ),
+                                child: Text(
+                                  'Google Maps',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w600,
+                                    color: _mapType == MapType.normal ? const Color(0xFF0F6B63) : const Color(0xFF64748B),
                                   ),
-                                  const SizedBox(width: 4),
-                                  Text(
-                                    'Google Maps',
-                                    style: TextStyle(
-                                      fontSize: 11,
-                                      fontWeight: FontWeight.bold,
-                                      color: _mapType == MapType.normal ? const Color(0xFFD97706) : const Color(0xFF64748B),
-                                    ),
-                                  ),
-                                ],
+                                ),
                               ),
                             ),
-                          ),
-                          InkWell(
-                            onTap: () => setState(() => _mapType = MapType.satellite),
-                            borderRadius: BorderRadius.circular(6),
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                              decoration: BoxDecoration(
-                                color: _mapType == MapType.satellite ? const Color(0xFFFEF3C7) : Colors.transparent,
-                                borderRadius: BorderRadius.circular(6),
-                              ),
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Icon(
-                                    Icons.satellite_alt_rounded,
-                                    size: 14,
-                                    color: _mapType == MapType.satellite ? const Color(0xFFD97706) : const Color(0xFF64748B),
+                            InkWell(
+                              onTap: () => setState(() => _mapType = MapType.satellite),
+                              borderRadius: BorderRadius.circular(10),
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 12),
+                                alignment: Alignment.center,
+                                decoration: BoxDecoration(
+                                  color: _mapType == MapType.satellite ? cardBgColor : Colors.transparent,
+                                  borderRadius: BorderRadius.circular(10),
+                                  boxShadow: _mapType == MapType.satellite
+                                      ? [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 2, offset: const Offset(0, 1))]
+                                      : [],
+                                ),
+                                child: Text(
+                                  'Satellite',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w600,
+                                    color: _mapType == MapType.satellite ? const Color(0xFF0F6B63) : const Color(0xFF64748B),
                                   ),
-                                  const SizedBox(width: 4),
-                                  Text(
-                                    'Satellite',
-                                    style: TextStyle(
-                                      fontSize: 11,
-                                      fontWeight: FontWeight.bold,
-                                      color: _mapType == MapType.satellite ? const Color(0xFFD97706) : const Color(0xFF64748B),
-                                    ),
-                                  ),
-                                ],
+                                ),
                               ),
                             ),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
-                    ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
 
-                    // Quick Actions (Show Live Location & Pin Current GPS as HQ)
-                    Wrap(
-                      spacing: 6,
-                      runSpacing: 6,
-                      children: [
-                        OutlinedButton.icon(
-                          onPressed: _isFetchingGps ? null : _showLiveLocation,
-                          icon: _isFetchingGps
-                              ? const SizedBox(width: 12, height: 12, child: CircularProgressIndicator(strokeWidth: 2))
-                              : const Icon(Icons.my_location_rounded, size: 14, color: Color(0xFFD97706)),
-                          label: const Text('Show Live Location', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Color(0xFFD97706))),
-                          style: OutlinedButton.styleFrom(
-                            side: const BorderSide(color: Color(0xFFF59E0B)),
-                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                            minimumSize: Size.zero,
-                            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  // Map Action Buttons (Show Live Location & Pin Current GPS as HQ)
+                  Row(
+                    children: [
+                      Expanded(
+                        child: ConstrainedBox(
+                          constraints: const BoxConstraints(minHeight: 44),
+                          child: GestureDetector(
+                            onTapDown: (_) => setState(() => _isLiveLocationPressed = true),
+                            onTapUp: (_) {
+                              setState(() => _isLiveLocationPressed = false);
+                              if (!_isFetchingGps) _showLiveLocation();
+                            },
+                            onTapCancel: () => setState(() => _isLiveLocationPressed = false),
+                            child: AnimatedScale(
+                              scale: _isLiveLocationPressed ? 0.98 : 1.0,
+                              duration: const Duration(milliseconds: 100),
+                              child: Container(
+                                height: 36,
+                                alignment: Alignment.center,
+                                padding: const EdgeInsets.symmetric(horizontal: 8),
+                                decoration: BoxDecoration(
+                                  color: cardBgColor,
+                                  borderRadius: BorderRadius.circular(10),
+                                  border: Border.all(color: const Color(0xFF0F6B63), width: 1),
+                                ),
+                                child: Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    _isFetchingGps
+                                        ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF0F6B63)))
+                                        : const Icon(Icons.my_location_rounded, size: 16, color: Color(0xFF0F6B63)),
+                                    const SizedBox(width: 6),
+                                    const Text(
+                                      'Show Live Location',
+                                      style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: Color(0xFF0F6B63)),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
                           ),
                         ),
-                        if (canEdit)
-                          ElevatedButton.icon(
-                            onPressed: _isFetchingGps ? null : _pinCurrentGpsAsHq,
-                            icon: const Icon(Icons.push_pin_rounded, size: 14),
-                            label: const Text('Pin Current GPS as HQ', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: const Color(0xFF16A34A),
-                              foregroundColor: Colors.white,
-                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                              elevation: 0,
-                              minimumSize: Size.zero,
-                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      ),
+                      if (canEdit) ...[
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: ConstrainedBox(
+                            constraints: const BoxConstraints(minHeight: 44),
+                            child: GestureDetector(
+                              onTapDown: (_) => setState(() => _isPinHqPressed = true),
+                              onTapUp: (_) {
+                                setState(() => _isPinHqPressed = false);
+                                if (!_isFetchingGps) _pinCurrentGpsAsHq();
+                              },
+                              onTapCancel: () => setState(() => _isPinHqPressed = false),
+                              child: AnimatedScale(
+                                scale: _isPinHqPressed ? 0.98 : 1.0,
+                                duration: const Duration(milliseconds: 100),
+                                child: Container(
+                                  height: 36,
+                                  alignment: Alignment.center,
+                                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFF0F6B63),
+                                    borderRadius: BorderRadius.circular(10),
+                                  ),
+                                  child: Row(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      const Icon(Icons.push_pin_rounded, size: 16, color: Colors.white),
+                                      const SizedBox(width: 6),
+                                      const Text(
+                                        'Pin Current GPS',
+                                        style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: Colors.white),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
                             ),
                           ),
+                        ),
                       ],
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
 
-                // Interactive Google Map View
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(16),
-                  child: Container(
-                    height: 240,
-                    width: double.infinity,
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: const Color(0xFFCBD5E1)),
-                    ),
-                    child: GoogleMap(
-                      onMapCreated: (controller) => _mapController = controller,
-                      initialCameraPosition: CameraPosition(
-                        target: LatLng(
-                          double.tryParse(_latController.text.trim()) ?? 21.1986872,
-                          double.tryParse(_lngController.text.trim()) ?? 72.7965515,
-                        ),
-                        zoom: 15.0,
+                  // Map Container (radius 16px, 1px #E5E7EB border, height ~220px)
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(16),
+                    child: Container(
+                      height: 220,
+                      width: double.infinity,
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: borderColor, width: 1),
                       ),
-                      mapType: _mapType,
-                      zoomControlsEnabled: true,
-                      myLocationEnabled: false,
-                      myLocationButtonEnabled: false,
-                      compassEnabled: true,
-                      onTap: canEdit ? (LatLng latLng) => _updateLocationFromMap(latLng) : null,
-                      circles: {
-                        Circle(
-                          circleId: const CircleId('geofence_circle'),
-                          center: LatLng(
+                      child: GoogleMap(
+                        onMapCreated: (controller) => _mapController = controller,
+                        initialCameraPosition: CameraPosition(
+                          target: LatLng(
                             double.tryParse(_latController.text.trim()) ?? 21.1986872,
                             double.tryParse(_lngController.text.trim()) ?? 72.7965515,
                           ),
-                          radius: (double.tryParse(_radiusController.text.trim()) ?? 100.0),
-                          fillColor: const Color(0x33D97706),
-                          strokeColor: const Color(0xFFD97706),
-                          strokeWidth: 2,
+                          zoom: 15.0,
                         ),
-                      },
-                      markers: {
-                        Marker(
-                          markerId: const MarkerId('hq_marker'),
-                          position: LatLng(
-                            double.tryParse(_latController.text.trim()) ?? 21.1986872,
-                            double.tryParse(_lngController.text.trim()) ?? 72.7965515,
+                        mapType: _mapType,
+                        zoomControlsEnabled: true,
+                        myLocationEnabled: false,
+                        myLocationButtonEnabled: false,
+                        compassEnabled: true,
+                        onTap: canEdit ? (LatLng latLng) => _updateLocationFromMap(latLng) : null,
+                        circles: {
+                          Circle(
+                            circleId: const CircleId('geofence_circle'),
+                            center: LatLng(
+                              double.tryParse(_latController.text.trim()) ?? 21.1986872,
+                              double.tryParse(_lngController.text.trim()) ?? 72.7965515,
+                            ),
+                            radius: (double.tryParse(_radiusController.text.trim()) ?? 100.0),
+                            fillColor: const Color(0x260F6B63),
+                            strokeColor: const Color(0xFF0F6B63),
+                            strokeWidth: 2,
                           ),
-                          draggable: canEdit,
-                          onDragEnd: canEdit ? (LatLng latLng) => _updateLocationFromMap(latLng) : null,
-                          infoWindow: InfoWindow(
-                            title: _nameController.text.isNotEmpty ? _nameController.text : 'Corporate HQ',
-                            snippet: 'Geofence Active (${_radiusController.text}m radius)',
+                        },
+                        markers: {
+                          Marker(
+                            markerId: const MarkerId('hq_marker'),
+                            position: LatLng(
+                              double.tryParse(_latController.text.trim()) ?? 21.1986872,
+                              double.tryParse(_lngController.text.trim()) ?? 72.7965515,
+                            ),
+                            draggable: canEdit,
+                            onDragEnd: canEdit ? (LatLng latLng) => _updateLocationFromMap(latLng) : null,
+                            infoWindow: InfoWindow(
+                              title: _nameController.text.isNotEmpty ? _nameController.text : 'Corporate HQ',
+                              snippet: 'Geofence Active (${_radiusController.text}m radius)',
+                            ),
+                            icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueCyan),
                           ),
-                          icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueOrange),
-                        ),
-                        if (_liveLocationMarker != null) _liveLocationMarker!,
-                      },
+                          if (_liveLocationMarker != null) _liveLocationMarker!,
+                        },
+                      ),
                     ),
                   ),
-                ),
-                const SizedBox(height: 14),
+                  const SizedBox(height: 14),
 
-                const Text('Dynamic Geofence Radius', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: Color(0xFF64748B))),
-                const SizedBox(height: 6),
-                Row(
-                  children: [
-                    Expanded(
+                  // Dynamic Geofence Radius Field
+                  _buildFieldWrapper(
+                    label: 'Dynamic Geofence Radius',
+                    isRequired: false,
+                    isDark: dark,
+                    child: SizedBox(
+                      height: 48,
                       child: TextFormField(
                         controller: _radiusController,
                         enabled: !_isSaving && canEdit,
                         keyboardType: TextInputType.number,
                         onChanged: (_) => setState(() {}),
+                        style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: dark ? AppColors.darkPrimaryText : AppColors.lightPrimaryText),
                         decoration: InputDecoration(
                           suffixText: 'meters',
+                          suffixStyle: const TextStyle(fontSize: 12, color: Color(0xFF64748B), fontWeight: FontWeight.w500),
                           filled: true,
-                          fillColor: dark ? AppColors.darkSecondarySurface : const Color(0xFFF8FAFC),
-                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                          fillColor: dark ? AppColors.darkMainSurface : Colors.white,
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: fieldBorderColor, width: 1)),
+                          enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: fieldBorderColor, width: 1)),
+                          focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFF0F6B63), width: 1.5)),
                         ),
                       ),
                     ),
-                  ],
-                ),
-                const SizedBox(height: 10),
-
-                // Quick Radius Selector Buttons
-                Wrap(
-                  spacing: 6,
-                  children: ['50m', '100m', '200m', '300m', '500m', '1000m'].map((rStr) {
-                    final numVal = rStr.replaceAll('m', '');
-                    final isSel = _radiusController.text == numVal;
-                    return InkWell(
-                      onTap: (_isSaving || !canEdit) ? null : () => setState(() => _radiusController.text = numVal),
-                      borderRadius: BorderRadius.circular(8),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                        decoration: BoxDecoration(
-                          color: isSel ? const Color(0xFFFEF3C7) : const Color(0xFFF1F5F9),
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(color: isSel ? const Color(0xFFD97706) : const Color(0xFFCBD5E1)),
-                        ),
-                        child: Text(rStr, style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: isSel ? const Color(0xFFD97706) : const Color(0xFF64748B))),
-                      ),
-                    );
-                  }).toList(),
-                ),
-                const SizedBox(height: 14),
-
-                Row(
-                  children: [
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text('Latitude', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: Color(0xFF64748B))),
-                          const SizedBox(height: 6),
-                          TextFormField(
-                            controller: _latController,
-                            enabled: !_isSaving && canEdit,
-                            keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                            onChanged: (_) => _onCoordinatesChanged(),
-                            decoration: InputDecoration(
-                              filled: true,
-                              fillColor: dark ? AppColors.darkSecondarySurface : const Color(0xFFF8FAFC),
-                              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text('Longitude', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: Color(0xFF64748B))),
-                          const SizedBox(height: 6),
-                          TextFormField(
-                            controller: _lngController,
-                            enabled: !_isSaving && canEdit,
-                            keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                            onChanged: (_) => _onCoordinatesChanged(),
-                            decoration: InputDecoration(
-                              filled: true,
-                              fillColor: dark ? AppColors.darkSecondarySurface : const Color(0xFFF8FAFC),
-                              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 16),
-
-          // Section 1: General Information Card
-          AppCard(
-            backgroundColor: dark ? AppColors.darkMainSurface : Colors.white,
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: const [
-                    Icon(Icons.business_rounded, color: Color(0xFFD97706), size: 20),
-                    SizedBox(width: 8),
-                    Text('General Information', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Color(0xFF0F172A))),
-                  ],
-                ),
-                const Divider(height: 16),
-
-                const Text('Company Name *', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: Color(0xFF64748B))),
-                const SizedBox(height: 6),
-                TextFormField(
-                  controller: _nameController,
-                  enabled: !_isSaving && canEdit,
-                  decoration: InputDecoration(filled: true, fillColor: dark ? AppColors.darkSecondarySurface : const Color(0xFFF8FAFC), border: OutlineInputBorder(borderRadius: BorderRadius.circular(12))),
-                ),
-                const SizedBox(height: 14),
-
-                Row(
-                  children: [
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text('Website', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: Color(0xFF64748B))),
-                          const SizedBox(height: 6),
-                          TextFormField(
-                            controller: _websiteController,
-                            enabled: !_isSaving && canEdit,
-                            decoration: InputDecoration(filled: true, fillColor: dark ? AppColors.darkSecondarySurface : const Color(0xFFF8FAFC), border: OutlineInputBorder(borderRadius: BorderRadius.circular(12))),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text('Email', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: Color(0xFF64748B))),
-                          const SizedBox(height: 6),
-                          TextFormField(
-                            controller: _emailController,
-                            enabled: !_isSaving && canEdit,
-                            decoration: InputDecoration(filled: true, fillColor: dark ? AppColors.darkSecondarySurface : const Color(0xFFF8FAFC), border: OutlineInputBorder(borderRadius: BorderRadius.circular(12))),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 14),
-
-                const Text('Phone', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: Color(0xFF64748B))),
-                const SizedBox(height: 6),
-                TextFormField(
-                  controller: _phoneController,
-                  enabled: !_isSaving && canEdit,
-                  decoration: InputDecoration(filled: true, fillColor: dark ? AppColors.darkSecondarySurface : const Color(0xFFF8FAFC), border: OutlineInputBorder(borderRadius: BorderRadius.circular(12))),
-                ),
-                const SizedBox(height: 14),
-
-                const Text('Address', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: Color(0xFF64748B))),
-                const SizedBox(height: 6),
-                TextFormField(
-                  controller: _addressController,
-                  enabled: !_isSaving && canEdit,
-                  maxLines: 2,
-                  decoration: InputDecoration(
-                    filled: true,
-                    fillColor: dark ? AppColors.darkSecondarySurface : const Color(0xFFF8FAFC),
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                    suffixIcon: _isFetchingAddress
-                        ? const Padding(
-                            padding: EdgeInsets.all(12.0),
-                            child: SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)),
-                          )
-                        : null,
                   ),
+                  const SizedBox(height: 10),
+
+                  // Presets: single horizontally scrollable row, chips 32px high, equal min-width 56px, 12px text, radius 999px, 1px border, white background, selected = teal tint background (#E6F4F1), 1px teal border, teal text 600
+                  SizedBox(
+                    height: 32,
+                    child: ListView(
+                      scrollDirection: Axis.horizontal,
+                      physics: const BouncingScrollPhysics(),
+                      children: ['50m', '100m', '200m', '300m', '500m', '1000m'].map((rStr) {
+                        final numVal = rStr.replaceAll('m', '');
+                        final isSel = _radiusController.text == numVal;
+                        return Container(
+                          constraints: const BoxConstraints(minWidth: 56),
+                          margin: const EdgeInsets.only(right: 8),
+                          child: InkWell(
+                            onTap: (_isSaving || !canEdit) ? null : () => setState(() => _radiusController.text = numVal),
+                            borderRadius: BorderRadius.circular(999),
+                            child: Container(
+                              height: 32,
+                              alignment: Alignment.center,
+                              padding: const EdgeInsets.symmetric(horizontal: 12),
+                              decoration: BoxDecoration(
+                                color: isSel ? const Color(0xFFE6F4F1) : (dark ? AppColors.darkMainSurface : Colors.white),
+                                borderRadius: BorderRadius.circular(999),
+                                border: Border.all(
+                                  color: isSel ? const Color(0xFF0F6B63) : fieldBorderColor,
+                                  width: isSel ? 1.5 : 1.0,
+                                ),
+                              ),
+                              child: Text(
+                                rStr,
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: isSel ? FontWeight.w600 : FontWeight.w500,
+                                  color: isSel ? const Color(0xFF0F6B63) : const Color(0xFF475569),
+                                ),
+                              ),
+                            ),
+                          ),
+                        );
+                      }).toList(),
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+
+                  // Latitude and Longitude Side by Side (tabular-nums, monospace, 14px)
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _buildFieldWrapper(
+                          label: 'Latitude',
+                          isRequired: false,
+                          isDark: dark,
+                          child: SizedBox(
+                            height: 48,
+                            child: TextFormField(
+                              controller: _latController,
+                              enabled: !_isSaving && canEdit,
+                              keyboardType: const TextInputType.numberWithOptions(decimal: true, signed: true),
+                              onChanged: (_) => _onCoordinatesChanged(),
+                              style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500, fontFamily: 'monospace', fontFeatures: [FontFeature.tabularFigures()]),
+                              decoration: InputDecoration(
+                                filled: true,
+                                fillColor: dark ? AppColors.darkMainSurface : Colors.white,
+                                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: fieldBorderColor, width: 1)),
+                                enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: fieldBorderColor, width: 1)),
+                                focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFF0F6B63), width: 1.5)),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: _buildFieldWrapper(
+                          label: 'Longitude',
+                          isRequired: false,
+                          isDark: dark,
+                          child: SizedBox(
+                            height: 48,
+                            child: TextFormField(
+                              controller: _lngController,
+                              enabled: !_isSaving && canEdit,
+                              keyboardType: const TextInputType.numberWithOptions(decimal: true, signed: true),
+                              onChanged: (_) => _onCoordinatesChanged(),
+                              style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500, fontFamily: 'monospace', fontFeatures: [FontFeature.tabularFigures()]),
+                              decoration: InputDecoration(
+                                filled: true,
+                                fillColor: dark ? AppColors.darkMainSurface : Colors.white,
+                                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: fieldBorderColor, width: 1)),
+                                enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: fieldBorderColor, width: 1)),
+                                focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFF0F6B63), width: 1.5)),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+
+              // 3. GENERAL INFORMATION CARD
+              _buildSectionCard(
+                title: 'General Information',
+                helper: 'Core corporate identity and contact details.',
+                icon: Icons.business_rounded,
+                dark: dark,
+                cardBgColor: cardBgColor,
+                borderColor: borderColor,
+                children: [
+                  _buildFieldWrapper(
+                    label: 'Company Name',
+                    isRequired: true,
+                    isDark: dark,
+                    child: SizedBox(
+                      height: 48,
+                      child: TextFormField(
+                        controller: _nameController,
+                        enabled: !_isSaving && canEdit,
+                        style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: dark ? AppColors.darkPrimaryText : AppColors.lightPrimaryText),
+                        decoration: _fieldDecoration(icon: Icons.apartment_rounded, isDark: dark, borderColor: fieldBorderColor),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+
+                  // Stack Website full width
+                  _buildFieldWrapper(
+                    label: 'Website',
+                    isRequired: false,
+                    isDark: dark,
+                    child: SizedBox(
+                      height: 48,
+                      child: TextFormField(
+                        controller: _websiteController,
+                        enabled: !_isSaving && canEdit,
+                        style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: dark ? AppColors.darkPrimaryText : AppColors.lightPrimaryText),
+                        decoration: _fieldDecoration(icon: Icons.language_rounded, isDark: dark, borderColor: fieldBorderColor),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+
+                  // Stack Email full width
+                  _buildFieldWrapper(
+                    label: 'Email',
+                    isRequired: false,
+                    isDark: dark,
+                    child: SizedBox(
+                      height: 48,
+                      child: TextFormField(
+                        controller: _emailController,
+                        enabled: !_isSaving && canEdit,
+                        keyboardType: TextInputType.emailAddress,
+                        style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: dark ? AppColors.darkPrimaryText : AppColors.lightPrimaryText),
+                        decoration: _fieldDecoration(icon: Icons.email_rounded, isDark: dark, borderColor: fieldBorderColor),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+
+                  // Phone (tabular figures, monospace)
+                  _buildFieldWrapper(
+                    label: 'Phone',
+                    isRequired: false,
+                    isDark: dark,
+                    child: SizedBox(
+                      height: 48,
+                      child: TextFormField(
+                        controller: _phoneController,
+                        enabled: !_isSaving && canEdit,
+                        keyboardType: TextInputType.phone,
+                        style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500, fontFamily: 'monospace', fontFeatures: [FontFeature.tabularFigures()]),
+                        decoration: _fieldDecoration(icon: Icons.phone_rounded, isDark: dark, borderColor: fieldBorderColor),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+
+                  // Address (min-height 80px)
+                  _buildFieldWrapper(
+                    label: 'Address',
+                    isRequired: false,
+                    isDark: dark,
+                    child: TextFormField(
+                      controller: _addressController,
+                      enabled: !_isSaving && canEdit,
+                      minLines: 2,
+                      maxLines: 4,
+                      style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: dark ? AppColors.darkPrimaryText : AppColors.lightPrimaryText, height: 1.5),
+                      decoration: InputDecoration(
+                        prefixIcon: const Padding(
+                          padding: EdgeInsets.only(bottom: 24),
+                          child: Icon(Icons.location_on_rounded, size: 18, color: Color(0xFF64748B)),
+                        ),
+                        filled: true,
+                        fillColor: dark ? AppColors.darkMainSurface : Colors.white,
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: fieldBorderColor, width: 1)),
+                        enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: fieldBorderColor, width: 1)),
+                        focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFF0F6B63), width: 1.5)),
+                        suffixIcon: _isFetchingAddress
+                            ? const Padding(
+                                padding: EdgeInsets.all(12.0),
+                                child: SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF0F6B63))),
+                              )
+                            : null,
+                      ),
+                    ),
+                  ),
+
+                  // Auto-synced GPS chip (height 28px, radius 999px, 12px text, soft green tint #ECFDF5 with darker green #047857 text, 14px check icon, 8px below Address field)
+                  if (_lastSyncedGpsText != null || (_latController.text.isNotEmpty && _lngController.text.isNotEmpty)) ...[
+                    const SizedBox(height: 8),
+                    Container(
+                      height: 28,
+                      padding: const EdgeInsets.symmetric(horizontal: 10),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFECFDF5),
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(Icons.check_circle_rounded, size: 14, color: Color(0xFF047857)),
+                          const SizedBox(width: 6),
+                          Text(
+                            'Auto-synced GPS: ${_lastSyncedGpsText ?? "${_latController.text} , ${_lngController.text}"}',
+                            style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Color(0xFF047857)),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                  const SizedBox(height: 14),
+
+                  // City / State (two columns)
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _buildFieldWrapper(
+                          label: 'City',
+                          isRequired: false,
+                          isDark: dark,
+                          child: SizedBox(
+                            height: 48,
+                            child: TextFormField(
+                              controller: _cityController,
+                              enabled: !_isSaving && canEdit,
+                              style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: dark ? AppColors.darkPrimaryText : AppColors.lightPrimaryText),
+                              decoration: _fieldDecoration(icon: Icons.location_city_rounded, isDark: dark, borderColor: fieldBorderColor),
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: _buildFieldWrapper(
+                          label: 'State',
+                          isRequired: false,
+                          isDark: dark,
+                          child: SizedBox(
+                            height: 48,
+                            child: TextFormField(
+                              controller: _stateController,
+                              enabled: !_isSaving && canEdit,
+                              style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: dark ? AppColors.darkPrimaryText : AppColors.lightPrimaryText),
+                              decoration: _fieldDecoration(icon: Icons.map_rounded, isDark: dark, borderColor: fieldBorderColor),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 14),
+
+                  // Country / ZIP Code (two columns)
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _buildFieldWrapper(
+                          label: 'Country',
+                          isRequired: false,
+                          isDark: dark,
+                          child: SizedBox(
+                            height: 48,
+                            child: TextFormField(
+                              controller: _countryController,
+                              enabled: !_isSaving && canEdit,
+                              style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: dark ? AppColors.darkPrimaryText : AppColors.lightPrimaryText),
+                              decoration: _fieldDecoration(icon: Icons.public_rounded, isDark: dark, borderColor: fieldBorderColor),
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: _buildFieldWrapper(
+                          label: 'ZIP / Postal Code',
+                          isRequired: false,
+                          isDark: dark,
+                          child: SizedBox(
+                            height: 48,
+                            child: TextFormField(
+                              controller: _zipController,
+                              enabled: !_isSaving && canEdit,
+                              keyboardType: TextInputType.number,
+                              style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500, fontFamily: 'monospace', fontFeatures: [FontFeature.tabularFigures()]),
+                              decoration: _fieldDecoration(icon: Icons.pin_drop_rounded, isDark: dark, borderColor: fieldBorderColor),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+
+              // 4. REGISTRATION & TAXATION CARD (Stack Registration Number and Tax ID / GSTIN full width)
+              _buildSectionCard(
+                title: 'Registration & Taxation',
+                helper: 'Corporate statutory identification and tax details.',
+                icon: Icons.verified_user_rounded,
+                dark: dark,
+                cardBgColor: cardBgColor,
+                borderColor: borderColor,
+                children: [
+                  _buildFieldWrapper(
+                    label: 'Registration Number',
+                    isRequired: false,
+                    isDark: dark,
+                    child: SizedBox(
+                      height: 48,
+                      child: TextFormField(
+                        controller: _regController,
+                        enabled: !_isSaving && canEdit,
+                        style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500, fontFamily: 'monospace', fontFeatures: [FontFeature.tabularFigures()]),
+                        decoration: _fieldDecoration(icon: Icons.confirmation_number_rounded, isDark: dark, borderColor: fieldBorderColor),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                  _buildFieldWrapper(
+                    label: 'Tax ID / GSTIN',
+                    isRequired: false,
+                    isDark: dark,
+                    child: SizedBox(
+                      height: 48,
+                      child: TextFormField(
+                        controller: _taxController,
+                        enabled: !_isSaving && canEdit,
+                        style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500, fontFamily: 'monospace', fontFeatures: [FontFeature.tabularFigures()]),
+                        decoration: _fieldDecoration(icon: Icons.receipt_long_rounded, isDark: dark, borderColor: fieldBorderColor),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+
+              // 5. PREFERENCES CARD
+              _buildSectionCard(
+                title: 'Preferences',
+                helper: 'Default operational currency, fiscal calendar, and working schedules.',
+                icon: Icons.tune_rounded,
+                dark: dark,
+                cardBgColor: cardBgColor,
+                borderColor: borderColor,
+                children: [
+                  // Currency / Fiscal Year (two columns)
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _buildFieldWrapper(
+                          label: 'Currency',
+                          isRequired: false,
+                          isDark: dark,
+                          child: SizedBox(
+                            height: 48,
+                            child: canEdit
+                                ? DropdownButtonFormField<String>(
+                                    value: ['INR (₹)', 'USD (\$)', 'EUR (€)', 'GBP (£)', 'AUD (\$)', 'CAD (\$)', 'SGD (\$)'].contains(_currencyController.text) ? _currencyController.text : 'INR (₹)',
+                                    icon: const Icon(Icons.keyboard_arrow_down_rounded, size: 20, color: Color(0xFF0F6B63)),
+                                    decoration: _fieldDecoration(icon: Icons.payments_rounded, isDark: dark, borderColor: fieldBorderColor),
+                                    dropdownColor: cardBgColor,
+                                    style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: dark ? AppColors.darkPrimaryText : AppColors.lightPrimaryText),
+                                    items: ['INR (₹)', 'USD (\$)', 'EUR (€)', 'GBP (£)', 'AUD (\$)', 'CAD (\$)', 'SGD (\$)']
+                                        .map((c) => DropdownMenuItem(value: c, child: Text(c)))
+                                        .toList(),
+                                    onChanged: _isSaving ? null : (val) {
+                                      if (val != null) {
+                                        setState(() => _currencyController.text = val);
+                                      }
+                                    },
+                                  )
+                                : TextFormField(
+                                    controller: _currencyController,
+                                    enabled: false,
+                                    style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: dark ? AppColors.darkPrimaryText : AppColors.lightPrimaryText),
+                                    decoration: _fieldDecoration(icon: Icons.payments_rounded, isDark: dark, borderColor: fieldBorderColor),
+                                  ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: _buildFieldWrapper(
+                          label: 'Fiscal Year Starts',
+                          isRequired: false,
+                          isDark: dark,
+                          child: SizedBox(
+                            height: 48,
+                            child: canEdit
+                                ? DropdownButtonFormField<String>(
+                                    value: ['April', 'January', 'July', 'October', 'September'].contains(_fiscalYearController.text) ? _fiscalYearController.text : 'April',
+                                    icon: const Icon(Icons.keyboard_arrow_down_rounded, size: 20, color: Color(0xFF0F6B63)),
+                                    decoration: _fieldDecoration(icon: Icons.calendar_month_rounded, isDark: dark, borderColor: fieldBorderColor),
+                                    dropdownColor: cardBgColor,
+                                    style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: dark ? AppColors.darkPrimaryText : AppColors.lightPrimaryText),
+                                    items: ['April', 'January', 'July', 'October', 'September']
+                                        .map((f) => DropdownMenuItem(value: f, child: Text(f)))
+                                        .toList(),
+                                    onChanged: _isSaving ? null : (val) {
+                                      if (val != null) {
+                                        setState(() => _fiscalYearController.text = val);
+                                      }
+                                    },
+                                  )
+                                : TextFormField(
+                                    controller: _fiscalYearController,
+                                    enabled: false,
+                                    style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: dark ? AppColors.darkPrimaryText : AppColors.lightPrimaryText),
+                                    decoration: _fieldDecoration(icon: Icons.calendar_month_rounded, isDark: dark, borderColor: fieldBorderColor),
+                                  ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 14),
+
+                  // Working Days (Read-only field: background #F8FAFC, 1px #E5E7EB border, text #475569, with 16px lock icon on right)
+                  _buildFieldWrapper(
+                    label: 'Working Days',
+                    isRequired: false,
+                    isDark: dark,
+                    child: SizedBox(
+                      height: 48,
+                      child: TextFormField(
+                        controller: _workingDaysController,
+                        enabled: false,
+                        style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: Color(0xFF475569)),
+                        decoration: InputDecoration(
+                          prefixIcon: const Icon(Icons.date_range_rounded, size: 18, color: Color(0xFF64748B)),
+                          suffixIcon: const Icon(Icons.lock_outline_rounded, size: 16, color: Color(0xFF64748B)),
+                          filled: true,
+                          fillColor: const Color(0xFFF8FAFC),
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFFE5E7EB), width: 1)),
+                          enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFFE5E7EB), width: 1)),
+                          disabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFFE5E7EB), width: 1)),
+                        ),
+                      ),
+                    ),
+                    helperText: 'Read-only: System admins can configure company preferences',
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+
+        // Sticky Save Bar above bottom nav with gradient fade
+        if (canEdit)
+          Positioned(
+            left: 0,
+            right: 0,
+            bottom: 0,
+            child: Container(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    (dark ? AppColors.darkAppBackground : AppColors.lightAppBackground).withOpacity(0.0),
+                    (dark ? AppColors.darkAppBackground : AppColors.lightAppBackground).withOpacity(0.95),
+                    dark ? AppColors.darkAppBackground : AppColors.lightAppBackground,
+                  ],
+                  stops: const [0.0, 0.3, 1.0],
                 ),
-                if (_lastSyncedGpsText != null || (_latController.text.isNotEmpty && _lngController.text.isNotEmpty)) ...[
-                  const SizedBox(height: 8),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              ),
+              padding: EdgeInsets.fromLTRB(
+                16,
+                16,
+                16,
+                12 + MediaQuery.of(context).padding.bottom,
+              ),
+              child: GestureDetector(
+                onTapDown: (_) => setState(() => _isSavePressed = true),
+                onTapUp: (_) {
+                  setState(() => _isSavePressed = false);
+                  if (!_isSaving) _save();
+                },
+                onTapCancel: () => setState(() => _isSavePressed = false),
+                child: AnimatedScale(
+                  scale: _isSavePressed ? 0.98 : 1.0,
+                  duration: const Duration(milliseconds: 100),
+                  child: Container(
+                    height: 50,
+                    alignment: Alignment.center,
                     decoration: BoxDecoration(
-                      color: dark ? const Color(0x2216A34A) : const Color(0xFFDCFCE7),
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: const Color(0xFF86EFAC)),
+                      color: const Color(0xFF0F6B63),
+                      borderRadius: BorderRadius.circular(14),
+                      boxShadow: const [
+                        BoxShadow(
+                          color: Color.fromRGBO(15, 107, 99, 0.22),
+                          blurRadius: 12,
+                          offset: Offset(0, 4),
+                        ),
+                      ],
                     ),
                     child: Row(
-                      mainAxisSize: MainAxisSize.min,
+                      mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        const Icon(Icons.check_circle_rounded, size: 14, color: Color(0xFF16A34A)),
-                        const SizedBox(width: 6),
-                        Text(
-                          'Auto-synced GPS: ${_lastSyncedGpsText ?? "${_latController.text} , ${_lngController.text}"}',
-                          style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Color(0xFF15803D)),
+                        _isSaving
+                            ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                            : const Icon(Icons.check, size: 18, color: Colors.white),
+                        const SizedBox(width: 8),
+                        const Text(
+                          'Save Changes',
+                          style: TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.white,
+                          ),
                         ),
                       ],
                     ),
                   ),
-                ],
-                const SizedBox(height: 14),
-
-                Row(
-                  children: [
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text('City', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: Color(0xFF64748B))),
-                          const SizedBox(height: 6),
-                          TextFormField(
-                            controller: _cityController,
-                            enabled: !_isSaving && canEdit,
-                            decoration: InputDecoration(filled: true, fillColor: dark ? AppColors.darkSecondarySurface : const Color(0xFFF8FAFC), border: OutlineInputBorder(borderRadius: BorderRadius.circular(12))),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text('State', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: Color(0xFF64748B))),
-                          const SizedBox(height: 6),
-                          TextFormField(
-                            controller: _stateController,
-                            enabled: !_isSaving && canEdit,
-                            decoration: InputDecoration(filled: true, fillColor: dark ? AppColors.darkSecondarySurface : const Color(0xFFF8FAFC), border: OutlineInputBorder(borderRadius: BorderRadius.circular(12))),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 14),
-
-                Row(
-                  children: [
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text('Country', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: Color(0xFF64748B))),
-                          const SizedBox(height: 6),
-                          TextFormField(
-                            controller: _countryController,
-                            enabled: !_isSaving && canEdit,
-                            decoration: InputDecoration(filled: true, fillColor: dark ? AppColors.darkSecondarySurface : const Color(0xFFF8FAFC), border: OutlineInputBorder(borderRadius: BorderRadius.circular(12))),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text('ZIP / Postal Code', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: Color(0xFF64748B))),
-                          const SizedBox(height: 6),
-                          TextFormField(
-                            controller: _zipController,
-                            enabled: !_isSaving && canEdit,
-                            decoration: InputDecoration(filled: true, fillColor: dark ? AppColors.darkSecondarySurface : const Color(0xFFF8FAFC), border: OutlineInputBorder(borderRadius: BorderRadius.circular(12))),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 16),
-
-          // Section 2: Registration & Taxation Card
-          AppCard(
-            backgroundColor: dark ? AppColors.darkMainSurface : Colors.white,
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: const [
-                    Icon(Icons.verified_user_rounded, color: Color(0xFFD97706), size: 20),
-                    SizedBox(width: 8),
-                    Text('Registration & Taxation', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Color(0xFF0F172A))),
-                  ],
-                ),
-                const Divider(height: 16),
-
-                Row(
-                  children: [
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text('Registration Number', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: Color(0xFF64748B))),
-                          const SizedBox(height: 6),
-                          TextFormField(
-                            controller: _regController,
-                            enabled: !_isSaving && canEdit,
-                            decoration: InputDecoration(filled: true, fillColor: dark ? AppColors.darkSecondarySurface : const Color(0xFFF8FAFC), border: OutlineInputBorder(borderRadius: BorderRadius.circular(12))),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text('Tax ID / GSTIN', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: Color(0xFF64748B))),
-                          const SizedBox(height: 6),
-                          TextFormField(
-                            controller: _taxController,
-                            enabled: !_isSaving && canEdit,
-                            decoration: InputDecoration(filled: true, fillColor: dark ? AppColors.darkSecondarySurface : const Color(0xFFF8FAFC), border: OutlineInputBorder(borderRadius: BorderRadius.circular(12))),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 16),
-
-          // Section 3: Preferences Card
-          AppCard(
-            backgroundColor: dark ? AppColors.darkMainSurface : Colors.white,
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: const [
-                    Icon(Icons.tune_rounded, color: Color(0xFFD97706), size: 20),
-                    SizedBox(width: 8),
-                    Text('Preferences', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Color(0xFF0F172A))),
-                  ],
-                ),
-                const Divider(height: 16),
-
-                Row(
-                  children: [
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text('Currency', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: Color(0xFF64748B))),
-                          const SizedBox(height: 6),
-                          canEdit
-                              ? DropdownButtonFormField<String>(
-                                  value: ['INR (₹)', 'USD (\$)', 'EUR (€)', 'GBP (£)', 'AUD (\$)', 'CAD (\$)', 'SGD (\$)'].contains(_currencyController.text) ? _currencyController.text : 'INR (₹)',
-                                  decoration: InputDecoration(filled: true, fillColor: dark ? AppColors.darkSecondarySurface : const Color(0xFFF8FAFC), border: OutlineInputBorder(borderRadius: BorderRadius.circular(12))),
-                                  items: ['INR (₹)', 'USD (\$)', 'EUR (€)', 'GBP (£)', 'AUD (\$)', 'CAD (\$)', 'SGD (\$)']
-                                      .map((c) => DropdownMenuItem(value: c, child: Text(c, style: TextStyle(fontSize: 13, color: dark ? Colors.white : Colors.black))))
-                                      .toList(),
-                                  onChanged: _isSaving ? null : (val) {
-                                    if (val != null) {
-                                      setState(() => _currencyController.text = val);
-                                    }
-                                  },
-                                )
-                              : TextFormField(
-                                  controller: _currencyController,
-                                  enabled: false,
-                                  decoration: InputDecoration(filled: true, fillColor: dark ? AppColors.darkSecondarySurface : const Color(0xFFF8FAFC), border: OutlineInputBorder(borderRadius: BorderRadius.circular(12))),
-                                ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text('Fiscal Year Starts', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: Color(0xFF64748B))),
-                          const SizedBox(height: 6),
-                          canEdit
-                              ? DropdownButtonFormField<String>(
-                                  value: ['April', 'January', 'July', 'October', 'September'].contains(_fiscalYearController.text) ? _fiscalYearController.text : 'April',
-                                  decoration: InputDecoration(filled: true, fillColor: dark ? AppColors.darkSecondarySurface : const Color(0xFFF8FAFC), border: OutlineInputBorder(borderRadius: BorderRadius.circular(12))),
-                                  items: ['April', 'January', 'July', 'October', 'September']
-                                      .map((f) => DropdownMenuItem(value: f, child: Text(f, style: TextStyle(fontSize: 13, color: dark ? Colors.white : Colors.black))))
-                                      .toList(),
-                                  onChanged: _isSaving ? null : (val) {
-                                    if (val != null) {
-                                      setState(() => _fiscalYearController.text = val);
-                                    }
-                                  },
-                                )
-                              : TextFormField(
-                                  controller: _fiscalYearController,
-                                  enabled: false,
-                                  decoration: InputDecoration(filled: true, fillColor: dark ? AppColors.darkSecondarySurface : const Color(0xFFF8FAFC), border: OutlineInputBorder(borderRadius: BorderRadius.circular(12))),
-                                ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 14),
-
-                const Text('Working Days', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: Color(0xFF64748B))),
-                const SizedBox(height: 6),
-                TextFormField(
-                  controller: _workingDaysController,
-                  enabled: false,
-                  decoration: InputDecoration(filled: true, fillColor: dark ? AppColors.darkSecondarySurface : const Color(0xFFF8FAFC), border: OutlineInputBorder(borderRadius: BorderRadius.circular(12))),
-                ),
-                const SizedBox(height: 4),
-                const Text('Read-only: System admins can configure company preferences', style: TextStyle(fontSize: 10, color: Color(0xFFD97706))),
-              ],
-            ),
-          ),
-          const SizedBox(height: 24),
-
-          // Save Changes Primary Amber Button (Only for ADMIN)
-          if (canEdit)
-            SizedBox(
-              width: double.infinity,
-              height: 52,
-              child: ElevatedButton.icon(
-                onPressed: _isSaving ? null : _save,
-                icon: _isSaving
-                    ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                    : const Icon(Icons.check, size: 18),
-                label: const Text('Save Changes', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFFD97706),
-                  foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                  elevation: 0,
                 ),
               ),
             ),
+          ),
+      ],
+    );
+  }
+
+  Widget _buildSummaryTile(String label, String value, IconData icon, bool dark, Color cardBgColor, Color borderColor, {bool isMonospace = false}) {
+    final isZero = value == '0' || value.isEmpty;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      decoration: BoxDecoration(
+        color: cardBgColor,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: borderColor, width: 1),
+        boxShadow: [
+          BoxShadow(
+            color: dark ? Colors.black12 : const Color(0x0A0F172A),
+            blurRadius: 2,
+            offset: const Offset(0, 1),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 24,
+                height: 24,
+                decoration: BoxDecoration(
+                  color: const Color(0xFF0F6B63).withOpacity(0.12),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Icon(icon, color: const Color(0xFF0F6B63), size: 14),
+              ),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  label,
+                  style: const TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w500,
+                    color: Color(0xFF64748B),
+                    letterSpacing: 0.4,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Text(
+            value.isNotEmpty ? value : '—',
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+              color: isZero ? const Color(0xFF64748B) : (dark ? AppColors.darkPrimaryText : const Color(0xFF0F172A)),
+              fontFamily: isMonospace ? 'monospace' : null,
+              fontFeatures: isMonospace ? const [FontFeature.tabularFigures()] : null,
+              letterSpacing: isMonospace ? 0.2 : 0,
+            ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
         ],
       ),
     );
   }
 
-  Widget _buildMetricTile(String title, String value, IconData icon, Color color, Color bg) {
+  Widget _buildSectionCard({
+    required String title,
+    required String helper,
+    required IconData icon,
+    required bool dark,
+    required Color cardBgColor,
+    required Color borderColor,
+    required List<Widget> children,
+  }) {
     return Container(
-      padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
-        color: bg,
-        borderRadius: BorderRadius.circular(14),
+        color: cardBgColor,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: borderColor, width: 1),
+        boxShadow: [
+          BoxShadow(
+            color: dark ? Colors.black12 : const Color(0x0A0F172A),
+            blurRadius: 2,
+            offset: const Offset(0, 1),
+          ),
+        ],
       ),
+      padding: const EdgeInsets.all(16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              Icon(icon, color: color, size: 16),
-              const SizedBox(width: 4),
-              Expanded(child: Text(title, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 8.5, fontWeight: FontWeight.w800, color: color))),
+              Container(
+                width: 32,
+                height: 32,
+                decoration: BoxDecoration(
+                  color: const Color(0xFF0F6B63).withOpacity(0.12),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(icon, color: const Color(0xFF0F6B63), size: 18),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  title,
+                  style: TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w600,
+                    color: dark ? AppColors.darkPrimaryText : const Color(0xFF0F172A),
+                  ),
+                ),
+              ),
             ],
           ),
           const SizedBox(height: 4),
-          Text(value, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w800, color: color)),
+          Text(
+            helper,
+            style: const TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w400,
+              color: Color(0xFF475569),
+              height: 1.5,
+            ),
+            maxLines: 3,
+            overflow: TextOverflow.ellipsis,
+          ),
+          const SizedBox(height: 12),
+          Divider(
+            height: 1,
+            color: borderColor,
+          ),
+          const SizedBox(height: 12),
+          ...children,
         ],
       ),
     );

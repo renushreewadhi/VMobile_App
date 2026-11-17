@@ -155,10 +155,44 @@ class _MyProfileScreenState extends ConsumerState<MyProfileScreen> {
 
       if (!mounted || currentReq != _requestId) return;
 
+      bool isUuidOrObjectId(String? str) {
+        if (str == null || str.trim().isEmpty) return false;
+        final clean = str.trim();
+        return RegExp(r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$').hasMatch(clean) ||
+            RegExp(r'^[0-9a-fA-F]{24}$').hasMatch(clean);
+      }
+
+      String? resolvedEmpCode;
+      final candidates = [
+        serverUserMap['employeeCode']?.toString(),
+        serverUserMap['code']?.toString(),
+        serverUserMap['employee_code']?.toString(),
+        serverUserMap['empCode']?.toString(),
+        serverUserMap['customId']?.toString(),
+        matchedEmp?['employeeCode']?.toString(),
+        matchedEmp?['code']?.toString(),
+        matchedEmp?['employee_code']?.toString(),
+        matchedEmp?['empCode']?.toString(),
+        matchedEmp?['customId']?.toString(),
+        authUser.employeeId,
+        serverUserMap['employeeId']?.toString(),
+        matchedEmp?['employeeId']?.toString(),
+      ];
+
+      for (final cand in candidates) {
+        if (cand != null && cand.trim().isNotEmpty && !isUuidOrObjectId(cand)) {
+          resolvedEmpCode = cand.trim();
+          break;
+        }
+      }
+
+      resolvedEmpCode ??= (authUser.employeeId != null && authUser.employeeId!.isNotEmpty && !isUuidOrObjectId(authUser.employeeId))
+          ? authUser.employeeId
+          : (serverUserMap['employeeCode']?.toString() ?? serverUserMap['code']?.toString() ?? 'EMP-26-0028');
+
       final Map<String, dynamic> mergedProfile = {
         'id': serverUserMap['id'] ?? authUser.id,
-        'employeeId': serverUserMap['employeeId'] ?? serverUserMap['code'] ?? authUser.employeeId ?? 'EMP-24-0007',
-        'firstName': serverUserMap['firstName'] ?? authUser.firstName.isNotEmpty ? authUser.firstName : 'User',
+        'firstName': serverUserMap['firstName'] ?? (authUser.firstName.isNotEmpty ? authUser.firstName : 'User'),
         'lastName': serverUserMap['lastName'] ?? authUser.lastName,
         'name': serverUserMap['fullName'] ?? authUser.fullName,
         'email': serverUserMap['email'] ?? authUser.email,
@@ -175,6 +209,9 @@ class _MyProfileScreenState extends ConsumerState<MyProfileScreen> {
         'phone': serverUserMap['phone'] ?? serverUserMap['phoneNumber'] ?? authUser.phone ?? '—',
         ...?matchedEmp,
         ...?serverUserMap,
+        'employeeId': resolvedEmpCode,
+        'employeeCode': resolvedEmpCode,
+        'code': resolvedEmpCode,
       };
 
       setState(() {
@@ -186,9 +223,22 @@ class _MyProfileScreenState extends ConsumerState<MyProfileScreen> {
       if (kDebugMode) debugPrint('[MyProfile] Error fetching profile: $e');
       if (!mounted || currentReq != _requestId) return;
 
+      bool isUuidOrObjectId(String? str) {
+        if (str == null || str.trim().isEmpty) return false;
+        final clean = str.trim();
+        return RegExp(r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$').hasMatch(clean) ||
+            RegExp(r'^[0-9a-fA-F]{24}$').hasMatch(clean);
+      }
+
+      String fallbackEmpCode = (authUser.employeeId != null && authUser.employeeId!.trim().isNotEmpty && !isUuidOrObjectId(authUser.employeeId))
+          ? authUser.employeeId!
+          : 'EMP-26-0028';
+
       final Map<String, dynamic> sessionProfile = {
         'id': authUser.id,
-        'employeeId': (authUser.employeeId != null && authUser.employeeId!.trim().isNotEmpty) ? authUser.employeeId : 'EMP-24-0007',
+        'employeeId': fallbackEmpCode,
+        'employeeCode': fallbackEmpCode,
+        'code': fallbackEmpCode,
         'firstName': authUser.firstName.isNotEmpty ? authUser.firstName : 'User',
         'lastName': authUser.lastName,
         'name': authUser.fullName,

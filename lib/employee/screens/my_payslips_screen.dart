@@ -54,12 +54,13 @@ class _MyPayslipsScreenState extends ConsumerState<MyPayslipsScreen> {
     if (raw is! Map) return {};
     final m = Map<String, dynamic>.from(raw);
 
-    final basic = double.tryParse(m['basicSalary']?.toString() ?? m['basic']?.toString() ?? m['basicPay']?.toString() ?? '0') ?? 0.0;
-    final gross = double.tryParse(m['grossPay']?.toString() ?? m['grossSalary']?.toString() ?? m['gross']?.toString() ?? m['totalEarnings']?.toString() ?? '0') ?? 0.0;
+    final basic = double.tryParse(m['basicSalary']?.toString() ?? m['basic']?.toString() ?? m['basicPay']?.toString() ?? m['baseSalary']?.toString() ?? '0') ?? 0.0;
+    final allowances = double.tryParse(m['allowances']?.toString() ?? m['allowance']?.toString() ?? m['totalAllowances']?.toString() ?? '0') ?? 0.0;
+    final gross = double.tryParse(m['grossPay']?.toString() ?? m['grossSalary']?.toString() ?? m['gross']?.toString() ?? m['totalEarnings']?.toString() ?? '0') ?? (basic + allowances);
     final deductions = double.tryParse(m['deductions']?.toString() ?? m['totalDeductions']?.toString() ?? m['deduction']?.toString() ?? '0') ?? 0.0;
-    final net = double.tryParse(m['netPay']?.toString() ?? m['netSalary']?.toString() ?? m['net']?.toString() ?? m['takeHome']?.toString() ?? '0') ?? (gross > 0 ? gross - deductions : 0.0);
+    final net = double.tryParse(m['netPay']?.toString() ?? m['netSalary']?.toString() ?? m['net']?.toString() ?? m['takeHome']?.toString() ?? m['netAmount']?.toString() ?? '0') ?? (gross - deductions);
 
-    final month = m['month']?.toString() ?? m['payrollMonth']?.toString() ?? m['payMonth']?.toString() ?? 'Current';
+    final month = m['month']?.toString() ?? m['payrollMonth']?.toString() ?? m['payMonth']?.toString() ?? m['monthName']?.toString() ?? 'Current';
     final year = int.tryParse(m['year']?.toString() ?? m['payrollYear']?.toString() ?? m['payYear']?.toString() ?? '') ?? DateTime.now().year;
 
     return {
@@ -67,10 +68,11 @@ class _MyPayslipsScreenState extends ConsumerState<MyPayslipsScreen> {
       'id': m['id']?.toString() ?? m['_id']?.toString() ?? m['payslipId']?.toString() ?? 'ps-$year-$month',
       'month': month,
       'year': year,
-      'basicSalary': basic > 0 ? basic : (gross > 0 ? gross * 0.6 : 45000.0),
-      'grossPay': gross > 0 ? gross : 75000.0,
-      'deductions': deductions > 0 ? deductions : 15750.0,
-      'netPay': net > 0 ? net : 59250.0,
+      'basicSalary': basic,
+      'allowances': allowances,
+      'grossPay': gross,
+      'deductions': deductions,
+      'netPay': net,
       'status': (m['status'] ?? m['paymentStatus'] ?? m['payrollStatus'] ?? 'PAID').toString().toUpperCase(),
       'paidDate': m['paidDate']?.toString() ?? m['paidOn']?.toString() ?? m['paymentDate']?.toString() ?? m['disbursementDate']?.toString() ?? '',
     };
@@ -88,23 +90,16 @@ class _MyPayslipsScreenState extends ConsumerState<MyPayslipsScreen> {
     try {
       final salaryRes = await _tryFetch(payrollService, [
         ApiEndpoints.mySalary,
+        '/salary/my',
         '/payroll/salary/my',
         '/salary/structure/my',
-        '/payroll/my-salary',
-        '/payroll/salary',
-        '/salary/me',
       ]);
 
       final historyRes = await _tryFetch(payrollService, [
-        ApiEndpoints.myPayslips,
         ApiEndpoints.mySalaryHistory,
+        '/salary/my/history',
+        ApiEndpoints.myPayslips,
         '/payroll/payslips/my',
-        '/payroll/my-salary-history',
-        '/payroll/my-payslips',
-        '/payroll/my',
-        '/payroll/payslip',
-        '/payroll/payslips',
-        '/salary/history',
       ]);
 
       if (!mounted) return;
@@ -130,11 +125,7 @@ class _MyPayslipsScreenState extends ConsumerState<MyPayslipsScreen> {
 
       setState(() {
         _salaryWorkflow = workflowMap;
-        if (historyList.isEmpty) {
-          _generateDynamicPayslips();
-        } else {
-          _salaryHistory = historyList;
-        }
+        _salaryHistory = historyList;
         _loading = false;
       });
     } catch (e) {
@@ -144,40 +135,6 @@ class _MyPayslipsScreenState extends ConsumerState<MyPayslipsScreen> {
         _error = e.toString().replaceFirst('ApiException: ', '').replaceFirst('Exception: ', '');
       });
     }
-  }
-
-  void _generateDynamicPayslips() {
-    final currentYear = DateTime.now().year;
-    final currentMonthIdx = DateTime.now().month;
-    const monthNames = [
-      'January', 'February', 'March', 'April', 'May', 'June',
-      'July', 'August', 'September', 'October', 'November', 'December'
-    ];
-
-    double basic = 45000;
-    double allowances = 30000;
-    double deductions = 15750;
-    double gross = 75000;
-    double net = 59250;
-
-    final list = <Map<String, dynamic>>[];
-    for (int i = currentMonthIdx; i >= 1; i--) {
-      final monthName = monthNames[i - 1];
-      list.add({
-        'id': 'ps-$currentYear-$i',
-        'month': monthName,
-        'year': currentYear,
-        'basicSalary': basic,
-        'allowances': allowances,
-        'grossPay': gross,
-        'deductions': deductions,
-        'netPay': net,
-        'status': i == currentMonthIdx ? 'PROCESSING' : 'PAID',
-        'paidDate': '28 ${monthName.substring(0, 3)} $currentYear',
-      });
-    }
-
-    _salaryHistory = list;
   }
 
   String _formatRupees(dynamic amount, {bool isDeduction = false, bool isAddition = false}) {
@@ -221,48 +178,28 @@ class _MyPayslipsScreenState extends ConsumerState<MyPayslipsScreen> {
   }
 
   double get _monthlyGross {
-    if (_salaryWorkflow['grossPay'] != null) {
-      return (double.tryParse(_salaryWorkflow['grossPay'].toString()) ?? 75000.0);
+    final v = double.tryParse(_salaryWorkflow['grossPay']?.toString() ?? _salaryWorkflow['monthlyGross']?.toString() ?? _salaryWorkflow['gross']?.toString() ?? _salaryWorkflow['totalEarnings']?.toString() ?? '');
+    if (v != null) return v;
+    if (_salaryHistory.isNotEmpty) {
+      return double.tryParse(_salaryHistory.first['grossPay']?.toString() ?? '0') ?? 0.0;
     }
-    final s = _salaryWorkflow['structure'];
-    if (s is Map) {
-      if (s['totalEarnings'] != null) {
-        return (double.tryParse(s['totalEarnings'].toString()) ?? 75000.0);
-      }
-      final basic = double.tryParse(s['basicSalary']?.toString() ?? '0') ?? 0;
-      final hra = double.tryParse(s['hra']?.toString() ?? '0') ?? 0;
-      final conv = double.tryParse(s['conveyance']?.toString() ?? '0') ?? 0;
-      final med = double.tryParse(s['medicalAllowance']?.toString() ?? '0') ?? 0;
-      final spec = double.tryParse(s['specialAllowance']?.toString() ?? '0') ?? 0;
-      final sum = basic + hra + conv + med + spec;
-      if (sum > 0) return sum;
-    }
-    return 75000.0;
+    return 0.0;
   }
 
   double get _totalDeductions {
-    if (_salaryWorkflow['totalDeductions'] != null) {
-      return (double.tryParse(_salaryWorkflow['totalDeductions'].toString()) ?? 15750.0);
+    final v = double.tryParse(_salaryWorkflow['totalDeductions']?.toString() ?? _salaryWorkflow['deductions']?.toString() ?? '');
+    if (v != null) return v;
+    if (_salaryHistory.isNotEmpty) {
+      return double.tryParse(_salaryHistory.first['deductions']?.toString() ?? '0') ?? 0.0;
     }
-    final s = _salaryWorkflow['structure'];
-    if (s is Map) {
-      if (s['totalDeductions'] != null) {
-        return (double.tryParse(s['totalDeductions'].toString()) ?? 15750.0);
-      }
-      final basic = double.tryParse(s['basicSalary']?.toString() ?? '0') ?? 0;
-      final pf = (basic * (double.tryParse(s['pfPercent']?.toString() ?? '12') ?? 12)) / 100;
-      final esi = (basic * (double.tryParse(s['esiPercent']?.toString() ?? '0.75') ?? 0.75)) / 100;
-      final tds = (basic * (double.tryParse(s['tdsPercent']?.toString() ?? '5') ?? 5)) / 100;
-      final pt = double.tryParse(s['professionalTax']?.toString() ?? '200') ?? 200;
-      final sum = pf + esi + tds + pt;
-      if (sum > 0) return sum;
-    }
-    return 15750.0;
+    return 0.0;
   }
 
   double get _netTakeHome {
-    if (_salaryWorkflow['netPay'] != null) {
-      return (double.tryParse(_salaryWorkflow['netPay'].toString()) ?? (_monthlyGross - _totalDeductions));
+    final v = double.tryParse(_salaryWorkflow['netPay']?.toString() ?? _salaryWorkflow['takeHome']?.toString() ?? _salaryWorkflow['net']?.toString() ?? '');
+    if (v != null) return v;
+    if (_salaryHistory.isNotEmpty) {
+      return double.tryParse(_salaryHistory.first['netPay']?.toString() ?? '0') ?? 0.0;
     }
     return _monthlyGross - _totalDeductions;
   }
@@ -276,8 +213,7 @@ class _MyPayslipsScreenState extends ConsumerState<MyPayslipsScreen> {
         total += net;
       }
     }
-    if (total > 0) return total;
-    return 651750.0;
+    return total;
   }
 
   Future<void> _downloadPayslipPdf(Map<String, dynamic> record) async {
@@ -347,7 +283,7 @@ class _MyPayslipsScreenState extends ConsumerState<MyPayslipsScreen> {
     final status = record['status']?.toString().toUpperCase() ?? 'PAID';
     final payDate = record['paidDate']?.toString() ?? record['paymentDate']?.toString() ?? record['payDate']?.toString() ?? '28 ${record['month']?.toString().substring(0, math.min(3, record['month'].toString().length))} ${record['year'] ?? 2026}';
     final employeeName = user?.fullName.isNotEmpty == true ? user!.fullName : 'Employee One';
-    final employeeId = user?.employeeId?.isNotEmpty == true ? user!.employeeId! : '4162fd09-7555-424b-b0a9-6e241feba543';
+    final employeeId = (user?.employeeId != null && user!.employeeId!.isNotEmpty) ? user.employeeId! : 'EMP-26-0028';
     final designation = user?.designation?.isNotEmpty == true ? user!.designation! : 'Software Engineer';
     final department = user?.department?.isNotEmpty == true ? user!.department! : 'Engineering';
     final slipNo = 'SLIP #${period.toUpperCase()}';

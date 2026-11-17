@@ -20,7 +20,8 @@ import 'location_check_screen.dart';
 import '../../../../shared/widgets/loading_shimmer.dart';
 
 class PunchInOutScreen extends ConsumerStatefulWidget {
-  const PunchInOutScreen({super.key});
+  final bool showAppBar;
+  const PunchInOutScreen({super.key, this.showAppBar = true});
 
   @override
   ConsumerState<PunchInOutScreen> createState() => _PunchHomeState();
@@ -261,9 +262,12 @@ class _PunchHomeState extends ConsumerState<PunchInOutScreen> {
     final now = tickerAsync.value ?? DateTime.now();
 
     if (state.isLoading && state.todayRecord.isEmpty) {
-      return const GlassScaffold(
+      final skeleton = const DashboardSkeleton();
+      if (!widget.showAppBar) return skeleton;
+      return GlassScaffold(
         title: 'Punch In / Out',
-        body: DashboardSkeleton(),
+        showBottomBar: true,
+        body: skeleton,
       );
     }
 
@@ -280,13 +284,11 @@ class _PunchHomeState extends ConsumerState<PunchInOutScreen> {
     final surfaceColor = glass.cardFill;
     final borderColor = glass.cardBorder;
 
-    return GlassScaffold(
-      title: 'Punch In / Out',
-      body: RefreshIndicator(
-        onRefresh: () => ref.read(punchControllerProvider.notifier).loadAllData(),
-        child: SingleChildScrollView(
-          physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
-          padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
+    final content = RefreshIndicator(
+      onRefresh: () => ref.read(punchControllerProvider.notifier).loadAllData(),
+      child: SingleChildScrollView(
+        physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
+        padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -320,8 +322,7 @@ class _PunchHomeState extends ConsumerState<PunchInOutScreen> {
                                 IconButton(
                                   icon: const Icon(Icons.close_rounded, size: 16, color: Colors.red),
                                   onPressed: () {
-                                    ref.read(punchControllerProvider.notifier).state =
-                                        ref.read(punchControllerProvider).copyWith(clearError: true);
+                                    ref.read(punchControllerProvider.notifier).clearError();
                                   },
                                   constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
                                   padding: EdgeInsets.zero,
@@ -431,8 +432,15 @@ class _PunchHomeState extends ConsumerState<PunchInOutScreen> {
               ],
             ),
           ),
-        ),
-      );
+        );
+
+    if (!widget.showAppBar) return content;
+
+    return GlassScaffold(
+      title: 'Punch In / Out',
+      showBottomBar: true,
+      body: content,
+    );
   }
 
   Widget _buildMetricsSection(bool dark, Color text, Color muted, Color surface, Color border, DateTime now, PunchState state) {

@@ -1,3 +1,4 @@
+import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 
 @immutable
@@ -235,7 +236,78 @@ class GlassTheme extends ThemeExtension<GlassTheme> {
   @override
   GlassTheme lerp(ThemeExtension<GlassTheme>? other, double t) {
     if (other is! GlassTheme) return this;
-    return this;
+    return GlassTheme(
+      backgroundGradientColors: [
+        Color.lerp(backgroundGradientColors[0], other.backgroundGradientColors[0], t)!,
+        Color.lerp(backgroundGradientColors[1], other.backgroundGradientColors[1], t)!,
+        Color.lerp(backgroundGradientColors[2], other.backgroundGradientColors[2], t)!,
+      ],
+      blobColors: [
+        Color.lerp(blobColors[0], other.blobColors[0], t)!,
+        Color.lerp(blobColors[1], other.blobColors[1], t)!,
+        Color.lerp(blobColors[2], other.blobColors[2], t)!,
+      ],
+      blobOpacities: [
+        ui.lerpDouble(blobOpacities[0], other.blobOpacities[0], t)!,
+        ui.lerpDouble(blobOpacities[1], other.blobOpacities[1], t)!,
+        ui.lerpDouble(blobOpacities[2], other.blobOpacities[2], t)!,
+      ],
+      blobBlurs: [
+        ui.lerpDouble(blobBlurs[0], other.blobBlurs[0], t)!,
+        ui.lerpDouble(blobBlurs[1], other.blobBlurs[1], t)!,
+        ui.lerpDouble(blobBlurs[2], other.blobBlurs[2], t)!,
+      ],
+      cardFill: Color.lerp(cardFill, other.cardFill, t)!,
+      cardBorder: Color.lerp(cardBorder, other.cardBorder, t)!,
+      cardBlur: ui.lerpDouble(cardBlur, other.cardBlur, t)!,
+      cardShadow: other.cardShadow,
+      cardRadius: ui.lerpDouble(cardRadius, other.cardRadius, t)!,
+      headerFill: Color.lerp(headerFill, other.headerFill, t)!,
+      headerBorder: Color.lerp(headerBorder, other.headerBorder, t)!,
+      headerBlur: ui.lerpDouble(headerBlur, other.headerBlur, t)!,
+      headerRadius: ui.lerpDouble(headerRadius, other.headerRadius, t)!,
+      searchFill: Color.lerp(searchFill, other.searchFill, t)!,
+      searchBorder: Color.lerp(searchBorder, other.searchBorder, t)!,
+      searchBlur: ui.lerpDouble(searchBlur, other.searchBlur, t)!,
+      searchRadius: ui.lerpDouble(searchRadius, other.searchRadius, t)!,
+      searchPlaceholder: Color.lerp(searchPlaceholder, other.searchPlaceholder, t)!,
+      navFill: Color.lerp(navFill, other.navFill, t)!,
+      navBorder: Color.lerp(navBorder, other.navBorder, t)!,
+      navBlur: ui.lerpDouble(navBlur, other.navBlur, t)!,
+      navShadow: other.navShadow,
+      navRadius: ui.lerpDouble(navRadius, other.navRadius, t)!,
+      textPrimary: Color.lerp(textPrimary, other.textPrimary, t)!,
+      textSecondary: Color.lerp(textSecondary, other.textSecondary, t)!,
+      chevronColor: Color.lerp(chevronColor, other.chevronColor, t)!,
+      badgeFill: Color.lerp(badgeFill, other.badgeFill, t)!,
+      badgeText: Color.lerp(badgeText, other.badgeText, t)!,
+      activeTabFill: Color.lerp(activeTabFill, other.activeTabFill, t)!,
+      activeTabContent: Color.lerp(activeTabContent, other.activeTabContent, t)!,
+      inactiveTab: Color.lerp(inactiveTab, other.inactiveTab, t)!,
+      headerIconTileFill: Color.lerp(headerIconTileFill, other.headerIconTileFill, t)!,
+      headerIconColor: Color.lerp(headerIconColor, other.headerIconColor, t)!,
+      avatarGradient: [
+        Color.lerp(avatarGradient[0], other.avatarGradient[0], t)!,
+        Color.lerp(avatarGradient[1], other.avatarGradient[1], t)!,
+      ],
+      avatarRing: Color.lerp(avatarRing, other.avatarRing, t)!,
+      moduleGradients: moduleGradients,
+      success: Color.lerp(success, other.success, t)!,
+      warning: Color.lerp(warning, other.warning, t)!,
+      error: Color.lerp(error, other.error, t)!,
+      info: Color.lerp(info, other.info, t)!,
+      pending: Color.lerp(pending, other.pending, t)!,
+      successTint: Color.lerp(successTint, other.successTint, t)!,
+      successText: Color.lerp(successText, other.successText, t)!,
+      warningTint: Color.lerp(warningTint, other.warningTint, t)!,
+      warningText: Color.lerp(warningText, other.warningText, t)!,
+      errorTint: Color.lerp(errorTint, other.errorTint, t)!,
+      errorText: Color.lerp(errorText, other.errorText, t)!,
+      infoTint: Color.lerp(infoTint, other.infoTint, t)!,
+      infoText: Color.lerp(infoText, other.infoText, t)!,
+      pendingTint: Color.lerp(pendingTint, other.pendingTint, t)!,
+      pendingText: Color.lerp(pendingText, other.pendingText, t)!,
+    );
   }
 
   static final light = GlassTheme(
@@ -265,7 +337,7 @@ class GlassTheme extends ThemeExtension<GlassTheme> {
     searchFill: Color(0xECFFFFFF),
     searchBorder: Color(0xD9FFFFFF),
     searchBlur: 20,
-    searchRadius: 22, // spec: 22
+    searchRadius: 22,
     searchPlaceholder: Color(0xFF475569),
     navFill: Color(0xE6FFFFFF),
     navBorder: Color(0xE6FFFFFF),
@@ -313,38 +385,38 @@ class GlassTheme extends ThemeExtension<GlassTheme> {
 
   static final dark = GlassTheme(
     backgroundGradientColors: const [
-      Color(0xFF0F2E2C),
-      Color(0xFF133835),
-      Color(0xFF182A40),
+      Color(0xFF0F172A), // Deep slate background
+      Color(0xFF132238),
+      Color(0xFF1B2A42),
     ],
     blobColors: const [
       Color(0xFF0F9D8A),
       Color(0xFF4F46E5),
       Color(0xFFC2570C),
     ],
-    blobOpacities: const [0.55, 0.55, 0.5],
+    blobOpacities: const [0.33, 0.33, 0.3], // Reduced green & blue glow intensity by ~40%
     blobBlurs: const [65, 70, 70],
-    cardFill: Color(0xFF1B2A38),
-    cardBorder: Color(0x33FFFFFF),
+    cardFill: Color(0xFF1E293B), // Slightly lighter surface than bg
+    cardBorder: Color(0x19FFFFFF), // 1px border at ~10% white
     cardBlur: 18,
     cardShadow: const [
-      BoxShadow(color: Color.fromRGBO(0, 0, 0, 0.3), blurRadius: 24, offset: Offset(0, 8)),
+      BoxShadow(color: Color.fromRGBO(0, 0, 0, 0.2), blurRadius: 24, offset: Offset(0, 8)),
     ],
     cardRadius: 22,
-    headerFill: Color(0xFF1B2A38),
-    headerBorder: Color(0x33FFFFFF),
+    headerFill: Color(0xFF1E293B),
+    headerBorder: Color(0x19FFFFFF),
     headerBlur: 20,
     headerRadius: 24,
-    searchFill: Color(0xFF1E2D3E),
-    searchBorder: Color(0x33FFFFFF),
+    searchFill: Color(0xFF1E293B),
+    searchBorder: Color(0x19FFFFFF),
     searchBlur: 20,
-    searchRadius: 22, // spec: 22
+    searchRadius: 22,
     searchPlaceholder: Color(0xFFA3AFBD),
-    navFill: Color(0xFF152230),
-    navBorder: Color(0x33FFFFFF),
+    navFill: Color(0xFF1E293B),
+    navBorder: Color(0x19FFFFFF),
     navBlur: 24,
     navShadow: const [
-      BoxShadow(color: Color.fromRGBO(0, 0, 0, 0.45), blurRadius: 32, offset: Offset(0, 12)),
+      BoxShadow(color: Color.fromRGBO(0, 0, 0, 0.3), blurRadius: 32, offset: Offset(0, 12)),
     ],
     navRadius: 28,
     textPrimary: Color(0xFFF8FAFC),

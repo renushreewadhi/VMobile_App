@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -371,8 +372,22 @@ class _BreakTrackerScreenState extends ConsumerState<BreakTrackerScreen> {
     _timerInterval?.cancel();
     _timerInterval = Timer.periodic(const Duration(seconds: 1), (_) {
       if (!mounted) return;
-      setState(() => _elapsedSeconds++);
+      if (_activeBreak != null && _activeBreak!['startTime'] is DateTime) {
+        final start = _activeBreak!['startTime'] as DateTime;
+        final elapsed = DateTime.now().difference(start).inSeconds;
+        setState(() => _elapsedSeconds = elapsed > 0 ? elapsed : 0);
+      } else {
+        setState(() => _elapsedSeconds++);
+      }
     });
+  }
+
+  String _formatTimerClock(int totalSeconds) {
+    if (totalSeconds < 0) totalSeconds = 0;
+    final hours = totalSeconds ~/ 3600;
+    final minutes = (totalSeconds % 3600) ~/ 60;
+    final seconds = totalSeconds % 60;
+    return '${hours.toString().padLeft(2, '0')}:${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}';
   }
 
   String _formatTimeOnly(DateTime d) {
@@ -717,46 +732,116 @@ class _BreakTrackerScreenState extends ConsumerState<BreakTrackerScreen> {
         ),
         const SizedBox(height: 10),
 
-        // 2. Active Break Banner Row (Slim ~54px)
+        // 2. Active Break Card with Live Digital Clock Timer (Matching HRMS Website)
         if (_activeBreak != null && _isTodaySelected)
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
             decoration: BoxDecoration(
-              gradient: const LinearGradient(colors: [Color(0xFFE0F2FE), Color(0xFFDBEAFE)]),
-              borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: const Color(0xFFBAE6FD)),
-            ),
-            child: Row(
-              children: [
-                const Icon(Icons.coffee, color: Color(0xFF0284C7), size: 20),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        '${_activeBreak!['type']} in Progress',
-                        style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Color(0xFF0F172A)),
-                      ),
-                      Text(
-                        'Started ${_activeBreak!['startTimeDisplay']} · Elapsed: ${_formatDuration(_elapsedSeconds)}',
-                        style: const TextStyle(fontSize: 11, color: Color(0xFF475569)),
-                      ),
-                    ],
-                  ),
+              gradient: isDark
+                  ? const LinearGradient(colors: [Color(0xFF0F172A), Color(0xFF1E293B)])
+                  : const LinearGradient(colors: [Color(0xFFEFF6FF), Color(0xFFE0F2FE)]),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: isDark ? const Color(0xFF334155) : const Color(0xFFBAE6FD), width: 1.5),
+              boxShadow: [
+                BoxShadow(
+                  color: (isDark ? Colors.black : const Color(0xFF0284C7)).withOpacity(0.08),
+                  blurRadius: 10,
+                  offset: const Offset(0, 4),
                 ),
-                ElevatedButton.icon(
-                  onPressed: _stopBreak,
-                  icon: const Icon(Icons.stop, color: Colors.white, size: 14),
-                  label: const Text('End', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: Colors.white)),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFFDC2626),
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                    minimumSize: Size.zero,
-                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                  ),
+              ],
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(6),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF0284C7).withOpacity(0.15),
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(Icons.coffee_rounded, color: Color(0xFF0284C7), size: 16),
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          '${_activeBreak!['type']} in Progress',
+                          style: TextStyle(
+                            fontSize: 13.5,
+                            fontWeight: FontWeight.bold,
+                            color: isDark ? const Color(0xFFF8FAFC) : const Color(0xFF0F172A),
+                          ),
+                        ),
+                      ],
+                    ),
+                    Text(
+                      'Started ${_activeBreak!['startTimeDisplay']}',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF475569),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'ELAPSED TIME',
+                          style: TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: 1.1,
+                            color: Color(0xFF64748B),
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          _formatTimerClock(_elapsedSeconds),
+                          style: TextStyle(
+                            fontSize: 28,
+                            fontWeight: FontWeight.w900,
+                            letterSpacing: 1.2,
+                            fontFeatures: const [FontFeature.tabularFigures()],
+                            color: isDark ? const Color(0xFFF8FAFC) : const Color(0xFF0F172A),
+                          ),
+                        ),
+                        if (_activeBreak!['maxMinutes'] != null)
+                          Text(
+                            'of ${_activeBreak!['maxMinutes']} mins',
+                            style: const TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w500,
+                              color: Color(0xFF64748B),
+                            ),
+                          ),
+                      ],
+                    ),
+                    ElevatedButton.icon(
+                      onPressed: _stopBreak,
+                      icon: const Icon(Icons.stop_rounded, color: Colors.white, size: 16),
+                      label: const Text(
+                        'End Break',
+                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.white),
+                      ),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFFDC2626),
+                        foregroundColor: Colors.white,
+                        elevation: 2,
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),
@@ -1066,11 +1151,16 @@ class _BreakTrackerScreenState extends ConsumerState<BreakTrackerScreen> {
                       const SizedBox(width: 6),
                       if (isOngoing)
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                           decoration: BoxDecoration(color: const Color(0xFFFFEDD5), borderRadius: BorderRadius.circular(6)),
                           child: Text(
-                            _formatDuration(_elapsedSeconds),
-                            style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Color(0xFFC2410C)),
+                            _formatTimerClock(_elapsedSeconds),
+                            style: const TextStyle(
+                              fontSize: 10.5,
+                              fontWeight: FontWeight.bold,
+                              color: Color(0xFFC2410C),
+                              fontFeatures: [FontFeature.tabularFigures()],
+                            ),
                           ),
                         )
                       else ...[

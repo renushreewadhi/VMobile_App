@@ -17,7 +17,7 @@ class ApplyLeaveScreen extends ConsumerStatefulWidget {
   ConsumerState<ApplyLeaveScreen> createState() => _ApplyLeaveScreenState();
 }
 
-class _ApplyLeaveScreenState extends ConsumerState<ApplyLeaveScreen> {
+class _ApplyLeaveScreenState extends ConsumerState<ApplyLeaveScreen> with SingleTickerProviderStateMixin {
   final _formKey = GlobalKey<FormState>();
   final _companyEmailController = TextEditingController();
   final _contactPhoneController = TextEditingController();
@@ -40,18 +40,26 @@ class _ApplyLeaveScreenState extends ConsumerState<ApplyLeaveScreen> {
     'Half Day (Second Half)',
   ];
 
+  late final AnimationController _animController;
+
   @override
   void initState() {
     super.initState();
+    _animController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 400),
+    );
     final user = ref.read(authServiceProvider).user;
     if (user != null) {
       _companyEmailController.text = user.email;
     }
     _loadBalances();
+    _animController.forward();
   }
 
   @override
   void dispose() {
+    _animController.dispose();
     _companyEmailController.dispose();
     _contactPhoneController.dispose();
     _reasonController.dispose();
@@ -212,6 +220,7 @@ class _ApplyLeaveScreenState extends ConsumerState<ApplyLeaveScreen> {
       _error = null;
     });
 
+    final summaryDays = _totalDaysFormatted;
     final effectiveEndDate = _selectedDuration != 'Full Day(s)' ? _startDate! : _endDate!;
     final email = _companyEmailController.text.trim();
     final contact = _contactPhoneController.text.trim();
@@ -241,7 +250,7 @@ class _ApplyLeaveScreenState extends ConsumerState<ApplyLeaveScreen> {
         _reasonController.clear();
       });
 
-      _showSuccessDialog();
+      _showSuccessDialog(summaryDays);
     } catch (e) {
       if (!mounted) return;
 
@@ -260,7 +269,7 @@ class _ApplyLeaveScreenState extends ConsumerState<ApplyLeaveScreen> {
     }
   }
 
-  void _showSuccessDialog() {
+  void _showSuccessDialog(String totalDays) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     showDialog<void>(
@@ -291,7 +300,7 @@ class _ApplyLeaveScreenState extends ConsumerState<ApplyLeaveScreen> {
           ],
         ),
         content: Text(
-          'Your request for $_selectedLeaveTypeKey ($_totalDaysFormatted) has been submitted successfully for manager approval.',
+          'Your request for $_selectedLeaveTypeKey ($totalDays) has been submitted successfully for manager approval.',
           style: const TextStyle(
             fontSize: 13,
             color: AppColors.lightSecondaryText,
@@ -331,20 +340,24 @@ class _ApplyLeaveScreenState extends ConsumerState<ApplyLeaveScreen> {
   }
 
   Widget _label(bool dark, String label, {bool isMandatory = false}) {
-    return RichText(
-      text: TextSpan(
-        text: label,
-        style: TextStyle(
-          color: dark ? AppColors.darkPrimaryText : AppColors.lightPrimaryText,
-          fontSize: 12,
-          fontWeight: FontWeight.w700,
-        ),
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 6),
+      child: Row(
         children: [
+          Text(
+            label,
+            style: TextStyle(
+              color: dark ? const Color(0xFFCBD5E1) : const Color(0xFF334155),
+              fontSize: 12,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
           if (isMandatory)
-            const TextSpan(
-              text: ' *',
+            const Text(
+              ' *',
               style: TextStyle(
                 color: Colors.redAccent,
+                fontSize: 12,
                 fontWeight: FontWeight.bold,
               ),
             ),
@@ -356,39 +369,40 @@ class _ApplyLeaveScreenState extends ConsumerState<ApplyLeaveScreen> {
   InputDecoration _inputDecoration(bool dark, String hint) {
     return InputDecoration(
       hintText: hint,
-      hintStyle: TextStyle(color: dark ? AppColors.darkMutedText : AppColors.lightMutedText, fontSize: 12),
+      hintStyle: TextStyle(color: dark ? AppColors.darkMutedText : const Color(0xFF94A3B8), fontSize: 13),
       filled: true,
-      fillColor: dark ? AppColors.darkMainSurface : AppColors.lightInputBackground,
-      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+      fillColor: dark ? AppColors.darkMainSurface : Colors.white,
+      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
       border: OutlineInputBorder(
         borderRadius: BorderRadius.circular(12),
-        borderSide: BorderSide(color: dark ? AppColors.darkBordersAndDividers : AppColors.lightBordersAndDividers),
+        borderSide: BorderSide(color: dark ? AppColors.darkBordersAndDividers : const Color(0xFFE5E7EB), width: 1),
       ),
       enabledBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(12),
-        borderSide: BorderSide(color: dark ? AppColors.darkBordersAndDividers : AppColors.lightBordersAndDividers),
+        borderSide: BorderSide(color: dark ? AppColors.darkBordersAndDividers : const Color(0xFFE5E7EB), width: 1),
       ),
-      focusedBorder: const OutlineInputBorder(
-        borderRadius: BorderRadius.all(Radius.circular(12)),
-        borderSide: BorderSide(color: AppColors.primary, width: 1.5),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: const BorderSide(color: AppColors.primary, width: 1.5),
       ),
-      errorStyle: const TextStyle(fontSize: 10),
+      errorStyle: const TextStyle(fontSize: 11),
     );
   }
 
   Widget _datePickerTile(bool dark, DateTime? date, VoidCallback onTap) {
     final isSelected = date != null;
     return Material(
-      color: dark ? AppColors.darkMainSurface : AppColors.lightInputBackground,
+      color: dark ? AppColors.darkMainSurface : Colors.white,
       borderRadius: BorderRadius.circular(12),
       child: InkWell(
         onTap: onTap,
         borderRadius: BorderRadius.circular(12),
         child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+          height: 48,
+          padding: const EdgeInsets.symmetric(horizontal: 12),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: dark ? AppColors.darkBordersAndDividers : AppColors.lightBordersAndDividers),
+            border: Border.all(color: dark ? AppColors.darkBordersAndDividers : const Color(0xFFE5E7EB), width: 1),
           ),
           child: Row(
             children: [
@@ -396,9 +410,9 @@ class _ApplyLeaveScreenState extends ConsumerState<ApplyLeaveScreen> {
                 child: Text(
                   _formatMmDdYyyy(date),
                   style: TextStyle(
-                    color: isSelected ? (dark ? AppColors.darkPrimaryText : AppColors.lightPrimaryText) : (dark ? AppColors.darkMutedText : AppColors.lightMutedText),
-                    fontSize: 13,
-                    fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
+                    color: isSelected ? (dark ? AppColors.darkPrimaryText : AppColors.lightPrimaryText) : (dark ? AppColors.darkMutedText : const Color(0xFF94A3B8)),
+                    fontSize: 14,
+                    fontWeight: isSelected ? FontWeight.w500 : FontWeight.w400,
                   ),
                 ),
               ),
@@ -418,295 +432,376 @@ class _ApplyLeaveScreenState extends ConsumerState<ApplyLeaveScreen> {
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
-    return GlassScaffold(
-      title: 'Leave Request Form',
-      body: SafeArea(
-        child: Form(
-          key: _formKey,
-          child: SingleChildScrollView(
+    final formContent = Form(
+      key: _formKey,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          AppCard(
             padding: const EdgeInsets.all(16),
-            keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                AppCard(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          const Text(
-                            'Leave Request Form',
-                            style: TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                          if (_loadingBalances)
-                            const SizedBox(
-                              width: 14,
-                              height: 14,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                color: AppColors.primary,
-                              ),
-                            ),
-                        ],
-                      ),
-                      const SizedBox(height: 4),
-                      const Text(
-                        '* Mandatory fields',
-                        style: TextStyle(
-                          color: Colors.redAccent,
-                          fontSize: 11,
-                          fontWeight: FontWeight.w600,
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    if (_loadingBalances)
+                      const SizedBox(
+                        width: 14,
+                        height: 14,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: AppColors.primary,
                         ),
                       ),
-                      const SizedBox(height: 18),
+                  ],
+                ),
+                const Text(
+                  '* Mandatory fields',
+                  style: TextStyle(
+                    color: Color.fromRGBO(220, 38, 38, 0.8),
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                const SizedBox(height: 14),
 
-                      // 1. Leave Type *
-                      _label(isDark, 'Leave Type', isMandatory: true),
-                      const SizedBox(height: 6),
-                      Builder(
-                        builder: (context) {
-                          if (_loadingBalances) {
-                            return Container(
-                              padding: const EdgeInsets.all(14),
-                              decoration: BoxDecoration(
-                                borderRadius: BorderRadius.circular(12),
-                                border: Border.all(color: isDark ? AppColors.darkBordersAndDividers : AppColors.lightBordersAndDividers),
-                              ),
-                              child: const Row(
-                                children: [
-                                  SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)),
-                                  SizedBox(width: 12),
-                                  Text('Loading available leave balances...'),
-                                ],
-                              ),
-                            );
-                          }
+                // Group 1: Leave Type & Duration
+                _label(isDark, 'Leave Type', isMandatory: true),
+                Builder(
+                  builder: (context) {
+                    if (_loadingBalances) {
+                      return Container(
+                        height: 48,
+                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: darkBorder(isDark)),
+                        ),
+                        child: const Row(
+                          children: [
+                            SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)),
+                            SizedBox(width: 12),
+                            Text('Loading available leave balances...', style: TextStyle(fontSize: 13)),
+                          ],
+                        ),
+                      );
+                    }
 
-                          if (_leaveTypeOptions.isEmpty) {
-                            return Container(
-                              padding: const EdgeInsets.all(14),
-                              decoration: BoxDecoration(
-                                borderRadius: BorderRadius.circular(12),
-                                border: Border.all(color: Colors.redAccent.withValues(alpha: 0.5)),
-                              ),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  const Text(
-                                    'No leave balances available or server unavailable.',
-                                    style: TextStyle(color: Colors.redAccent, fontSize: 12, fontWeight: FontWeight.w600),
-                                  ),
-                                  const SizedBox(height: 8),
-                                  TextButton.icon(
-                                    onPressed: _loadBalances,
-                                    icon: const Icon(Icons.refresh_rounded, size: 16),
-                                    label: const Text('Retry Loading Balances'),
-                                  ),
-                                ],
-                              ),
-                            );
-                          }
-
-                          final validLeaveTypeValue = _leaveTypeOptions.containsKey(_selectedLeaveTypeKey)
-                              ? _selectedLeaveTypeKey
-                              : _leaveTypeOptions.keys.first;
-
-                          return DropdownButtonFormField<String>(
-                            value: validLeaveTypeValue,
-                            isExpanded: true,
-                            dropdownColor: isDark ? AppColors.darkMainSurface : Colors.white,
-                            style: TextStyle(
-                              color: isDark ? AppColors.darkPrimaryText : AppColors.lightPrimaryText,
-                              fontSize: 13,
-                              fontWeight: FontWeight.w600,
+                    if (_leaveTypeOptions.isEmpty) {
+                      return Container(
+                        padding: const EdgeInsets.all(14),
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: Colors.redAccent.withOpacity(0.5)),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'No leave balances available or server unavailable.',
+                              style: TextStyle(color: Colors.redAccent, fontSize: 12, fontWeight: FontWeight.w600),
                             ),
-                            decoration: _inputDecoration(isDark, 'Select leave type'),
-                            items: _leaveTypeOptions.entries
-                                .map(
-                                  (entry) => DropdownMenuItem<String>(
-                                    value: entry.key,
-                                    child: Text(
-                                      entry.value,
-                                      overflow: TextOverflow.ellipsis,
-                                    ),
-                                  ),
-                                )
-                                .toList(),
-                            onChanged: (val) {
-                              if (val != null) {
-                                setState(() => _selectedLeaveTypeKey = val);
-                              }
-                            },
-                          );
-                        },
-                      ),
-                      const SizedBox(height: 16),
+                            const SizedBox(height: 8),
+                            TextButton.icon(
+                              onPressed: _loadBalances,
+                              icon: const Icon(Icons.refresh_rounded, size: 16),
+                              label: const Text('Retry Loading Balances'),
+                            ),
+                          ],
+                        ),
+                      );
+                    }
 
-                      // 2. Duration *
-                      _label(isDark, 'Duration', isMandatory: true),
-                      const SizedBox(height: 6),
-                      DropdownButtonFormField<String>(
-                        value: _selectedDuration,
+                    final validLeaveTypeValue = _leaveTypeOptions.containsKey(_selectedLeaveTypeKey)
+                        ? _selectedLeaveTypeKey
+                        : _leaveTypeOptions.keys.first;
+
+                    return SizedBox(
+                      height: 48,
+                      child: DropdownButtonFormField<String>(
+                        value: validLeaveTypeValue,
+                        isExpanded: true,
                         dropdownColor: isDark ? AppColors.darkMainSurface : Colors.white,
                         style: TextStyle(
                           color: isDark ? AppColors.darkPrimaryText : AppColors.lightPrimaryText,
-                          fontSize: 13,
-                          fontWeight: FontWeight.w600,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w500,
                         ),
-                        decoration: _inputDecoration(isDark, 'Select duration'),
-                        items: _durationOptions
+                        decoration: _inputDecoration(isDark, 'Select leave type').copyWith(
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: BorderSide(color: isDark ? AppColors.darkBordersAndDividers : const Color(0xFFE5E7EB), width: 1),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: const BorderSide(color: AppColors.primary, width: 1.5),
+                          ),
+                        ),
+                        icon: const Icon(Icons.arrow_drop_down_rounded, color: AppColors.primary, size: 20),
+                        items: _leaveTypeOptions.entries
                             .map(
-                              (opt) => DropdownMenuItem(
-                                value: opt,
-                                child: Text(opt),
+                              (entry) => DropdownMenuItem<String>(
+                                value: entry.key,
+                                child: Text(
+                                  entry.value,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
                               ),
                             )
                             .toList(),
                         onChanged: (val) {
                           if (val != null) {
-                            setState(() => _selectedDuration = val);
+                            setState(() => _selectedLeaveTypeKey = val);
                           }
                         },
                       ),
-                      const SizedBox(height: 16),
+                    );
+                  },
+                ),
+                const SizedBox(height: 14),
 
-                      // 3. Start Date *
-                      _label(isDark, 'Start Date', isMandatory: true),
-                      const SizedBox(height: 6),
-                      _datePickerTile(
-                        isDark,
-                        _startDate,
-                        () => _pickDate(isStart: true),
-                      ),
-                      const SizedBox(height: 16),
-
-                      // 4. End Date * (disabled if Half Day)
-                      _label(isDark, 'End Date', isMandatory: true),
-                      const SizedBox(height: 6),
-                      _datePickerTile(
-                        isDark,
-                        _selectedDuration != 'Full Day(s)' ? _startDate : _endDate,
-                        _selectedDuration != 'Full Day(s)' ? () {} : () => _pickDate(isStart: false),
-                      ),
-                      const SizedBox(height: 16),
-
-                      // 5. Total Days
-                      _label(isDark, 'Total Days'),
-                      const SizedBox(height: 6),
-                      Container(
-                        width: double.infinity,
-                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-                        decoration: BoxDecoration(
-                          color: AppColors.primary.withOpacity(0.1),
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: AppColors.primary.withOpacity(0.3)),
-                        ),
-                        child: Text(
-                          _totalDaysFormatted,
-                          style: TextStyle(
-                            color: isDark ? AppColors.darkPrimaryText : AppColors.lightPrimaryText,
-                            fontSize: 14,
-                            fontWeight: FontWeight.bold,
+                _label(isDark, 'Duration', isMandatory: true),
+                SizedBox(
+                  height: 48,
+                  child: DropdownButtonFormField<String>(
+                    value: _selectedDuration,
+                    dropdownColor: isDark ? AppColors.darkMainSurface : Colors.white,
+                    style: TextStyle(
+                      color: isDark ? AppColors.darkPrimaryText : AppColors.lightPrimaryText,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w500,
+                    ),
+                    decoration: _inputDecoration(isDark, 'Select duration'),
+                    icon: const Icon(Icons.arrow_drop_down_rounded, color: AppColors.primary, size: 20),
+                    items: _durationOptions
+                        .map(
+                          (opt) => DropdownMenuItem(
+                            value: opt,
+                            child: Text(opt),
                           ),
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-
-                      // 6. Company Mail ID *
-                      _label(isDark, 'Company Mail ID', isMandatory: true),
-                      const SizedBox(height: 6),
-                      TextFormField(
-                        controller: _companyEmailController,
-                        keyboardType: TextInputType.emailAddress,
-                        style: TextStyle(
-                          color: isDark ? AppColors.darkPrimaryText : AppColors.lightPrimaryText,
-                          fontSize: 13,
-                          fontWeight: FontWeight.w600,
-                        ),
-                        decoration: _inputDecoration(isDark, 'emp@company.com'),
-                        validator: (val) {
-                          if (val == null || val.trim().isEmpty) {
-                            return 'Company Mail ID is required';
-                          }
-                          if (!RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$').hasMatch(val.trim())) {
-                            return 'Enter a valid email address';
-                          }
-                          return null;
-                        },
-                      ),
-                      const SizedBox(height: 16),
-
-                      // 7. Contact During Leave
-                      _label(isDark, 'Contact During Leave'),
-                      const SizedBox(height: 6),
-                      TextFormField(
-                        controller: _contactPhoneController,
-                        keyboardType: TextInputType.phone,
-                        style: TextStyle(
-                          color: isDark ? AppColors.darkPrimaryText : AppColors.lightPrimaryText,
-                          fontSize: 13,
-                          fontWeight: FontWeight.w600,
-                        ),
-                        decoration: _inputDecoration(isDark, '+91 98765 43210'),
-                      ),
-                      const SizedBox(height: 16),
-
-                      // 8. Reason for Leave *
-                      _label(isDark, 'Reason for Leave', isMandatory: true),
-                      const SizedBox(height: 6),
-                      TextFormField(
-                        controller: _reasonController,
-                        maxLines: 3,
-                        style: TextStyle(
-                          color: isDark ? AppColors.darkPrimaryText : AppColors.lightPrimaryText,
-                          fontSize: 13,
-                        ),
-                        decoration: _inputDecoration(isDark, 'Provide context or description for your manager...'),
-                        validator: (val) {
-                          if (val == null || val.trim().isEmpty) {
-                            return 'Please enter a reason for your leave';
-                          }
-                          return null;
-                        },
-                      ),
-
-                      if (_error != null) ...[
-                        const SizedBox(height: 12),
-                        Text(_error!, style: const TextStyle(color: Colors.redAccent, fontSize: 12)),
-                      ],
-
-                      const SizedBox(height: 20),
-                      SizedBox(
-                        width: double.infinity,
-                        height: 48,
-                        child: ElevatedButton.icon(
-                          onPressed: (_loadingBalances || _leaveTypeOptions.isEmpty || _submitting) ? null : _submit,
-                          icon: _submitting
-                              ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                              : const Icon(Icons.send_rounded, size: 18, color: Colors.white),
-                          label: Text(
-                            _submitting ? 'Submitting...' : 'Submit Leave Request',
-                            style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.bold),
-                          ),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: AppColors.primary,
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                          ),
-                        ),
-                      ),
-                    ],
+                        )
+                        .toList(),
+                    onChanged: (val) {
+                      if (val != null) {
+                        setState(() => _selectedDuration = val);
+                      }
+                    },
                   ),
                 ),
+                const SizedBox(height: 22),
+
+                // Group 2: Start Date & End Date side by side + Total Days
+                Row(
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          _label(isDark, 'Start Date', isMandatory: true),
+                          _datePickerTile(
+                            isDark,
+                            _startDate,
+                            () => _pickDate(isStart: true),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          _label(isDark, 'End Date', isMandatory: true),
+                          _datePickerTile(
+                            isDark,
+                            _selectedDuration != 'Full Day(s)' ? _startDate : _endDate,
+                            _selectedDuration != 'Full Day(s)' ? () {} : () => _pickDate(isStart: false),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 14),
+
+                _label(isDark, 'Total Days'),
+                TweenAnimationBuilder<double>(
+                  key: ValueKey(_totalDaysFormatted),
+                  tween: Tween(begin: 0.92, end: 1.0),
+                  duration: const Duration(milliseconds: 200),
+                  curve: Curves.easeOutBack,
+                  builder: (context, scale, child) => Transform.scale(
+                    scale: scale,
+                    child: child,
+                  ),
+                  child: Container(
+                    height: 46,
+                    width: double.infinity,
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    alignment: Alignment.centerLeft,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFE6F4F1),
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(color: const Color(0x260D6E64), width: 1),
+                    ),
+                    child: Text(
+                      _totalDaysFormatted,
+                      style: TextStyle(
+                        color: _calculatedTotalDays > 0 ? const Color(0xFF0F5F57) : const Color(0xFF0F5F57).withOpacity(0.7),
+                        fontSize: 17,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 22),
+
+                // Group 3: Contact Details
+                _label(isDark, 'Company Mail ID', isMandatory: true),
+                SizedBox(
+                  height: 48,
+                  child: TextFormField(
+                    controller: _companyEmailController,
+                    keyboardType: TextInputType.emailAddress,
+                    style: TextStyle(
+                      color: isDark ? AppColors.darkPrimaryText : AppColors.lightPrimaryText,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w500,
+                    ),
+                    decoration: _inputDecoration(isDark, 'emp@company.com'),
+                    validator: (val) {
+                      if (val == null || val.trim().isEmpty) {
+                        return 'Company Mail ID is required';
+                      }
+                      if (!RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$').hasMatch(val.trim())) {
+                        return 'Enter a valid email address';
+                      }
+                      return null;
+                    },
+                  ),
+                ),
+                const SizedBox(height: 14),
+
+                _label(isDark, 'Contact During Leave'),
+                SizedBox(
+                  height: 48,
+                  child: TextFormField(
+                    controller: _contactPhoneController,
+                    keyboardType: TextInputType.phone,
+                    style: TextStyle(
+                      color: isDark ? AppColors.darkPrimaryText : AppColors.lightPrimaryText,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w500,
+                    ),
+                    decoration: _inputDecoration(isDark, '+91 98765 43210'),
+                  ),
+                ),
+                const SizedBox(height: 22),
+
+                // Group 4: Reason for Leave
+                _label(isDark, 'Reason for Leave', isMandatory: true),
+                TextFormField(
+                  controller: _reasonController,
+                  minLines: 3,
+                  maxLines: 4,
+                  style: TextStyle(
+                    color: isDark ? AppColors.darkPrimaryText : AppColors.lightPrimaryText,
+                    fontSize: 14,
+                    height: 1.5,
+                  ),
+                  decoration: _inputDecoration(isDark, 'Provide context or description for your manager...'),
+                  validator: (val) {
+                    if (val == null || val.trim().isEmpty) {
+                      return 'Please enter a reason for your leave';
+                    }
+                    return null;
+                  },
+                ),
+
+                if (_error != null) ...[
+                  const SizedBox(height: 12),
+                  Text(_error!, style: const TextStyle(color: Colors.redAccent, fontSize: 12)),
+                ],
               ],
+            ),
+          ),
+        ],
+      ),
+    );
+
+    final scrollContent = SingleChildScrollView(
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 110),
+      keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+      child: formContent,
+    );
+
+    final bottomInset = MediaQuery.viewInsetsOf(context).bottom;
+    final stickyBottomBar = Positioned(
+      left: 0,
+      right: 0,
+      bottom: bottomInset,
+      child: Container(
+        padding: EdgeInsets.fromLTRB(16, 16, 16, MediaQuery.paddingOf(context).bottom + 16),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [
+              (isDark ? AppColors.darkAppBackground : AppColors.lightAppBackground).withOpacity(0.0),
+              (isDark ? AppColors.darkAppBackground : AppColors.lightAppBackground).withOpacity(0.95),
+              (isDark ? AppColors.darkAppBackground : AppColors.lightAppBackground),
+            ],
+            stops: const [0.0, 0.4, 1.0],
+          ),
+        ),
+        child: SizedBox(
+          height: 50,
+          width: double.infinity,
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              color: AppColors.primary,
+              borderRadius: BorderRadius.circular(14),
+              boxShadow: const [
+                BoxShadow(
+                  color: Color.fromRGBO(13, 110, 100, 0.22),
+                  blurRadius: 12,
+                  offset: Offset(0, 4),
+                ),
+              ],
+            ),
+            child: ElevatedButton.icon(
+              onPressed: (_loadingBalances || _leaveTypeOptions.isEmpty || _submitting) ? null : _submit,
+              icon: _submitting
+                  ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                  : const Icon(Icons.check_circle_outline_rounded, size: 18, color: Colors.white),
+              label: Text(
+                _submitting ? 'Submitting...' : 'Submit Leave Request',
+                style: const TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.w600),
+              ),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.transparent,
+                shadowColor: Colors.transparent,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+              ),
             ),
           ),
         ),
       ),
     );
+
+    return GlassScaffold(
+      title: 'Leave Request Form',
+      body: SafeArea(
+        child: Stack(
+          children: [
+            scrollContent,
+            stickyBottomBar,
+          ],
+        ),
+      ),
+    );
   }
+
+  Color darkBorder(bool isDark) => isDark ? AppColors.darkBordersAndDividers : const Color(0xFFE5E7EB);
 }

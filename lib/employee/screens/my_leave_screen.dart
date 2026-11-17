@@ -275,7 +275,7 @@ class _MyLeaveScreenState extends ConsumerState<MyLeaveScreen> {
           children: [
             // Compact Action Header Section
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
               decoration: BoxDecoration(
                 gradient: LinearGradient(
                   colors: isDark
@@ -284,13 +284,13 @@ class _MyLeaveScreenState extends ConsumerState<MyLeaveScreen> {
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
                 ),
-                borderRadius: BorderRadius.circular(16),
+                borderRadius: BorderRadius.circular(14),
                 border: Border.all(color: AppColors.primary.withOpacity(0.18)),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withOpacity(isDark ? 0.2 : 0.03),
-                    blurRadius: 6,
-                    offset: const Offset(0, 2),
+                    color: Colors.black.withOpacity(isDark ? 0.2 : 0.02),
+                    blurRadius: 4,
+                    offset: const Offset(0, 1),
                   ),
                 ],
               ),
@@ -299,20 +299,21 @@ class _MyLeaveScreenState extends ConsumerState<MyLeaveScreen> {
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
                       children: [
                         Text(
                           'Manage Your Leave',
                           style: TextStyle(
                             fontSize: 15,
-                            fontWeight: FontWeight.bold,
+                            fontWeight: FontWeight.w600,
                             color: isDark ? AppColors.darkPrimaryText : AppColors.lightPrimaryText,
                           ),
                         ),
-                        const SizedBox(height: 2),
+                        const SizedBox(height: 1),
                         Text(
                           'Track balances and apply for time off',
                           style: TextStyle(
-                            fontSize: 11,
+                            fontSize: 12,
                             color: isDark ? AppColors.darkSecondaryText : AppColors.lightSecondaryText,
                             fontWeight: FontWeight.w500,
                           ),
@@ -321,48 +322,49 @@ class _MyLeaveScreenState extends ConsumerState<MyLeaveScreen> {
                     ),
                   ),
                   const SizedBox(width: 10),
-                  ElevatedButton.icon(
-                    onPressed: _showApplyLeaveModal,
-                    icon: const Icon(Icons.add_rounded, size: 16),
-                    label: const Text('Apply Leave', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.primary,
-                      foregroundColor: Colors.white,
-                      elevation: 0,
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  SizedBox(
+                    height: 38,
+                    child: ElevatedButton.icon(
+                      onPressed: _showApplyLeaveModal,
+                      icon: const Icon(Icons.add_rounded, size: 16),
+                      label: const Text('Apply Leave', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.primary,
+                        foregroundColor: Colors.white,
+                        elevation: 0,
+                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      ),
                     ),
                   ),
                 ],
               ),
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 10),
 
-            // 1. DYNAMIC KPI OVERVIEW CARDS (Compact 2x2 Grid)
-            GridView.count(
-              crossAxisCount: 2,
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              crossAxisSpacing: 10,
-              mainAxisSpacing: 10,
-              childAspectRatio: 2.3,
+            // 1. DYNAMIC KPI OVERVIEW CARDS (Single row of 4 compact cards)
+            Row(
               children: [
-                _statCard('Total Days Available', '$_totalRemaining', Icons.event_available_rounded, const Color(0xFF2563EB), const Color(0xFFEFF6FF), isDark),
-                _statCard('Pending Approval', '$_pendingCount', Icons.access_time_rounded, const Color(0xFFD97706), const Color(0xFFFFFBEB), isDark),
-                _statCard('Approved Leaves', '$_approvedCount', Icons.check_circle_rounded, const Color(0xFF10B981), const Color(0xFFECFDF5), isDark),
-                _statCard('Total Applications', '$_totalApplied', Icons.list_alt_rounded, const Color(0xFF7C3AED), const Color(0xFFF5F3FF), isDark),
+                Expanded(child: _statCard('Total Days Available', '$_totalRemaining', Icons.event_available_rounded, const Color(0xFF2563EB), const Color(0xFFEFF6FF), isDark)),
+                const SizedBox(width: 6),
+                Expanded(child: _statCard('Pending Approval', '$_pendingCount', Icons.access_time_rounded, const Color(0xFFD97706), const Color(0xFFFFFBEB), isDark)),
+                const SizedBox(width: 6),
+                Expanded(child: _statCard('Approved Leaves', '$_approvedCount', Icons.check_circle_rounded, const Color(0xFF10B981), const Color(0xFFECFDF5), isDark)),
+                const SizedBox(width: 6),
+                Expanded(child: _statCard('Total Applications', '$_totalApplied', Icons.list_alt_rounded, const Color(0xFF7C3AED), const Color(0xFFF5F3FF), isDark)),
               ],
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 10),
 
             // 2. SEGMENTED TAB BAR (Leave Balances vs Leave History & Status)
             _buildMainLeaveTabBar(isDark),
-            const SizedBox(height: 16),
+            const SizedBox(height: 10),
 
             // 3. TAB CONTENT
             if (_activeLeaveTab == 0) ...[
               // TAB 1: INTERACTIVE LEAVE BALANCE PANEL
               AppCard(
+                padding: const EdgeInsets.all(12),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -373,21 +375,22 @@ class _MyLeaveScreenState extends ConsumerState<MyLeaveScreen> {
                           children: [
                             const Icon(Icons.pie_chart_rounded, size: 18, color: AppColors.primary),
                             const SizedBox(width: 8),
-                            Text('Leave Balances', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: glass.textPrimary)),
+                            Text('Leave Balances', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: glass.textPrimary)),
                           ],
                         ),
                         Text('Interactive Exploration', style: TextStyle(fontSize: 11, color: glass.textSecondary, fontWeight: FontWeight.w500)),
                       ],
                     ),
-                    const SizedBox(height: 14),
+                    const SizedBox(height: 10),
 
                     // 1. Segmented Control Tabs (All Leaves, Used, Remaining)
                     Container(
-                      padding: const EdgeInsets.all(4),
+                      height: 36,
+                      padding: const EdgeInsets.all(3),
                       decoration: BoxDecoration(
                         color: isDark ? const Color(0xFF131E29) : const Color(0xFFF1F5F9),
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: isDark ? AppColors.darkBordersAndDividers : const Color(0xFFE2E8F0)),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: isDark ? AppColors.darkBordersAndDividers : const Color(0xFFE5E7EB)),
                       ),
                       child: Row(
                         children: [
@@ -397,68 +400,74 @@ class _MyLeaveScreenState extends ConsumerState<MyLeaveScreen> {
                         ],
                       ),
                     ),
-                    const SizedBox(height: 16),
+                    const SizedBox(height: 12),
 
                     // 2. Selectable Leave Category Chips
                     Text('Select Leave Type', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: glass.textSecondary)),
-                    const SizedBox(height: 8),
+                    const SizedBox(height: 6),
                     ShaderMask(
                       shaderCallback: (Rect bounds) {
                         return const LinearGradient(
                           begin: Alignment.centerLeft,
                           end: Alignment.centerRight,
                           colors: [Colors.black, Colors.transparent, Colors.transparent, Colors.black],
-                          stops: [0.0, 0.02, 0.94, 1.0],
+                          stops: [0.0, 0.0, 0.96, 1.0],
                         ).createShader(bounds);
                       },
                       blendMode: BlendMode.dstOut,
                       child: SingleChildScrollView(
                         scrollDirection: Axis.horizontal,
                         physics: const BouncingScrollPhysics(),
-                        child: Row(
-                          children: _filteredBalances.map((b) {
-                          final type = b['leaveType']?.toString() ?? b['type']?.toString() ?? 'Leave';
-                          final shortName = type.replaceAll(' Leave', '');
-                          final isSelected = (_currentSelectedBalance?['leaveType'] ?? '') == type;
+                        child: Padding(
+                          padding: const EdgeInsets.only(right: 16),
+                          child: Row(
+                            children: _filteredBalances.map((b) {
+                              final type = b['leaveType']?.toString() ?? b['type']?.toString() ?? 'Leave';
+                              final shortName = type.replaceAll(' Leave', '');
+                              final isSelected = (_currentSelectedBalance?['leaveType'] ?? '') == type;
 
-                          return Padding(
-                            padding: const EdgeInsets.only(right: 8),
-                            child: GestureDetector(
-                              onTap: () {
-                                setState(() => _selectedLeaveType = type);
-                              },
-                              child: AnimatedContainer(
-                                duration: const Duration(milliseconds: 200),
-                                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
-                                decoration: BoxDecoration(
-                                  color: isSelected
-                                      ? AppColors.primary
-                                      : (isDark ? const Color(0xFF1A2632) : Colors.white),
-                                  borderRadius: BorderRadius.circular(20),
-                                  border: Border.all(
-                                    color: isSelected
-                                        ? AppColors.primary
-                                        : (isDark ? AppColors.darkBordersAndDividers : const Color(0xFFCBD5E1)),
+                              return Padding(
+                                padding: const EdgeInsets.only(right: 8),
+                                child: GestureDetector(
+                                  behavior: HitTestBehavior.opaque,
+                                  onTap: () {
+                                    setState(() => _selectedLeaveType = type);
+                                  },
+                                  child: AnimatedContainer(
+                                    duration: const Duration(milliseconds: 200),
+                                    height: 32,
+                                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                                    alignment: Alignment.center,
+                                    decoration: BoxDecoration(
+                                      color: isSelected
+                                          ? AppColors.primary
+                                          : (isDark ? const Color(0xFF1A2632) : Colors.white),
+                                      borderRadius: BorderRadius.circular(16),
+                                      border: Border.all(
+                                        color: isSelected
+                                            ? AppColors.primary
+                                            : (isDark ? AppColors.darkBordersAndDividers : const Color(0xFFE5E7EB)),
+                                      ),
+                                    ),
+                                    child: Text(
+                                      shortName,
+                                      style: TextStyle(
+                                        fontSize: 13,
+                                        fontWeight: isSelected ? FontWeight.bold : FontWeight.w600,
+                                        color: isSelected
+                                            ? Colors.white
+                                            : (isDark ? AppColors.darkPrimaryText : AppColors.lightPrimaryText),
+                                      ),
+                                    ),
                                   ),
                                 ),
-                                child: Text(
-                                  shortName,
-                                  style: TextStyle(
-                                    fontSize: 12,
-                                    fontWeight: isSelected ? FontWeight.bold : FontWeight.w600,
-                                    color: isSelected
-                                        ? Colors.white
-                                        : (isDark ? AppColors.darkPrimaryText : AppColors.lightPrimaryText),
-                                  ),
-                                ),
-                              ),
-                            ),
-                          );
-                        }).toList(),
+                              );
+                            }).toList(),
+                          ),
+                        ),
                       ),
                     ),
-                  ),
-                    const SizedBox(height: 18),
+                    const SizedBox(height: 12),
 
                     // 3. Dynamic Selected Category Balance Details Card
                     if (_currentSelectedBalance != null) ...[
@@ -476,10 +485,10 @@ class _MyLeaveScreenState extends ConsumerState<MyLeaveScreen> {
                           duration: const Duration(milliseconds: 250),
                           child: Container(
                             key: ValueKey('${name}_$_selectedBalanceSegment'),
-                            padding: const EdgeInsets.all(16),
+                            padding: const EdgeInsets.all(12),
                             decoration: BoxDecoration(
                               color: isDark ? const Color(0xFF1A2632) : const Color(0xFFF8FAFC),
-                              borderRadius: BorderRadius.circular(16),
+                              borderRadius: BorderRadius.circular(14),
                               border: Border.all(color: AppColors.primary.withOpacity(0.25)),
                             ),
                             child: Column(
@@ -490,7 +499,7 @@ class _MyLeaveScreenState extends ConsumerState<MyLeaveScreen> {
                                   children: [
                                     Text(
                                       name,
-                                      style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: glass.textPrimary),
+                                      style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: glass.textPrimary),
                                     ),
                                     Container(
                                       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
@@ -505,14 +514,14 @@ class _MyLeaveScreenState extends ConsumerState<MyLeaveScreen> {
                                     ),
                                   ],
                                 ),
-                                const SizedBox(height: 12),
+                                const SizedBox(height: 8),
                                 Row(
                                   crossAxisAlignment: CrossAxisAlignment.baseline,
                                   textBaseline: TextBaseline.alphabetic,
                                   children: [
                                     Text(
                                       isShowingUsed ? '$used' : '$remaining',
-                                      style: const TextStyle(fontSize: 26, fontWeight: FontWeight.w900, color: AppColors.primary),
+                                      style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w600, color: AppColors.primary),
                                     ),
                                     const SizedBox(width: 6),
                                     Text(
@@ -521,7 +530,7 @@ class _MyLeaveScreenState extends ConsumerState<MyLeaveScreen> {
                                     ),
                                   ],
                                 ),
-                                const SizedBox(height: 12),
+                                const SizedBox(height: 8),
                                 ClipRRect(
                                   borderRadius: BorderRadius.circular(4),
                                   child: LinearProgressIndicator(
@@ -531,12 +540,12 @@ class _MyLeaveScreenState extends ConsumerState<MyLeaveScreen> {
                                     minHeight: 6,
                                   ),
                                 ),
-                                const SizedBox(height: 12),
+                                const SizedBox(height: 8),
                                 Row(
                                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                   children: [
-                                    Text('Used: $used days', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600, color: glass.textSecondary)),
-                                    Text('Entitled: $total days', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600, color: glass.textSecondary)),
+                                    Text('Used: $used days', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: glass.textSecondary)),
+                                    Text('Entitled: $total days', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: glass.textSecondary)),
                                   ],
                                 ),
                               ],
@@ -551,6 +560,7 @@ class _MyLeaveScreenState extends ConsumerState<MyLeaveScreen> {
             ] else ...[
               // TAB 2: LEAVE HISTORY & STATUS SECTION
               AppCard(
+                padding: const EdgeInsets.all(12),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -561,7 +571,7 @@ class _MyLeaveScreenState extends ConsumerState<MyLeaveScreen> {
                           children: [
                             const Icon(Icons.history_rounded, size: 18, color: AppColors.primary),
                             const SizedBox(width: 8),
-                            Text('Leave History & Status', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: glass.textPrimary)),
+                            Text('Leave History & Status', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: glass.textPrimary)),
                           ],
                         ),
                         Container(
@@ -581,7 +591,7 @@ class _MyLeaveScreenState extends ConsumerState<MyLeaveScreen> {
                         ),
                       ],
                     ),
-                    const SizedBox(height: 14),
+                    const SizedBox(height: 10),
                     // Modern Segmented Filter Tabs
                     SingleChildScrollView(
                       scrollDirection: Axis.horizontal,
@@ -600,7 +610,7 @@ class _MyLeaveScreenState extends ConsumerState<MyLeaveScreen> {
                         ],
                       ),
                     ),
-                    const SizedBox(height: 12),
+                    const SizedBox(height: 10),
                     // Modern Search Field
                     TextField(
                       onChanged: (val) => setState(() => _searchTerm = val),
@@ -611,12 +621,12 @@ class _MyLeaveScreenState extends ConsumerState<MyLeaveScreen> {
                         prefixIcon: Icon(Icons.search_rounded, size: 18, color: glass.textSecondary),
                         filled: true,
                         fillColor: isDark ? const Color(0xFF1A2632) : AppColors.lightInputBackground,
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: isDark ? AppColors.darkBordersAndDividers : const Color(0xFFE2E8F0))),
-                        enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: isDark ? AppColors.darkBordersAndDividers : const Color(0xFFE2E8F0))),
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: isDark ? AppColors.darkBordersAndDividers : const Color(0xFFE5E7EB))),
+                        enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: isDark ? AppColors.darkBordersAndDividers : const Color(0xFFE5E7EB))),
                         contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                       ),
                     ),
-                    const SizedBox(height: 14),
+                    const SizedBox(height: 10),
                     _filteredHistory.isEmpty
                         ? Center(
                             child: Padding(
@@ -644,13 +654,13 @@ class _MyLeaveScreenState extends ConsumerState<MyLeaveScreen> {
                               final reviewer = h['approvedBy'] ?? h['reviewedBy'] ?? '--';
 
                               return Container(
-                                margin: const EdgeInsets.only(bottom: 10),
-                                padding: const EdgeInsets.all(12),
+                                margin: const EdgeInsets.only(bottom: 8),
+                                padding: const EdgeInsets.all(10),
                                 decoration: BoxDecoration(
                                   color: isDark ? const Color(0xFF1A2632) : Colors.white,
-                                  borderRadius: BorderRadius.circular(14),
-                                  border: Border.all(color: isDark ? AppColors.darkBordersAndDividers : const Color(0xFFE2E8F0)),
-                                  boxShadow: [BoxShadow(color: Colors.black.withOpacity(isDark ? 0.2 : 0.02), blurRadius: 6, offset: const Offset(0, 2))],
+                                  borderRadius: BorderRadius.circular(12),
+                                  border: Border.all(color: isDark ? AppColors.darkBordersAndDividers : const Color(0xFFE5E7EB)),
+                                  boxShadow: [BoxShadow(color: Colors.black.withOpacity(isDark ? 0.2 : 0.015), blurRadius: 4, offset: const Offset(0, 1))],
                                 ),
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -661,35 +671,35 @@ class _MyLeaveScreenState extends ConsumerState<MyLeaveScreen> {
                                         Row(
                                           children: [
                                             Container(
-                                              padding: const EdgeInsets.all(8),
+                                              padding: const EdgeInsets.all(6),
                                               decoration: BoxDecoration(
                                                 color: AppColors.primary.withOpacity(0.12),
-                                                borderRadius: BorderRadius.circular(10),
+                                                borderRadius: BorderRadius.circular(8),
                                               ),
-                                              child: const Icon(Icons.event_note_rounded, color: AppColors.primary, size: 16),
+                                              child: const Icon(Icons.event_note_rounded, color: AppColors.primary, size: 15),
                                             ),
-                                            const SizedBox(width: 10),
+                                            const SizedBox(width: 8),
                                             Text(
                                               type,
-                                              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13.5, color: glass.textPrimary),
+                                              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: glass.textPrimary),
                                             ),
                                           ],
                                         ),
                                         StatusChip(status: status),
                                       ],
                                     ),
-                                    const SizedBox(height: 10),
+                                    const SizedBox(height: 8),
                                     Row(
                                       children: [
-                                        Icon(Icons.date_range_rounded, size: 14, color: glass.textSecondary),
-                                        const SizedBox(width: 6),
+                                        Icon(Icons.date_range_rounded, size: 13, color: glass.textSecondary),
+                                        const SizedBox(width: 5),
                                         Text(
                                           '$startDate → $endDate',
-                                          style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: glass.textPrimary),
+                                          style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600, color: glass.textPrimary),
                                         ),
                                         const Spacer(),
                                         Container(
-                                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                                           decoration: BoxDecoration(
                                             color: AppColors.primary.withOpacity(0.08),
                                             borderRadius: BorderRadius.circular(6),
@@ -702,31 +712,31 @@ class _MyLeaveScreenState extends ConsumerState<MyLeaveScreen> {
                                       ],
                                     ),
                                     if (reason.isNotEmpty && reason != '--') ...[
-                                      const SizedBox(height: 6),
+                                      const SizedBox(height: 4),
                                       Text(
                                         'Reason: $reason',
-                                        style: TextStyle(fontSize: 11.5, color: glass.textSecondary),
+                                        style: TextStyle(fontSize: 11, color: glass.textSecondary),
                                         maxLines: 2,
                                         overflow: TextOverflow.ellipsis,
                                       ),
                                     ],
-                                    const SizedBox(height: 8),
+                                    const SizedBox(height: 6),
                                     Row(
                                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                       children: [
                                         Text(
                                           'Reviewer: $reviewer',
-                                          style: TextStyle(fontSize: 11, color: glass.textSecondary),
+                                          style: TextStyle(fontSize: 10.5, color: glass.textSecondary),
                                         ),
                                         Row(
                                           children: [
                                             OutlinedButton.icon(
                                               onPressed: () => _viewLeaveDetails(id, h),
-                                              icon: const Icon(Icons.remove_red_eye_outlined, size: 14),
-                                              label: const Text('View', style: TextStyle(fontSize: 11)),
+                                              icon: const Icon(Icons.remove_red_eye_outlined, size: 13),
+                                              label: const Text('View', style: TextStyle(fontSize: 10.5)),
                                               style: OutlinedButton.styleFrom(
-                                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                                                minimumSize: const Size(0, 24),
+                                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                                minimumSize: const Size(0, 22),
                                                 tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                                               ),
                                             ),
@@ -734,11 +744,11 @@ class _MyLeaveScreenState extends ConsumerState<MyLeaveScreen> {
                                               const SizedBox(width: 6),
                                               TextButton.icon(
                                                 onPressed: () => _confirmCancelLeave(id),
-                                                icon: const Icon(Icons.close_rounded, size: 13, color: Colors.redAccent),
-                                                label: const Text('Cancel', style: TextStyle(fontSize: 11, color: Colors.redAccent, fontWeight: FontWeight.bold)),
+                                                icon: const Icon(Icons.close_rounded, size: 12, color: Colors.redAccent),
+                                                label: const Text('Cancel', style: TextStyle(fontSize: 10.5, color: Colors.redAccent, fontWeight: FontWeight.bold)),
                                                 style: TextButton.styleFrom(
-                                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                                                  minimumSize: const Size(0, 24),
+                                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                                  minimumSize: const Size(0, 22),
                                                   tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                                                 ),
                                               ),
@@ -778,31 +788,28 @@ class _MyLeaveScreenState extends ConsumerState<MyLeaveScreen> {
 
   Widget _statCard(String label, String value, IconData icon, Color color, Color bg, bool isDark) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 3),
       decoration: BoxDecoration(
         color: isDark ? const Color(0xFF1A2632) : Colors.white,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: isDark ? AppColors.darkBordersAndDividers : const Color(0xFFE2E8F0)),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(isDark ? 0.2 : 0.02), blurRadius: 6, offset: const Offset(0, 2))],
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: isDark ? AppColors.darkBordersAndDividers : const Color(0xFFE5E7EB)),
+        boxShadow: [BoxShadow(color: Colors.black.withOpacity(isDark ? 0.2 : 0.015), blurRadius: 4, offset: const Offset(0, 1))],
       ),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        mainAxisAlignment: MainAxisAlignment.center,
+        mainAxisSize: MainAxisSize.min,
         children: [
-          Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(10)),
-            child: Icon(icon, color: color, size: 18),
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Text(value, style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: color)),
-                const SizedBox(height: 1),
-                Text(label, style: TextStyle(fontSize: 10.5, color: isDark ? AppColors.darkSecondaryText : AppColors.lightSecondaryText, fontWeight: FontWeight.w600), maxLines: 1, overflow: TextOverflow.ellipsis),
-              ],
-            ),
+          Icon(icon, color: color, size: 14),
+          const SizedBox(height: 1),
+          Text(value, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: color)),
+          const SizedBox(height: 1),
+          Text(
+            label,
+            style: TextStyle(fontSize: 8.5, color: isDark ? AppColors.darkSecondaryText : AppColors.lightSecondaryText, fontWeight: FontWeight.w600),
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            textAlign: TextAlign.center,
           ),
         ],
       ),
@@ -842,33 +849,37 @@ class _MyLeaveScreenState extends ConsumerState<MyLeaveScreen> {
     if (!_showLeaveDetailModal || _selectedLeaveDetail == null) return const SizedBox.shrink();
 
     final h = _selectedLeaveDetail!;
-    final type = h['leaveType']?.toString() ?? h['type']?.toString() ?? 'Leave';
+    final rawType = h['leaveType']?.toString() ?? h['type']?.toString() ?? 'Leave';
+    final type = _normalizeBalanceType(rawType);
     final startDate = _formatReadableDate(h['startDate']?.toString());
     final endDate = _formatReadableDate(h['endDate']?.toString());
     final status = h['status']?.toString() ?? 'PENDING';
     final reason = h['reason']?.toString() ?? h['description']?.toString() ?? '--';
     final days = h['totalDays'] ?? h['days'] ?? 1;
-    final reviewer = h['approvedBy'] ?? h['reviewedBy'] ?? h['reviewerName'] ?? '--';
-    final decisionDate = _formatReadableDate(h['reviewedAt']?.toString() ?? h['updatedAt']?.toString());
-    final email = h['companyEmail'] ?? h['email'] ?? ref.read(authServiceProvider).user?.email ?? 'emp@hrm.com';
+    final reviewer = h['approvedBy']?.toString() ?? h['reviewedBy']?.toString() ?? h['reviewerName']?.toString() ?? '--';
+    final email = h['companyEmail']?.toString() ?? h['email']?.toString() ?? ref.read(authServiceProvider).user?.email ?? 'emp@hrm.com';
 
     return Container(
-      color: Colors.black.withOpacity(0.5),
-      child: Center(
+      color: Colors.black.withOpacity(0.45),
+      alignment: Alignment.center,
+      child: ConstrainedBox(
+        constraints: BoxConstraints(
+          maxWidth: MediaQuery.sizeOf(context).width * 0.92,
+          maxHeight: MediaQuery.sizeOf(context).height * 0.85,
+        ),
         child: Container(
-          width: 420,
-          margin: const EdgeInsets.all(20),
           padding: const EdgeInsets.all(20),
           decoration: BoxDecoration(
-            color: isDark ? const Color(0xFF1A2632) : Colors.white,
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: isDark ? AppColors.darkBordersAndDividers : const Color(0xFFE2E8F0)),
-            boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.3), blurRadius: 15, offset: const Offset(0, 5))],
+            color: isDark ? const Color(0xFF1E293B) : Colors.white,
+            borderRadius: BorderRadius.circular(24),
+            border: Border.all(color: isDark ? AppColors.darkBordersAndDividers : const Color(0xFFE5E7EB)),
+            boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.25), blurRadius: 20, offset: const Offset(0, 8))],
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
+              // Header
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
@@ -876,133 +887,287 @@ class _MyLeaveScreenState extends ConsumerState<MyLeaveScreen> {
                     children: [
                       const Icon(Icons.event_note_rounded, color: AppColors.primary, size: 20),
                       const SizedBox(width: 8),
-                      Text('Leave Request Details', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: glass.textPrimary)),
+                      Text('Leave Request Details', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 17, color: glass.textPrimary)),
                     ],
                   ),
-                  IconButton(
-                    onPressed: () => setState(() => _showLeaveDetailModal = false),
-                    icon: Icon(Icons.close_rounded, size: 18, color: glass.textSecondary),
+                  SizedBox(
+                    width: 36,
+                    height: 36,
+                    child: Material(
+                      color: isDark ? Colors.white12 : const Color(0xFFF1F5F9),
+                      shape: const CircleBorder(),
+                      child: InkWell(
+                        onTap: () => setState(() => _showLeaveDetailModal = false),
+                        customBorder: const CircleBorder(),
+                        child: Center(
+                          child: Icon(Icons.close_rounded, size: 18, color: glass.textSecondary),
+                        ),
+                      ),
+                    ),
                   ),
                 ],
               ),
-              const Divider(height: 20),
-              if (_isLoadingDetails)
-                const Center(
-                  child: Padding(
-                    padding: EdgeInsets.all(24),
-                    child: CircularProgressIndicator(),
-                  ),
-                )
-              else
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text('Leave Type', style: TextStyle(fontSize: 11, color: glass.textSecondary)),
-                            const SizedBox(height: 2),
-                            Text(type, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: glass.textPrimary)),
-                          ],
-                        ),
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.end,
-                          children: [
-                            Text('Status', style: TextStyle(fontSize: 11, color: glass.textSecondary)),
-                            const SizedBox(height: 2),
-                            StatusChip(status: status),
-                          ],
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 14),
-                    Row(
-                      children: [
-                        const Icon(Icons.email_outlined, size: 14, color: AppColors.primary),
-                        const SizedBox(width: 6),
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text('Company Email ID', style: TextStyle(fontSize: 11, color: glass.textSecondary)),
-                            Text(email, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: glass.textPrimary)),
-                          ],
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 14),
-                    Row(
-                      children: [
-                        const Icon(Icons.date_range_rounded, size: 14, color: AppColors.primary),
-                        const SizedBox(width: 6),
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text('Total Duration', style: TextStyle(fontSize: 11, color: glass.textSecondary)),
-                            Text('$startDate – $endDate ($days Day${days > 1 ? 's' : ''})', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: glass.textPrimary)),
-                          ],
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 14),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text('Reviewed By', style: TextStyle(fontSize: 11, color: glass.textSecondary)),
-                            const SizedBox(height: 2),
-                            Text(reviewer, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: glass.textPrimary)),
-                          ],
-                        ),
-                        if (decisionDate != '--')
+              const SizedBox(height: 12),
+              Divider(height: 1, color: isDark ? AppColors.darkBordersAndDividers : const Color(0xFFE5E7EB)),
+              const SizedBox(height: 12),
+
+              // Scrollable body
+              Flexible(
+                child: SingleChildScrollView(
+                  physics: const BouncingScrollPhysics(),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Top Row: Leave Type + Status
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'LEAVE TYPE',
+                                  style: TextStyle(fontSize: 11, color: Colors.grey[500], letterSpacing: 0.4, fontWeight: FontWeight.w600),
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  type,
+                                  style: TextStyle(fontWeight: FontWeight.w600, fontSize: 16, color: glass.textPrimary),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(width: 12),
                           Column(
                             crossAxisAlignment: CrossAxisAlignment.end,
                             children: [
-                              Text('Decision Date', style: TextStyle(fontSize: 11, color: glass.textSecondary)),
-                              const SizedBox(height: 2),
-                              Text(decisionDate, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: glass.textPrimary)),
+                              Text(
+                                'STATUS',
+                                style: TextStyle(fontSize: 11, color: Colors.grey[500], letterSpacing: 0.4, fontWeight: FontWeight.w600),
+                              ),
+                              const SizedBox(height: 4),
+                              _buildPolishedStatusChip(status),
                             ],
                           ),
-                      ],
-                    ),
-                    const SizedBox(height: 14),
-                    Text('Reason Provided', style: TextStyle(fontSize: 11, color: glass.textSecondary)),
-                    const SizedBox(height: 4),
-                    Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.all(10),
-                      decoration: BoxDecoration(
-                        color: isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC),
-                        borderRadius: BorderRadius.circular(10),
-                        border: Border.all(color: isDark ? AppColors.darkBordersAndDividers : const Color(0xFFE2E8F0)),
+                        ],
                       ),
-                      child: Text(
-                        reason.isNotEmpty ? reason : 'No reason provided',
-                        style: TextStyle(fontSize: 12.5, color: glass.textPrimary),
+                      const SizedBox(height: 14),
+
+                      // Detail Rows: Company Email ID
+                      _detailRow(
+                        isDark: isDark,
+                        glass: glass,
+                        icon: Icons.email_outlined,
+                        label: 'Company Email ID',
+                        value: email,
+                        isEmail: true,
                       ),
-                    ),
-                  ],
+                      const SizedBox(height: 14),
+
+                      // Detail Rows: Total Duration
+                      _detailRow(
+                        isDark: isDark,
+                        glass: glass,
+                        icon: Icons.date_range_rounded,
+                        label: 'Total Duration',
+                        customValueWidget: Row(
+                          children: [
+                            Flexible(
+                              child: Text(
+                                '$startDate – $endDate',
+                                style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: glass.textPrimary),
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                            const SizedBox(width: 6),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: AppColors.primary.withOpacity(0.12),
+                                borderRadius: BorderRadius.circular(6),
+                              ),
+                              child: Text(
+                                '($days Day${days > 1 ? 's' : ''})',
+                                style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.primary),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 14),
+
+                      // Detail Rows: Reviewed By
+                      _detailRow(
+                        isDark: isDark,
+                        glass: glass,
+                        icon: Icons.admin_panel_settings_rounded,
+                        label: 'Reviewed By',
+                        value: reviewer == '--' ? '--' : reviewer,
+                        isValueMuted: reviewer == '--',
+                      ),
+                      const SizedBox(height: 14),
+
+                      // Detail Rows: Reason Provided
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Container(
+                                width: 32,
+                                height: 32,
+                                decoration: BoxDecoration(
+                                  color: AppColors.primary.withOpacity(0.12),
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                                child: const Icon(Icons.message_outlined, size: 16, color: AppColors.primary),
+                              ),
+                              const SizedBox(width: 10),
+                              Text(
+                                'Reason Provided',
+                                style: TextStyle(fontSize: 11, color: Colors.grey[500], fontWeight: FontWeight.w600),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 8),
+                          Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Text(
+                              reason.isNotEmpty ? reason : 'No reason provided',
+                              style: TextStyle(fontSize: 14, height: 1.5, color: glass.textPrimary),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
                 ),
-              const SizedBox(height: 20),
+              ),
+              const SizedBox(height: 16),
+
+              // Close Button
               SizedBox(
+                height: 44,
                 width: double.infinity,
                 child: ElevatedButton(
                   onPressed: () => setState(() => _showLeaveDetailModal = false),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.primary,
-                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    backgroundColor: const Color(0xFFE6F2F0),
+                    foregroundColor: AppColors.primary,
+                    elevation: 0,
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                   ),
-                  child: const Text('Close', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                  child: const Text('Close', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: AppColors.primary)),
                 ),
               ),
             ],
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _detailRow({
+    required bool isDark,
+    required GlassTheme glass,
+    required IconData icon,
+    required String label,
+    String? value,
+    Widget? customValueWidget,
+    bool isEmail = false,
+    bool isValueMuted = false,
+  }) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        Container(
+          width: 32,
+          height: 32,
+          decoration: BoxDecoration(
+            color: AppColors.primary.withOpacity(0.12),
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Icon(icon, size: 16, color: AppColors.primary),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                label,
+                style: TextStyle(fontSize: 11, color: Colors.grey[500], fontWeight: FontWeight.w600),
+              ),
+              const SizedBox(height: 2),
+              customValueWidget ??
+                  Text(
+                    value ?? '',
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: isValueMuted ? FontWeight.normal : FontWeight.w500,
+                      color: isValueMuted ? (isDark ? Colors.grey[400] : Colors.grey[600]) : glass.textPrimary,
+                    ),
+                    maxLines: 2,
+                    overflow: isEmail ? TextOverflow.ellipsis : TextOverflow.clip,
+                  ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildPolishedStatusChip(String status) {
+    final upper = status.toUpperCase();
+    Color bg;
+    Color fg;
+    Color dotColor;
+    if (upper == 'APPROVED') {
+      bg = const Color(0xFFECFDF5);
+      fg = const Color(0xFF047857);
+      dotColor = const Color(0xFF10B981);
+    } else if (upper == 'REJECTED') {
+      bg = const Color(0xFFFEE2E2);
+      fg = const Color(0xFFB91C1C);
+      dotColor = const Color(0xFFEF4444);
+    } else if (upper == 'CANCELLED') {
+      bg = const Color(0xFFF1F5F9);
+      fg = const Color(0xFF475569);
+      dotColor = const Color(0xFF94A3B8);
+    } else {
+      bg = const Color(0xFFFFFBEB);
+      fg = const Color(0xFFB45309);
+      dotColor = const Color(0xFFF59E0B);
+    }
+
+    return Container(
+      height: 28,
+      padding: const EdgeInsets.symmetric(horizontal: 10),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 6,
+            height: 6,
+            decoration: BoxDecoration(color: dotColor, shape: BoxShape.circle),
+          ),
+          const SizedBox(width: 6),
+          Text(
+            upper,
+            style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: fg, letterSpacing: 0.3),
+          ),
+        ],
       ),
     );
   }
@@ -1022,13 +1187,16 @@ class _MyLeaveScreenState extends ConsumerState<MyLeaveScreen> {
     final isSelected = _selectedStatusFilter == status;
     final isDark = Theme.of(context).brightness == Brightness.dark;
     return GestureDetector(
+      behavior: HitTestBehavior.opaque,
       onTap: () => setState(() => _selectedStatusFilter = status),
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+        height: 32,
+        padding: const EdgeInsets.symmetric(horizontal: 12),
+        alignment: Alignment.center,
         decoration: BoxDecoration(
           color: isSelected ? AppColors.primary : (isDark ? const Color(0xFF1A2632) : const Color(0xFFF1F5F9)),
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: isSelected ? AppColors.primary : (isDark ? AppColors.darkBordersAndDividers : const Color(0xFFE2E8F0))),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: isSelected ? AppColors.primary : (isDark ? AppColors.darkBordersAndDividers : const Color(0xFFE5E7EB))),
         ),
         child: Text(
           label,
@@ -1044,23 +1212,24 @@ class _MyLeaveScreenState extends ConsumerState<MyLeaveScreen> {
 
   Widget _buildMainLeaveTabBar(bool isDark) {
     return Container(
+      height: 40,
       decoration: BoxDecoration(
         color: isDark ? const Color(0xFF131E29) : const Color(0xFFEEF2F8),
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: isDark ? AppColors.darkBordersAndDividers : const Color(0xFFDCE8E7)),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: isDark ? AppColors.darkBordersAndDividers : const Color(0xFFE5E7EB)),
       ),
-      padding: const EdgeInsets.all(4),
+      padding: const EdgeInsets.all(3),
       child: Row(
         children: [
           Expanded(
             child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
               onTap: () => setState(() => _activeLeaveTab = 0),
               child: AnimatedContainer(
                 duration: const Duration(milliseconds: 200),
-                padding: const EdgeInsets.symmetric(vertical: 10),
                 decoration: BoxDecoration(
                   color: _activeLeaveTab == 0 ? AppColors.primary : Colors.transparent,
-                  borderRadius: BorderRadius.circular(10),
+                  borderRadius: BorderRadius.circular(9),
                 ),
                 alignment: Alignment.center,
                 child: Row(
@@ -1068,15 +1237,15 @@ class _MyLeaveScreenState extends ConsumerState<MyLeaveScreen> {
                   children: [
                     Icon(
                       Icons.pie_chart_rounded,
-                      size: 16,
+                      size: 15,
                       color: _activeLeaveTab == 0 ? Colors.white : (isDark ? AppColors.darkSecondaryText : AppColors.lightSecondaryText),
                     ),
-                    const SizedBox(width: 6),
+                    const SizedBox(width: 5),
                     Text(
                       'Leave Balances',
                       style: TextStyle(
                         fontWeight: FontWeight.bold,
-                        fontSize: 12.5,
+                        fontSize: 13,
                         color: _activeLeaveTab == 0 ? Colors.white : (isDark ? AppColors.darkSecondaryText : AppColors.lightSecondaryText),
                       ),
                     ),
@@ -1087,13 +1256,13 @@ class _MyLeaveScreenState extends ConsumerState<MyLeaveScreen> {
           ),
           Expanded(
             child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
               onTap: () => setState(() => _activeLeaveTab = 1),
               child: AnimatedContainer(
                 duration: const Duration(milliseconds: 200),
-                padding: const EdgeInsets.symmetric(vertical: 10),
                 decoration: BoxDecoration(
                   color: _activeLeaveTab == 1 ? AppColors.primary : Colors.transparent,
-                  borderRadius: BorderRadius.circular(10),
+                  borderRadius: BorderRadius.circular(9),
                 ),
                 alignment: Alignment.center,
                 child: Row(
@@ -1101,15 +1270,15 @@ class _MyLeaveScreenState extends ConsumerState<MyLeaveScreen> {
                   children: [
                     Icon(
                       Icons.history_rounded,
-                      size: 16,
+                      size: 15,
                       color: _activeLeaveTab == 1 ? Colors.white : (isDark ? AppColors.darkSecondaryText : AppColors.lightSecondaryText),
                     ),
-                    const SizedBox(width: 6),
+                    const SizedBox(width: 5),
                     Text(
                       'Leave History',
                       style: TextStyle(
                         fontWeight: FontWeight.bold,
-                        fontSize: 12.5,
+                        fontSize: 13,
                         color: _activeLeaveTab == 1 ? Colors.white : (isDark ? AppColors.darkSecondaryText : AppColors.lightSecondaryText),
                       ),
                     ),
@@ -1128,18 +1297,19 @@ class _MyLeaveScreenState extends ConsumerState<MyLeaveScreen> {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     return Expanded(
       child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
         onTap: () {
           setState(() {
             _selectedBalanceSegment = value;
           });
         },
         child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 8),
+          alignment: Alignment.center,
           decoration: BoxDecoration(
             color: isSelected ? (isDark ? AppColors.primary : Colors.white) : Colors.transparent,
-            borderRadius: BorderRadius.circular(9),
+            borderRadius: BorderRadius.circular(8),
             boxShadow: isSelected && !isDark
-                ? [BoxShadow(color: Colors.black.withOpacity(0.06), blurRadius: 4, offset: const Offset(0, 2))]
+                ? [BoxShadow(color: Colors.black.withOpacity(0.06), blurRadius: 4, offset: const Offset(0, 1))]
                 : null,
           ),
           child: Text(

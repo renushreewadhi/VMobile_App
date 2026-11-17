@@ -103,8 +103,40 @@ class UserModel {
   String get fullName => '$firstName $lastName'.trim();
 
   factory UserModel.fromJson(Map<String, dynamic> json) {
+    bool isUuidOrObjectId(String? str) {
+      if (str == null || str.trim().isEmpty) return false;
+      final clean = str.trim();
+      return RegExp(r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$').hasMatch(clean) ||
+          RegExp(r'^[0-9a-fA-F]{24}$').hasMatch(clean);
+    }
+
+    String? parsedEmployeeId;
+    final candidates = [
+      json['employeeCode']?.toString(),
+      json['employee_code']?.toString(),
+      json['code']?.toString(),
+      json['empCode']?.toString(),
+      json['emp_code']?.toString(),
+      json['customId']?.toString(),
+      json['employeeId']?.toString(),
+      json['employee_id']?.toString(),
+    ];
+
+    for (final cand in candidates) {
+      if (cand != null && cand.trim().isNotEmpty && !isUuidOrObjectId(cand)) {
+        parsedEmployeeId = cand.trim();
+        break;
+      }
+    }
+
+    parsedEmployeeId ??= json['employeeCode']?.toString() ??
+        json['employee_code']?.toString() ??
+        json['code']?.toString() ??
+        json['employeeId']?.toString() ??
+        json['employee_id']?.toString();
+
     return UserModel(
-      id: json['id']?.toString() ?? json['userId']?.toString() ?? '',
+      id: json['id']?.toString() ?? json['userId']?.toString() ?? json['_id']?.toString() ?? '',
       email: json['email']?.toString() ?? '',
       firstName: json['firstName']?.toString() ?? json['first_name']?.toString() ?? '',
       lastName: json['lastName']?.toString() ?? json['last_name']?.toString() ?? '',
@@ -113,7 +145,7 @@ class UserModel {
       department: json['department']?.toString(),
       designation: json['designation']?.toString(),
       branch: json['branch']?.toString(),
-      employeeId: json['employeeId']?.toString() ?? json['employee_id']?.toString(),
+      employeeId: parsedEmployeeId,
       phone: json['phone']?.toString() ?? json['phoneNumber']?.toString(),
     );
   }

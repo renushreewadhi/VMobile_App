@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../theme/glass_theme.dart';
 import '../theme/theme_provider.dart';
 import 'glass_card.dart';
+import 'theme_toggle_button.dart';
 
 class GlassAppBar extends ConsumerWidget implements PreferredSizeWidget {
   final Widget? title;
@@ -31,7 +32,6 @@ class GlassAppBar extends ConsumerWidget implements PreferredSizeWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final glass = context.glass;
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final themeNotifier = ref.read(themeProvider.notifier);
     final ModalRoute<dynamic>? parentRoute = ModalRoute.of(context);
     final bool canPop = parentRoute?.canPop ?? false;
 
@@ -70,18 +70,7 @@ class GlassAppBar extends ConsumerWidget implements PreferredSizeWidget {
                 ),
                 if (actions != null) ...actions!,
                 if (actions == null)
-                  Semantics(
-                    label: isDark ? "Switch to light mode" : "Switch to dark mode",
-                    button: true,
-                    child: IconButton(
-                      onPressed: () => themeNotifier.toggleTheme(),
-                      icon: Icon(
-                        isDark ? Icons.wb_sunny_rounded : Icons.nightlight_round,
-                        size: 20,
-                        color: glass.textSecondary,
-                      ),
-                    ),
-                  ),
+                  const ThemeToggleButton(size: 20),
               ],
             ),
             if (bottom != null) bottom!,

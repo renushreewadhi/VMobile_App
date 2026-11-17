@@ -9,131 +9,84 @@ class AppBackground extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final glass = context.glass;
-    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final bgColors = glass.backgroundGradientColors;
+    final blobColors = glass.blobColors;
+    final blobOpacities = glass.blobOpacities;
 
     return Stack(
       fit: StackFit.expand,
       children: [
         RepaintBoundary(
           child: IgnorePointer(
-            child: Container(
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 300),
+              curve: Curves.easeInOut,
               width: double.infinity,
               height: double.infinity,
               decoration: BoxDecoration(
                 gradient: LinearGradient(
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
-                  colors: glass.backgroundGradientColors,
+                  colors: bgColors,
                 ),
               ),
               child: Stack(
                 fit: StackFit.expand,
                 children: [
-                  if (isDark) ...[
-                    Positioned(
-                      top: -60,
-                      left: -60,
-                      child: Container(
-                        width: 360,
-                        height: 360,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          gradient: RadialGradient(
-                            colors: [
-                              const Color(0xFF0F9D8A).withOpacity(0.85),
-                              const Color(0xFF0F9D8A).withOpacity(0),
-                            ],
-                          ),
+                  Positioned(
+                    top: -60,
+                    left: -60,
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 300),
+                      width: 360,
+                      height: 360,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        gradient: RadialGradient(
+                          colors: [
+                            (blobColors.isNotEmpty ? blobColors[0] : const Color(0xFF0F9D8A)).withOpacity(blobOpacities.isNotEmpty ? blobOpacities[0] : 0.3),
+                            (blobColors.isNotEmpty ? blobColors[0] : const Color(0xFF0F9D8A)).withOpacity(0),
+                          ],
                         ),
                       ),
                     ),
-                    Positioned(
-                      top: 220,
-                      right: -90,
-                      child: Container(
-                        width: 340,
-                        height: 340,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          gradient: RadialGradient(
-                            colors: [
-                              const Color(0xFF4F46E5).withOpacity(0.85),
-                              const Color(0xFF4F46E5).withOpacity(0),
-                            ],
-                          ),
+                  ),
+                  Positioned(
+                    top: 220,
+                    right: -90,
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 300),
+                      width: 340,
+                      height: 340,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        gradient: RadialGradient(
+                          colors: [
+                            (blobColors.length > 1 ? blobColors[1] : const Color(0xFF4F46E5)).withOpacity(blobOpacities.length > 1 ? blobOpacities[1] : 0.3),
+                            (blobColors.length > 1 ? blobColors[1] : const Color(0xFF4F46E5)).withOpacity(0),
+                          ],
                         ),
                       ),
                     ),
-                    Positioned(
-                      bottom: -70,
-                      left: 40,
-                      child: Container(
-                        width: 380,
-                        height: 380,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          gradient: RadialGradient(
-                            colors: [
-                              const Color(0xFFC2570C).withOpacity(0.80),
-                              const Color(0xFFC2570C).withOpacity(0),
-                            ],
-                          ),
+                  ),
+                  Positioned(
+                    bottom: -70,
+                    left: 40,
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 300),
+                      width: 380,
+                      height: 380,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        gradient: RadialGradient(
+                          colors: [
+                            (blobColors.length > 2 ? blobColors[2] : const Color(0xFFC2570C)).withOpacity(blobOpacities.length > 2 ? blobOpacities[2] : 0.15),
+                            (blobColors.length > 2 ? blobColors[2] : const Color(0xFFC2570C)).withOpacity(0),
+                          ],
                         ),
                       ),
                     ),
-                  ] else ...[
-                    Positioned(
-                      top: -50,
-                      left: -50,
-                      child: Container(
-                        width: 340,
-                        height: 340,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          gradient: RadialGradient(
-                            colors: [
-                              const Color(0xFF5FD6C3).withOpacity(0.85),
-                              const Color(0xFF5FD6C3).withOpacity(0),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ),
-                    Positioned(
-                      top: 200,
-                      right: -70,
-                      child: Container(
-                        width: 320,
-                        height: 340,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          gradient: RadialGradient(
-                            colors: [
-                              const Color(0xFFA99CF0).withOpacity(0.80),
-                              const Color(0xFFA99CF0).withOpacity(0),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ),
-                    Positioned(
-                      bottom: -80,
-                      left: 30,
-                      child: Container(
-                        width: 380,
-                        height: 320,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          gradient: RadialGradient(
-                            colors: [
-                              const Color(0xFFFFC9A0).withOpacity(0.85),
-                              const Color(0xFFFFC9A0).withOpacity(0),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
+                  ),
                 ],
               ),
             ),

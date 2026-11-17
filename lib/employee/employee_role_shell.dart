@@ -1,13 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'screens/apply_leave_screen.dart';
 import 'screens/employee_dashboard_screen.dart';
 import 'screens/more_screen.dart';
 import 'screens/my_attendance_screen.dart';
 import 'screens/my_leave_screen.dart';
-import 'screens/punch_in_out_screen.dart';
-import 'screens/wfh_apply_screen.dart';
-import '../core/theme/app_colors.dart';
+import '../features/attendance/punch/screens/punch_home_screen.dart';
 import '../core/widgets/glass_scaffold.dart';
 import '../core/widgets/glass_header.dart';
 import '../core/widgets/glass_bottom_tab_bar.dart';
@@ -35,7 +32,7 @@ class _EmployeeRoleShellState extends ConsumerState<EmployeeRoleShell> {
         }
       }),
       const MyAttendanceScreen(showAppBar: false),
-      const SizedBox.shrink(), // Placeholder for center + action
+      const PunchInOutScreen(showAppBar: false),
       const MyLeaveScreen(showAppBar: false),
       const MoreScreen(showAppBar: false),
     ];
@@ -43,7 +40,7 @@ class _EmployeeRoleShellState extends ConsumerState<EmployeeRoleShell> {
     final titles = [
       '',
       'My Attendance',
-      '',
+      'Punch In / Out',
       'My Leave',
       'More Services',
     ];
@@ -60,7 +57,7 @@ class _EmployeeRoleShellState extends ConsumerState<EmployeeRoleShell> {
         appBar: GlassHeader(title: titles[_currentIndex]),
         showBottomBar: true,
         body: IndexedStack(
-          index: _currentIndex == 2 ? 0 : _currentIndex.clamp(0, screens.length - 1),
+          index: _currentIndex.clamp(0, screens.length - 1),
           children: screens,
         ),
         tabs: [
@@ -80,10 +77,8 @@ class _EmployeeRoleShellState extends ConsumerState<EmployeeRoleShell> {
             icon: Icons.add_rounded,
             label: "",
             isAction: true,
-            isSelected: false,
-            onTap: () {
-              Navigator.push(context, MaterialPageRoute(builder: (_) => const PunchInOutScreen()));
-            },
+            isSelected: _currentIndex == 2,
+            onTap: () => setState(() => _currentIndex = 2),
           ),
           GlassTab(
             icon: Icons.calendar_month_rounded,
