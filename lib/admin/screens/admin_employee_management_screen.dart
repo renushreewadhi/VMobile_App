@@ -98,6 +98,21 @@ class _AdminEmployeeManagementScreenState extends ConsumerState<AdminEmployeeMan
     _currentPage = 1;
   }
 
+  List<dynamic> _extractList(dynamic res) {
+    if (res == null) return [];
+    if (res is List) return res;
+    if (res is Map) {
+      for (final key in ['data', 'result', 'items', 'employees', 'users', 'content', 'list', 'value']) {
+        if (res[key] is List) return res[key] as List;
+        if (res[key] is Map) {
+          final nested = _extractList(res[key]);
+          if (nested.isNotEmpty) return nested;
+        }
+      }
+    }
+    return [];
+  }
+
   Future<void> _loadEmployees() async {
     final currentReq = ++_requestId;
     if (!mounted) return;
@@ -109,20 +124,57 @@ class _AdminEmployeeManagementScreenState extends ConsumerState<AdminEmployeeMan
     final apiClient = ref.read(apiClientProvider);
 
     try {
-      final queryParam = _selectedRole != 'ALL' ? '?role=$_selectedRole' : '';
-      final res = await apiClient.get('${ApiEndpoints.employeesAll}$queryParam').catchError((_) => null);
-      if (!mounted || currentReq != _requestId) return;
+      dynamic res;
+      dynamic lastError;
 
-      dynamic rawData = res;
-      if (res is Map<String, dynamic> && res.containsKey('data')) {
-        rawData = res['data'];
-      } else if (res is Map<String, dynamic> && res.containsKey('items')) {
-        rawData = res['items'];
+      final queryParam = _selectedRole != 'ALL' ? '?role=$_selectedRole' : '';
+      final endpoints = [
+        '${ApiEndpoints.employeesAll}$queryParam',
+        '/employees/all$queryParam',
+        '${ApiEndpoints.employees}$queryParam',
+        '/employees$queryParam',
+        '${ApiEndpoints.managementEmployees}$queryParam',
+        '/management/employees$queryParam',
+        '${ApiEndpoints.users}$queryParam',
+        '/users$queryParam',
+      ];
+
+      for (final ep in endpoints) {
+        try {
+          dynamic tempRes = await apiClient.get(ep).catchError((_) async {
+            final cleanEp = ep.split('?')[0];
+            return await apiClient.get(cleanEp).catchError((_) => null);
+          });
+          if (tempRes != null) {
+            final list = _extractList(tempRes);
+            if (list.isNotEmpty) {
+              res = tempRes;
+              break;
+            } else if (res == null) {
+              res = tempRes;
+            }
+          }
+        } catch (e) {
+          lastError = e;
+        }
       }
 
+      if (!mounted || currentReq != _requestId) return;
+
+      final rawData = _extractList(res);
       List<dynamic> emps = [];
       if (rawData is List) {
         emps = rawData;
+      }
+
+      if (emps.isEmpty && res == null && lastError != null) {
+        final msg = lastError is ApiException ? lastError.message : lastError.toString();
+        setState(() {
+          _errorMessage = msg;
+          _isLoading = false;
+          _employees = [];
+        });
+        return;
       }
 
       if (!mounted || currentReq != _requestId) return;

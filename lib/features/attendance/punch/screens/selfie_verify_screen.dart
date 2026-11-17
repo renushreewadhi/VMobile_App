@@ -20,6 +20,16 @@ class SelfieVerifyScreen extends ConsumerStatefulWidget {
 class _SelfieVerifyScreenState extends ConsumerState<SelfieVerifyScreen> {
   bool _isCameraLoading = false;
 
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && ref.read(punchControllerProvider).capturedSelfie == null) {
+        _takeSelfie(ImageSource.camera);
+      }
+    });
+  }
+
   Future<void> _takeSelfie(ImageSource source) async {
     setState(() => _isCameraLoading = true);
     final controller = ref.read(punchControllerProvider.notifier);

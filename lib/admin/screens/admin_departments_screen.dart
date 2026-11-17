@@ -4,7 +4,6 @@ import '../../core/api/api_client.dart';
 import '../../core/api/api_endpoints.dart';
 import '../../core/auth/auth_service.dart';
 import '../../core/theme/app_colors.dart';
-import '../../core/widgets/app_card.dart';
 import '../../core/widgets/glass_header.dart';
 import '../../core/widgets/glass_scaffold.dart';
 import 'admin_department_detail_screen.dart';
@@ -23,16 +22,6 @@ class _AdminDepartmentsScreenState extends ConsumerState<AdminDepartmentsScreen>
   List<dynamic> _departments = [];
   String _searchTerm = '';
   String _statusFilter = 'All Status';
-
-  final Map<String, Map<String, dynamic>> _deptThemeMap = {
-    'Marketing': {'icon': Icons.campaign_rounded, 'color': const Color(0xFF0284C7), 'bg': const Color(0xFFE0F2FE)},
-    'Human Resources': {'icon': Icons.people_alt_rounded, 'color': const Color(0xFF16A34A), 'bg': const Color(0xFFDCFCE7)},
-    'Finance': {'icon': Icons.show_chart_rounded, 'color': const Color(0xFF2563EB), 'bg': const Color(0xFFDBEAFE)},
-    'Sales': {'icon': Icons.track_changes_rounded, 'color': const Color(0xFFDB2777), 'bg': const Color(0xFFFCE7F3)},
-    'IT & Software': {'icon': Icons.computer_rounded, 'color': const Color(0xFF0369A1), 'bg': const Color(0xFFE0F2FE)},
-    'Engineering': {'icon': Icons.developer_mode_rounded, 'color': const Color(0xFF2563EB), 'bg': const Color(0xFFE0EDFF)},
-    'Operations': {'icon': Icons.settings_rounded, 'color': const Color(0xFFD97706), 'bg': const Color(0xFFFEF3C7)},
-  };
 
   @override
   void initState() {
@@ -105,30 +94,21 @@ class _AdminDepartmentsScreenState extends ConsumerState<AdminDepartmentsScreen>
     return sum + (count is int ? count : (int.tryParse(count.toString()) ?? 0));
   });
 
-  Map<String, dynamic> _getDeptTheme(String name) {
-    for (final key in _deptThemeMap.keys) {
-      if (name.toLowerCase().contains(key.toLowerCase())) {
-        return _deptThemeMap[key]!;
-      }
-    }
-    return {'icon': Icons.business_rounded, 'color': const Color(0xFF2563EB), 'bg': const Color(0xFFE0EDFF)};
-  }
-
   Future<void> _deleteDepartment(Map<String, dynamic> d) async {
-    final deptId = d['id']?.toString() ?? '';
+    final deptId = (d['id'] ?? d['_id'])?.toString() ?? '';
     final deptName = d['name']?.toString() ?? 'Department';
 
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: Text('Deactivate "$deptName"?'),
-        content: const Text('This action will deactivate the selected department.'),
+        title: Text('Delete "$deptName"?'),
+        content: const Text('This action will delete the selected department.'),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
           ElevatedButton(
             style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
             onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Deactivate'),
+            child: const Text('Delete'),
           ),
         ],
       ),
@@ -138,9 +118,11 @@ class _AdminDepartmentsScreenState extends ConsumerState<AdminDepartmentsScreen>
 
     final apiClient = ref.read(apiClientProvider);
     try {
-      await apiClient.delete('${ApiEndpoints.departments}/$deptId');
+      await apiClient.delete('${ApiEndpoints.departments}/$deptId').catchError((_) async {
+        return await apiClient.delete('/departments/$deptId');
+      });
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Department "$deptName" deactivated successfully')));
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Department "$deptName" deleted successfully')));
         _loadDepartments();
       }
     } catch (e) {
@@ -153,75 +135,126 @@ class _AdminDepartmentsScreenState extends ConsumerState<AdminDepartmentsScreen>
   @override
   Widget build(BuildContext context) {
     final dark = Theme.of(context).brightness == Brightness.dark;
+    final cardBg = dark ? AppColors.darkMainSurface : Colors.white;
+    final borderColor = dark ? AppColors.darkBordersAndDividers : const Color(0xFFE5E7EB);
 
     return GlassScaffold(
       appBar: const GlassHeader(
         title: 'Departments Management',
       ),
       body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
+          ? const Center(child: CircularProgressIndicator(color: Color(0xFF0F6B63)))
           : RefreshIndicator(
               onRefresh: _loadDepartments,
               child: SingleChildScrollView(
-                padding: const EdgeInsets.all(16),
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 110),
                 physics: const AlwaysScrollableScrollPhysics(),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // Summary Metric KPI Cards (4 Compact & Elegant Cards)
+                    // 1. STAT TILES: One row of 4 white cards (1px #E5E7EB border, radius 14px, padding 10px 8px, gap 8px)
                     Row(
                       children: [
-                        Expanded(child: _buildMetricCard('Total', '${_departments.length}', Icons.apartment_rounded, const Color(0xFF2563EB), const Color(0xFFE0EDFF))),
+                        Expanded(
+                          child: _buildMetricCard(
+                            'Total',
+                            '${_departments.length}',
+                            Icons.apartment_rounded,
+                            const Color(0xFF0F6B63),
+                            const Color(0xFFE6F4F1),
+                            cardBg,
+                            borderColor,
+                          ),
+                        ),
                         const SizedBox(width: 8),
-                        Expanded(child: _buildMetricCard('Active', '$_activeCount', Icons.check_circle_rounded, const Color(0xFF16A34A), const Color(0xFFDCFCE7))),
+                        Expanded(
+                          child: _buildMetricCard(
+                            'Active',
+                            '$_activeCount',
+                            Icons.check_circle_rounded,
+                            const Color(0xFF047857),
+                            const Color(0xFFECFDF5),
+                            cardBg,
+                            borderColor,
+                          ),
+                        ),
                         const SizedBox(width: 8),
-                        Expanded(child: _buildMetricCard('Inactive', '$_inactiveCount', Icons.pause_circle_rounded, const Color(0xFFDC2626), const Color(0xFFFEE2E2))),
+                        Expanded(
+                          child: _buildMetricCard(
+                            'Inactive',
+                            '$_inactiveCount',
+                            Icons.pause_circle_rounded,
+                            _inactiveCount > 0 ? const Color(0xFFDC2626) : const Color(0xFF64748B),
+                            _inactiveCount > 0 ? const Color(0xFFFEF2F2) : const Color(0xFFF1F5F9),
+                            cardBg,
+                            borderColor,
+                          ),
+                        ),
                         const SizedBox(width: 8),
-                        Expanded(child: _buildMetricCard('Staff', '$_totalEmployeesCount', Icons.group_rounded, const Color(0xFF9333EA), const Color(0xFFF3E8FF))),
+                        Expanded(
+                          child: _buildMetricCard(
+                            'Staff',
+                            '$_totalEmployeesCount',
+                            Icons.group_rounded,
+                            const Color(0xFF0F6B63),
+                            const Color(0xFFE6F4F1),
+                            cardBg,
+                            borderColor,
+                          ),
+                        ),
                       ],
                     ),
-                    const SizedBox(height: 16),
+                    const SizedBox(height: 14),
 
-                    // Search & Status Filter Controls Row
+                    // 2. SEARCH + STATUS FILTER (44px high, radius 12-14px, white bg, 1px #CBD5E1 border)
                     Row(
                       children: [
                         Expanded(
                           child: Container(
+                            height: 44,
                             decoration: BoxDecoration(
-                              color: dark ? AppColors.darkSecondarySurface : Colors.white,
-                              borderRadius: BorderRadius.circular(14),
-                              border: Border.all(color: dark ? AppColors.darkBordersAndDividers : const Color(0xFFE2E8F0)),
-                              boxShadow: const [BoxShadow(color: Color.fromRGBO(15, 23, 42, 0.03), blurRadius: 10, offset: Offset(0, 2))],
+                              color: cardBg,
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(color: dark ? AppColors.darkBordersAndDividers : const Color(0xFFCBD5E1)),
                             ),
+                            alignment: Alignment.center,
                             child: TextField(
+                              style: TextStyle(fontSize: 14, color: dark ? AppColors.darkPrimaryText : const Color(0xFF0F172A), fontWeight: FontWeight.w500),
                               decoration: const InputDecoration(
                                 hintText: 'Search by name, code, description...',
-                                hintStyle: TextStyle(fontSize: 12.5, color: Color(0xFF94A3B8)),
+                                hintStyle: TextStyle(fontSize: 14, color: Color(0xFF94A3B8), fontWeight: FontWeight.w400),
                                 prefixIcon: Icon(Icons.search_rounded, size: 20, color: Color(0xFF64748B)),
                                 border: InputBorder.none,
-                                contentPadding: EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                                enabledBorder: InputBorder.none,
+                                focusedBorder: InputBorder.none,
+                                isDense: true,
+                                contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 12),
                               ),
                               onChanged: (val) => setState(() => _searchTerm = val),
                             ),
                           ),
                         ),
-                        const SizedBox(width: 10),
+                        const SizedBox(width: 8),
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 12),
+                          width: 120,
+                          height: 44,
+                          padding: const EdgeInsets.symmetric(horizontal: 10),
                           decoration: BoxDecoration(
-                            color: dark ? AppColors.darkSecondarySurface : Colors.white,
-                            borderRadius: BorderRadius.circular(14),
-                            border: Border.all(color: dark ? AppColors.darkBordersAndDividers : const Color(0xFFE2E8F0)),
-                            boxShadow: const [BoxShadow(color: Color.fromRGBO(15, 23, 42, 0.03), blurRadius: 10, offset: Offset(0, 2))],
+                            color: cardBg,
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: dark ? AppColors.darkBordersAndDividers : const Color(0xFFCBD5E1)),
                           ),
+                          alignment: Alignment.center,
                           child: DropdownButtonHideUnderline(
                             child: DropdownButton<String>(
                               value: _statusFilter,
-                              style: TextStyle(fontSize: 12, color: dark ? AppColors.darkPrimaryText : const Color(0xFF0F172A), fontWeight: FontWeight.w600),
+                              isExpanded: true,
+                              icon: const Icon(Icons.keyboard_arrow_down_rounded, color: Color(0xFF0F6B63), size: 20),
+                              style: TextStyle(fontSize: 13, color: dark ? AppColors.darkPrimaryText : const Color(0xFF0F172A), fontWeight: FontWeight.w500),
                               items: const [
-                                DropdownMenuItem(value: 'All Status', child: Text('All Status')),
-                                DropdownMenuItem(value: 'Active', child: Text('Active')),
-                                DropdownMenuItem(value: 'Inactive', child: Text('Inactive')),
+                                DropdownMenuItem(value: 'All Status', child: Text('All Status', overflow: TextOverflow.ellipsis)),
+                                DropdownMenuItem(value: 'Active', child: Text('Active', overflow: TextOverflow.ellipsis)),
+                                DropdownMenuItem(value: 'Inactive', child: Text('Inactive', overflow: TextOverflow.ellipsis)),
                               ],
                               onChanged: (val) => setState(() => _statusFilter = val ?? 'All Status'),
                             ),
@@ -231,7 +264,7 @@ class _AdminDepartmentsScreenState extends ConsumerState<AdminDepartmentsScreen>
                     ),
                     const SizedBox(height: 16),
 
-                    // Action Bar below Search: Department Count + Create Department Button
+                    // 3. HEADING ROW: Departments List + count chip & Create Department button
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
@@ -239,41 +272,55 @@ class _AdminDepartmentsScreenState extends ConsumerState<AdminDepartmentsScreen>
                           child: Row(
                             children: [
                               Flexible(
-                                child: Text('Departments List', overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: dark ? AppColors.darkPrimaryText : const Color(0xFF0F172A))),
+                                child: Text(
+                                  'Departments List',
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: dark ? AppColors.darkPrimaryText : const Color(0xFF0F172A)),
+                                ),
                               ),
                               const SizedBox(width: 6),
                               Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
-                                decoration: BoxDecoration(color: const Color(0xFFE0EDFF), borderRadius: BorderRadius.circular(12)),
-                                child: Text('${_filteredDepartments.length}', style: const TextStyle(fontSize: 10.5, fontWeight: FontWeight.bold, color: Color(0xFF2563EB))),
+                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFE6F4F1),
+                                  borderRadius: BorderRadius.circular(999),
+                                ),
+                                child: Text(
+                                  '${_filteredDepartments.length}',
+                                  style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Color(0xFF0F6B63)),
+                                ),
                               ),
                             ],
                           ),
                         ),
-                        const SizedBox(width: 6),
-                        ElevatedButton.icon(
-                          onPressed: () async {
-                            final result = await Navigator.push(
-                              context,
-                              MaterialPageRoute(builder: (_) => const AdminDepartmentFormScreen()),
-                            );
-                            if (result == true) _loadDepartments();
-                          },
-                          icon: const Icon(Icons.add_rounded, size: 16),
-                          label: const Text('Create Department', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.bold)),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFF2563EB),
-                            foregroundColor: Colors.white,
-                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
-                            elevation: 0,
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                        const SizedBox(width: 8),
+                        SizedBox(
+                          height: 40,
+                          child: ElevatedButton.icon(
+                            onPressed: () async {
+                              final result = await Navigator.push(
+                                context,
+                                MaterialPageRoute(builder: (_) => const AdminDepartmentFormScreen()),
+                              );
+                              if (result == true) _loadDepartments();
+                            },
+                            icon: const Icon(Icons.add_rounded, size: 16, color: Colors.white),
+                            label: const Text('Create Department', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.white)),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFF0F6B63),
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(horizontal: 14),
+                              elevation: 2,
+                              shadowColor: const Color.fromRGBO(15, 107, 99, 0.22),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                            ),
                           ),
                         ),
                       ],
                     ),
-                    const SizedBox(height: 16),
+                    const SizedBox(height: 14),
 
-                    // Error or Empty States
+                    // 4. DEPARTMENT CARDS FEED
                     if (_errorMessage != null)
                       Center(
                         child: Padding(
@@ -290,9 +337,18 @@ class _AdminDepartmentsScreenState extends ConsumerState<AdminDepartmentsScreen>
                         ),
                       )
                     else if (_filteredDepartments.isEmpty)
-                      const Padding(
-                        padding: EdgeInsets.all(32),
-                        child: Center(child: Text('No departments found matching your criteria.', style: TextStyle(color: Color(0xFF64748B), fontSize: 13))),
+                      Container(
+                        padding: const EdgeInsets.symmetric(vertical: 48, horizontal: 16),
+                        alignment: Alignment.center,
+                        child: Column(
+                          children: const [
+                            Icon(Icons.apartment_outlined, size: 56, color: Color(0xFF94A3B8)),
+                            SizedBox(height: 16),
+                            Text('No Departments Found', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF0F172A))),
+                            SizedBox(height: 8),
+                            Text('No departments match the selected status filter or search criteria.', textAlign: TextAlign.center, style: TextStyle(fontSize: 13, color: Color(0xFF64748B))),
+                          ],
+                        ),
                       )
                     else
                       ListView.builder(
@@ -305,19 +361,19 @@ class _AdminDepartmentsScreenState extends ConsumerState<AdminDepartmentsScreen>
                           final deptName = dept['name']?.toString() ?? 'Department';
                           final deptCode = dept['code']?.toString() ?? 'CODE';
                           final deptDesc = dept['description']?.toString() ?? '';
-                          final empCount = dept['employeeCount'] ?? 0;
+                          final empCountRaw = dept['employeeCount'] ?? 0;
+                          final empCount = empCountRaw is int ? empCountRaw : (int.tryParse(empCountRaw.toString()) ?? 0);
                           final headName = dept['headName']?.toString() ?? 'Unassigned';
                           final status = (dept['status'] ?? 'Active').toString().toUpperCase();
                           final isActive = status == 'ACTIVE';
-                          final theme = _getDeptTheme(deptName);
 
                           return Container(
-                            margin: const EdgeInsets.only(bottom: 14),
+                            margin: const EdgeInsets.only(bottom: 12),
                             decoration: BoxDecoration(
-                              color: dark ? AppColors.darkMainSurface : Colors.white,
+                              color: cardBg,
                               borderRadius: BorderRadius.circular(16),
-                              border: Border.all(color: dark ? AppColors.darkBordersAndDividers : const Color(0xFFF1F5F9)),
-                              boxShadow: const [BoxShadow(color: Color.fromRGBO(15, 23, 42, 0.04), blurRadius: 16, offset: Offset(0, 4))],
+                              border: Border.all(color: borderColor, width: 1),
+                              boxShadow: const [BoxShadow(color: Color.fromRGBO(15, 23, 42, 0.03), blurRadius: 10, offset: Offset(0, 2))],
                             ),
                             child: InkWell(
                               borderRadius: BorderRadius.circular(16),
@@ -329,22 +385,23 @@ class _AdminDepartmentsScreenState extends ConsumerState<AdminDepartmentsScreen>
                                 _loadDepartments();
                               },
                               child: Padding(
-                                padding: const EdgeInsets.all(16),
+                                padding: const EdgeInsets.all(12),
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
+                                    // Row 1: 44px Icon tile + Title + Active/Inactive chip
                                     Row(
                                       crossAxisAlignment: CrossAxisAlignment.start,
                                       children: [
                                         Container(
-                                          width: 46,
-                                          height: 46,
+                                          width: 44,
+                                          height: 44,
                                           decoration: BoxDecoration(
-                                            color: theme['bg'] as Color,
+                                            color: const Color(0xFFE6F4F1),
                                             borderRadius: BorderRadius.circular(12),
                                           ),
                                           alignment: Alignment.center,
-                                          child: Icon(theme['icon'] as IconData, color: theme['color'] as Color, size: 22),
+                                          child: const Icon(Icons.apartment_rounded, color: Color(0xFF0F6B63), size: 22),
                                         ),
                                         const SizedBox(width: 12),
                                         Expanded(
@@ -353,38 +410,55 @@ class _AdminDepartmentsScreenState extends ConsumerState<AdminDepartmentsScreen>
                                             children: [
                                               Row(
                                                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                                crossAxisAlignment: CrossAxisAlignment.start,
                                                 children: [
                                                   Expanded(
-                                                    child: Text(deptName, style: TextStyle(fontWeight: FontWeight.w800, fontSize: 15, color: dark ? AppColors.darkPrimaryText : const Color(0xFF0F172A))),
+                                                    child: Text(
+                                                      deptName,
+                                                      maxLines: 2,
+                                                      overflow: TextOverflow.ellipsis,
+                                                      style: TextStyle(fontWeight: FontWeight.w600, fontSize: 15, color: dark ? AppColors.darkPrimaryText : const Color(0xFF0F172A)),
+                                                    ),
                                                   ),
+                                                  const SizedBox(width: 8),
                                                   Container(
+                                                    height: 24,
                                                     padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                                                     decoration: BoxDecoration(
-                                                      color: isActive ? const Color(0xFFDCFCE7) : const Color(0xFFF1F5F9),
-                                                      borderRadius: BorderRadius.circular(20),
+                                                      color: isActive ? const Color(0xFFECFDF5) : const Color(0xFFF1F5F9),
+                                                      borderRadius: BorderRadius.circular(999),
                                                     ),
                                                     child: Text(
                                                       isActive ? 'Active' : 'Inactive',
-                                                      style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: isActive ? const Color(0xFF16A34A) : const Color(0xFF64748B)),
+                                                      style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: isActive ? const Color(0xFF047857) : const Color(0xFF475569)),
                                                     ),
                                                   ),
                                                 ],
                                               ),
-                                              const SizedBox(height: 4),
+                                              const SizedBox(height: 6),
+                                              // Row 2: Code chip + Description
                                               Row(
                                                 children: [
                                                   Container(
                                                     padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                                                     decoration: BoxDecoration(
-                                                      color: (theme['color'] as Color).withOpacity(0.12),
-                                                      borderRadius: BorderRadius.circular(6),
+                                                      color: const Color(0xFFF1F5F9),
+                                                      borderRadius: BorderRadius.circular(8),
                                                     ),
-                                                    child: Text(deptCode, style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: theme['color'] as Color)),
+                                                    child: Text(
+                                                      deptCode,
+                                                      style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Color(0xFF334155), fontFamily: 'monospace'),
+                                                    ),
                                                   ),
                                                   if (deptDesc.isNotEmpty) ...[
                                                     const SizedBox(width: 8),
                                                     Expanded(
-                                                      child: Text(deptDesc, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 12, color: dark ? AppColors.darkSecondaryText : const Color(0xFF64748B))),
+                                                      child: Text(
+                                                        deptDesc,
+                                                        maxLines: 2,
+                                                        overflow: TextOverflow.ellipsis,
+                                                        style: const TextStyle(fontSize: 12, color: Color(0xFF475569), height: 1.4),
+                                                      ),
                                                     ),
                                                   ],
                                                 ],
@@ -395,22 +469,38 @@ class _AdminDepartmentsScreenState extends ConsumerState<AdminDepartmentsScreen>
                                       ],
                                     ),
                                     const Padding(
-                                      padding: EdgeInsets.symmetric(vertical: 12),
-                                      child: Divider(height: 1, color: Color(0xFFF1F5F9)),
+                                      padding: EdgeInsets.symmetric(vertical: 8),
+                                      child: Divider(height: 1, color: Color(0xFFE5E7EB)),
                                     ),
+                                    // Footer: Staff count & HOD on left; Edit & Delete buttons on right
                                     Row(
                                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                       children: [
-                                        Row(
-                                          children: [
-                                            const Icon(Icons.people_alt_outlined, size: 13, color: Color(0xFF2563EB)),
-                                            const SizedBox(width: 4),
-                                            Text('$empCount Staff', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: dark ? AppColors.darkPrimaryText : const Color(0xFF0F172A))),
-                                            const SizedBox(width: 12),
-                                            const Icon(Icons.person_outline, size: 13, color: Color(0xFF9333EA)),
-                                            const SizedBox(width: 4),
-                                            Text('HOD: $headName', style: TextStyle(fontSize: 12, color: dark ? AppColors.darkSecondaryText : const Color(0xFF64748B))),
-                                          ],
+                                        Expanded(
+                                          child: Row(
+                                            children: [
+                                              const Icon(Icons.people_alt_outlined, size: 14, color: Color(0xFF64748B)),
+                                              const SizedBox(width: 4),
+                                              Text(
+                                                '$empCount Staff',
+                                                style: TextStyle(
+                                                  fontSize: 12,
+                                                  fontWeight: empCount > 0 ? FontWeight.w600 : FontWeight.w400,
+                                                  color: empCount > 0 ? const Color(0xFF0F172A) : const Color(0xFF64748B),
+                                                ),
+                                              ),
+                                              const SizedBox(width: 12),
+                                              const Icon(Icons.person_outline, size: 14, color: Color(0xFF64748B)),
+                                              const SizedBox(width: 4),
+                                              Expanded(
+                                                child: Text(
+                                                  'HOD: $headName',
+                                                  overflow: TextOverflow.ellipsis,
+                                                  style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w400, color: Color(0xFF64748B)),
+                                                ),
+                                              ),
+                                            ],
+                                          ),
                                         ),
                                         Row(
                                           children: [
@@ -422,21 +512,25 @@ class _AdminDepartmentsScreenState extends ConsumerState<AdminDepartmentsScreen>
                                                 );
                                                 if (updated == true) _loadDepartments();
                                               },
-                                              borderRadius: BorderRadius.circular(8),
+                                              borderRadius: BorderRadius.circular(10),
                                               child: Container(
-                                                padding: const EdgeInsets.all(8),
-                                                decoration: BoxDecoration(color: const Color(0xFFEFF6FF), borderRadius: BorderRadius.circular(8)),
-                                                child: const Icon(Icons.edit_rounded, size: 16, color: Color(0xFF2563EB)),
+                                                width: 40,
+                                                height: 40,
+                                                decoration: BoxDecoration(color: const Color(0xFFE6F4F1), borderRadius: BorderRadius.circular(10)),
+                                                alignment: Alignment.center,
+                                                child: const Icon(Icons.edit_rounded, size: 18, color: Color(0xFF0F6B63)),
                                               ),
                                             ),
-                                            const SizedBox(width: 8),
+                                            const SizedBox(width: 12),
                                             InkWell(
                                               onTap: () => _deleteDepartment(dept),
-                                              borderRadius: BorderRadius.circular(8),
+                                              borderRadius: BorderRadius.circular(10),
                                               child: Container(
-                                                padding: const EdgeInsets.all(8),
-                                                decoration: BoxDecoration(color: const Color(0xFFFEE2E2), borderRadius: BorderRadius.circular(8)),
-                                                child: const Icon(Icons.delete_rounded, size: 16, color: Color(0xFFDC2626)),
+                                                width: 40,
+                                                height: 40,
+                                                decoration: BoxDecoration(color: const Color(0xFFFEF2F2), borderRadius: BorderRadius.circular(10)),
+                                                alignment: Alignment.center,
+                                                child: const Icon(Icons.delete_outline_rounded, size: 18, color: Color(0xFFDC2626)),
                                               ),
                                             ),
                                           ],
@@ -457,12 +551,13 @@ class _AdminDepartmentsScreenState extends ConsumerState<AdminDepartmentsScreen>
     );
   }
 
-  Widget _buildMetricCard(String title, String value, IconData icon, Color color, Color bg) {
+  Widget _buildMetricCard(String title, String value, IconData icon, Color iconColor, Color iconBg, Color cardBg, Color borderColor) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
       decoration: BoxDecoration(
-        color: bg,
+        color: cardBg,
         borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: borderColor, width: 1),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -470,19 +565,30 @@ class _AdminDepartmentsScreenState extends ConsumerState<AdminDepartmentsScreen>
         children: [
           Row(
             children: [
-              Icon(icon, color: color, size: 16),
-              const SizedBox(width: 4),
+              Container(
+                width: 28,
+                height: 28,
+                decoration: BoxDecoration(color: iconBg, borderRadius: BorderRadius.circular(8)),
+                alignment: Alignment.center,
+                child: Icon(icon, color: iconColor, size: 16),
+              ),
+              const SizedBox(width: 6),
               Expanded(
                 child: Text(
                   value,
-                  style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: color, height: 1.1),
+                  style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600, color: Color(0xFF0F172A), height: 1.1),
                   overflow: TextOverflow.ellipsis,
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 3),
-          Text(title, style: const TextStyle(fontSize: 10, color: Color(0xFF475569), fontWeight: FontWeight.w600), overflow: TextOverflow.ellipsis),
+          const SizedBox(height: 4),
+          Text(
+            title,
+            style: const TextStyle(fontSize: 11, color: Color(0xFF64748B), fontWeight: FontWeight.w500),
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+          ),
         ],
       ),
     );

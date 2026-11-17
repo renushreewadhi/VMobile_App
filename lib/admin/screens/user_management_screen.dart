@@ -5,9 +5,7 @@ import '../../core/api/api_endpoints.dart';
 import '../../core/auth/auth_service.dart';
 import '../../core/errors/api_exception.dart';
 import '../../core/models/user_model.dart';
-import '../../core/storage/storage_service.dart';
 import '../../core/theme/app_colors.dart';
-import '../../core/theme/app_theme_tokens.dart';
 import '../../core/theme/glass_theme.dart';
 import '../../core/widgets/app_button.dart';
 import '../../core/widgets/app_card.dart';
@@ -32,6 +30,8 @@ class _UserManagementScreenState extends ConsumerState<UserManagementScreen> {
   String _searchQuery = '';
   String _roleFilter = 'ALL';
   String _statusFilter = 'ALL';
+  int _currentPage = 1;
+  final int _pageSize = 10;
 
   // Request ID guard
   int _requestId = 0;
@@ -247,23 +247,26 @@ class _UserManagementScreenState extends ConsumerState<UserManagementScreen> {
     final apiClient = ref.read(apiClientProvider);
 
     try {
-      await apiClient.post(ApiEndpoints.userResetPassword(userId), body: {}).catchError((_) async {
-        return await apiClient.post('/users/$userId/password-reset', body: {});
-      }).catchError((_) async {
-        return await apiClient.post('/auth/forgot-password', body: {'email': email});
-      }).catchError((_) async {
-        return await apiClient.post('/users/$userId/send-password-reset', body: {});
-      });
+      try {
+        await apiClient.post(ApiEndpoints.forgotPassword, body: {'email': email});
+      } catch (_) {
+        try {
+          await apiClient.post(ApiEndpoints.userResetPassword(userId), body: {});
+        } catch (_) {
+          await apiClient.post('/users/$userId/password-reset', body: {});
+        }
+      }
 
       if (!mounted || currentReq != _requestId) return;
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Password reset instructions sent to $email'), backgroundColor: AppColors.success),
       );
-    } catch (_) {
+    } catch (e) {
       if (!mounted || currentReq != _requestId) return;
+      final msg = e is ApiException ? e.message : 'Failed to send password reset instructions.';
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Password reset instructions sent to $email'), backgroundColor: AppColors.success),
+        SnackBar(content: Text(msg), backgroundColor: Colors.red),
       );
     }
   }
@@ -273,7 +276,6 @@ class _UserManagementScreenState extends ConsumerState<UserManagementScreen> {
     final glass = context.glass;
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final cardBgColor = isDark ? AppColors.darkMainSurface : Colors.white;
-    final borderColor = isDark ? AppColors.darkBordersAndDividers : const Color(0xFFE5E7EB);
 
     ref.listen<AuthState>(authServiceProvider, (previous, next) {
       if (next.user?.id != _currentUserId) {
@@ -366,177 +368,141 @@ class _UserManagementScreenState extends ConsumerState<UserManagementScreen> {
       return matchesSearch && matchesRole && matchesStatus;
     }).toList();
 
-    // Scroll padding 110px so last card scrolls fully above bottom nav
-    final bottomNavInset = 110.0;
+    final totalFilteredCount = filtered.length;
+    final totalPages = (totalFilteredCount / _pageSize).ceil();
+    final safePage = totalPages == 0 ? 1 : _currentPage.clamp(1, totalPages);
+    final startIndex = (safePage - 1) * _pageSize;
+    final endIndex = (startIndex + _pageSize).clamp(0, totalFilteredCount);
+    final paginatedList = totalFilteredCount > 0 ? filtered.sublist(startIndex, endIndex) : <dynamic>[];
+
+    final roles = [
+      {'value': 'ALL', 'label': 'All Roles'},
+      {'value': 'ADMIN', 'label': 'Administrator'},
+      {'value': 'HR', 'label': 'HR Admin'},
+      {'value': 'FINANCE', 'label': 'Finance Admin'},
+      {'value': 'MANAGER', 'label': 'Dept Manager'},
+      {'value': 'TL', 'label': 'Team Lead'},
+      {'value': 'EMPLOYEE', 'label': 'Employee'},
+    ];
 
     final content = RefreshIndicator(
       onRefresh: _fetchUsers,
       child: SingleChildScrollView(
-        physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
-        padding: EdgeInsets.fromLTRB(16, 12, 16, bottomNavInset),
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // TOP HEADER BANNER matching web HRMS reference
-            Container(
-              padding: const EdgeInsets.all(14),
-              decoration: BoxDecoration(
-                color: cardBgColor,
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: borderColor, width: 1),
-                boxShadow: [
-                  BoxShadow(
-                    color: isDark ? Colors.black12 : const Color(0x060F6B66),
-                    blurRadius: 4,
-                    offset: const Offset(0, 2),
-                  ),
-                ],
-              ),
+            // Role Filter Pills Row matching Employee Management
+            SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
               child: Row(
-                children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'User Management',
-                          style: TextStyle(
-                            fontSize: 17,
-                            fontWeight: FontWeight.bold,
-                            color: isDark ? AppColors.darkPrimaryText : AppColors.lightPrimaryText,
-                          ),
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          'Manage system users, access roles, security settings, and permissions',
-                          style: TextStyle(
-                            fontSize: 11.5,
-                            color: isDark ? AppColors.darkSecondaryText : const Color(0xFF64748B),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  ConstrainedBox(
-                    constraints: const BoxConstraints(minHeight: 44),
-                    child: ElevatedButton.icon(
-                      onPressed: () async {
-                        final created = await Navigator.push<bool>(
-                          context,
-                          MaterialPageRoute(builder: (_) => const UserFormScreen()),
-                        );
-                        if (created == true) _fetchUsers();
+                children: roles.map((r) {
+                  final isSelected = _roleFilter == r['value'];
+                  return Padding(
+                    padding: const EdgeInsets.only(right: 6),
+                    child: InkWell(
+                      onTap: () {
+                        setState(() {
+                          _roleFilter = r['value']!;
+                          _currentPage = 1;
+                        });
                       },
-                      icon: const Icon(Icons.person_add_alt_1_rounded, size: 16, color: Colors.white),
-                      label: const FittedBox(
-                        fit: BoxFit.scaleDown,
+                      borderRadius: BorderRadius.circular(20),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                        decoration: BoxDecoration(
+                          color: isSelected
+                              ? const Color(0xFFD97706)
+                              : (isDark ? AppColors.darkSecondarySurface : const Color(0xFFF1F5F9)),
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(
+                            color: isSelected ? const Color(0xFFD97706) : (isDark ? AppColors.darkBordersAndDividers : const Color(0xFFE2E8F0)),
+                          ),
+                        ),
                         child: Text(
-                          'Add New User',
-                          style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.bold, color: Colors.white),
+                          r['label']!,
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: isSelected ? FontWeight.bold : FontWeight.w600,
+                            color: isSelected ? Colors.white : (isDark ? AppColors.darkPrimaryText : const Color(0xFF64748B)),
+                          ),
                         ),
                       ),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFFC2410C),
-                        foregroundColor: Colors.white,
-                        elevation: 2,
-                        shadowColor: const Color(0x33C2410C),
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                      ),
                     ),
-                  ),
-                ],
+                  );
+                }).toList(),
               ),
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 14),
 
-            // 1. STAT CARDS: Single row of 4 compact cards (padding 10px 6px, radius 16px, min-height 72px, 1px #E5E7EB border)
+            // Stat Cards (Row of 4)
             Row(
               children: [
                 Expanded(child: UserStatTile(label: 'Total', value: '$totalCount', icon: Icons.groups_rounded, iconColor: const Color(0xFF2563EB))),
                 const SizedBox(width: 8),
                 Expanded(child: UserStatTile(label: 'Active', value: '$activeCount', icon: Icons.check_circle_outline_rounded, iconColor: const Color(0xFF16A34A))),
                 const SizedBox(width: 8),
-                Expanded(child: UserStatTile(label: 'System', value: '$adminCount', icon: Icons.admin_panel_settings_rounded, iconColor: const Color(0xFF8B5CF6))),
+                Expanded(child: UserStatTile(label: 'Admin', value: '$adminCount', icon: Icons.admin_panel_settings_rounded, iconColor: const Color(0xFF8B5CF6))),
                 const SizedBox(width: 8),
                 Expanded(child: UserStatTile(label: 'Inactive', value: '$inactiveCount', icon: Icons.pause_circle_outline_rounded, iconColor: const Color(0xFFF59E0B))),
               ],
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 14),
 
-            // 2. SEARCH + ROLE FILTER (44px height, radius 14px, 1px #E5E7EB border, 14px text, 8px gap)
-            Row(
-              children: [
-                Expanded(
-                  child: SizedBox(
-                    height: 44,
-                    child: TextField(
-                      decoration: InputDecoration(
-                        hintText: 'Search users',
-                        hintStyle: TextStyle(color: isDark ? AppColors.darkMutedText : const Color(0xFF94A3B8), fontSize: 14),
-                        prefixIcon: Icon(Icons.search_rounded, size: 18, color: isDark ? AppColors.darkSecondaryText : const Color(0xFF64748B)),
-                        filled: true,
-                        fillColor: cardBgColor,
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide(color: borderColor)),
-                        enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide(color: borderColor)),
-                        focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: const BorderSide(color: AppColors.primary, width: 1.5)),
-                      ),
-                      style: TextStyle(color: isDark ? AppColors.darkPrimaryText : AppColors.lightPrimaryText, fontSize: 14),
-                      onChanged: (val) => setState(() => _searchQuery = val),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Container(
-                  width: 135,
-                  height: 44,
-                  padding: const EdgeInsets.symmetric(horizontal: 10),
-                  decoration: BoxDecoration(
-                    color: cardBgColor,
-                    borderRadius: BorderRadius.circular(14),
-                    border: Border.all(color: borderColor, width: 1),
-                  ),
-                  child: DropdownButtonHideUnderline(
-                    child: DropdownButton<String>(
-                      value: _roleFilter,
-                      isDense: true,
-                      isExpanded: true,
-                      icon: const Icon(Icons.keyboard_arrow_down_rounded, size: 20, color: AppColors.primary),
-                      dropdownColor: cardBgColor,
-                      style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: isDark ? AppColors.darkPrimaryText : AppColors.lightPrimaryText),
-                      items: const [
-                        DropdownMenuItem(value: 'ALL', child: Text('All Roles', overflow: TextOverflow.ellipsis)),
-                        DropdownMenuItem(value: 'SUPER ADMIN', child: Text('Super Admin', overflow: TextOverflow.ellipsis)),
-                        DropdownMenuItem(value: 'HR ADMIN', child: Text('HR Admin', overflow: TextOverflow.ellipsis)),
-                        DropdownMenuItem(value: 'FINANCE ADMIN', child: Text('Finance Admin', overflow: TextOverflow.ellipsis)),
-                        DropdownMenuItem(value: 'DEPARTMENT MANAGER', child: Text('Dept Manager', overflow: TextOverflow.ellipsis)),
-                        DropdownMenuItem(value: 'TEAM LEAD', child: Text('Team Lead', overflow: TextOverflow.ellipsis)),
-                        DropdownMenuItem(value: 'EMPLOYEE', child: Text('Employee', overflow: TextOverflow.ellipsis)),
-                      ],
-                      onChanged: (val) => setState(() => _roleFilter = val ?? 'ALL'),
-                    ),
-                  ),
-                ),
-              ],
+            // Search Bar matching Employee Management
+            TextField(
+              decoration: InputDecoration(
+                hintText: 'Search by user name, email, role...',
+                hintStyle: const TextStyle(color: Color(0xFF94A3B8), fontSize: 13),
+                prefixIcon: const Icon(Icons.search_rounded, color: Color(0xFF94A3B8), size: 20),
+                suffixIcon: _searchQuery.isNotEmpty
+                    ? IconButton(
+                        icon: const Icon(Icons.clear_rounded, size: 18, color: Color(0xFF94A3B8)),
+                        onPressed: () => setState(() {
+                          _searchQuery = '';
+                          _currentPage = 1;
+                        }),
+                      )
+                    : null,
+                filled: true,
+                fillColor: isDark ? AppColors.darkSecondarySurface : Colors.white,
+                contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFFCBD5E1))),
+                enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFFE2E8F0))),
+              ),
+              style: TextStyle(color: isDark ? AppColors.darkPrimaryText : const Color(0xFF0F172A), fontSize: 13),
+              onChanged: (val) {
+                setState(() {
+                  _searchQuery = val;
+                  _currentPage = 1;
+                });
+              },
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 14),
 
-            // 3. USER CARDS LIST
+            // User Cards Feed
             if (filtered.isEmpty)
-              const EmptyPlaceholder(
-                icon: Icons.person_search_outlined,
-                title: 'No users found matching criteria',
-                message: 'Try adjusting your search query or role filter',
+              Container(
+                padding: const EdgeInsets.symmetric(vertical: 48, horizontal: 16),
+                alignment: Alignment.center,
+                child: Column(
+                  children: [
+                    Icon(Icons.person_search_outlined, size: 56, color: glass.textSecondary.withAlpha(128)),
+                    const SizedBox(height: 16),
+                    Text('No Users Found', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: glass.textPrimary)),
+                    const SizedBox(height: 8),
+                    Text('No user records match the selected role filter or search criteria.', textAlign: TextAlign.center, style: TextStyle(fontSize: 13, color: glass.textSecondary)),
+                  ],
+                ),
               )
-            else
+            else ...[
               ListView.builder(
                 shrinkWrap: true,
                 physics: const NeverScrollableScrollPhysics(),
-                itemCount: filtered.length,
+                itemCount: paginatedList.length,
                 itemBuilder: (context, index) {
-                  final u = filtered.elementAt(index);
+                  final u = paginatedList.elementAt(index);
                   final userId = (u['id'] ?? u['_id'])?.toString() ?? '1';
 
                   return FadeSlideEntrance(
@@ -556,6 +522,38 @@ class _UserManagementScreenState extends ConsumerState<UserManagementScreen> {
                   );
                 },
               ),
+
+              // Pagination Controls Footer matching Employee Management
+              const SizedBox(height: 14),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    'Showing ${totalFilteredCount > 0 ? startIndex + 1 : 0} to $endIndex of $totalFilteredCount entries',
+                    style: const TextStyle(fontSize: 11, color: Color(0xFF64748B), fontWeight: FontWeight.w500),
+                  ),
+                  Row(
+                    children: [
+                      IconButton(
+                        icon: const Icon(Icons.chevron_left_rounded, size: 20),
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(),
+                        onPressed: safePage > 1 ? () => setState(() => _currentPage = safePage - 1) : null,
+                      ),
+                      const SizedBox(width: 8),
+                      Text('Page $safePage', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: isDark ? AppColors.darkPrimaryText : const Color(0xFF0F172A))),
+                      const SizedBox(width: 8),
+                      IconButton(
+                        icon: const Icon(Icons.chevron_right_rounded, size: 20),
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(),
+                        onPressed: safePage < totalPages ? () => setState(() => _currentPage = safePage + 1) : null,
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ],
           ],
         ),
       ),

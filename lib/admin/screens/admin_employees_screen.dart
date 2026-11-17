@@ -50,7 +50,7 @@ class EmployeeModel {
     String fName = json['firstName']?.toString() ?? '';
     String lName = json['lastName']?.toString() ?? '';
     if (fName.isEmpty && lName.isEmpty) {
-      final name = json['fullName']?.toString() ?? json['name']?.toString() ?? json['employeeName']?.toString() ?? '';
+      final name = json['fullName']?.toString() ?? json['name']?.toString() ?? json['employeeName']?.toString() ?? json['username']?.toString() ?? '';
       if (name.isNotEmpty) {
         final parts = name.trim().split(' ');
         fName = parts.first;
@@ -82,9 +82,16 @@ class EmployeeModel {
       }
     }
 
+    final idStr = json['id']?.toString() ?? json['_id']?.toString() ?? json['userId']?.toString() ?? '';
+    final code = json['employeeId']?.toString() ?? json['employeeCode']?.toString() ?? json['code']?.toString() ?? json['userCode']?.toString();
+    final fallbackCode = idStr.isNotEmpty ? 'EMP-${idStr.length >= 4 ? idStr.substring(idStr.length - 4).toUpperCase() : idStr.toUpperCase()}' : 'EMP-000';
+
+    final rawStatus = json['employmentStatus']?.toString() ?? json['status']?.toString();
+    final status = rawStatus ?? (json['isActive'] == false ? 'Inactive' : 'Active');
+
     return EmployeeModel(
-      id: json['id']?.toString() ?? json['_id']?.toString() ?? json['userId']?.toString() ?? '',
-      employeeId: json['employeeId']?.toString() ?? json['employeeCode']?.toString() ?? json['code']?.toString() ?? 'EMP-000',
+      id: idStr,
+      employeeId: (code != null && code.isNotEmpty) ? code : fallbackCode,
       firstName: fName.isNotEmpty ? fName : 'Employee',
       lastName: lName,
       email: json['email']?.toString() ?? json['workEmail']?.toString() ?? '',
@@ -92,7 +99,7 @@ class EmployeeModel {
       department: dept,
       designation: desig,
       joiningDate: json['joiningDate']?.toString() ?? json['startDate']?.toString() ?? json['dateOfJoining']?.toString() ?? json['createdAt']?.toString(),
-      employmentStatus: json['employmentStatus']?.toString() ?? json['status']?.toString() ?? 'Active',
+      employmentStatus: status,
     );
   }
 }
@@ -123,7 +130,6 @@ class _AdminEmployeesScreenState extends ConsumerState<AdminEmployeesScreen> {
 
   // Selection state
   final Set<String> _selectedIds = {};
-  bool _selectAllChecked = false;
 
   // Sorting state
   String _sortColumn = 'name'; // 'employeeId', 'name', 'email', 'department', 'designation', 'joiningDate', 'status'
@@ -185,7 +191,6 @@ class _AdminEmployeesScreenState extends ConsumerState<AdminEmployeesScreen> {
     _departmentsList = [];
     _designationsList = [];
     _selectedIds.clear();
-    _selectAllChecked = false;
     _resetFilters();
   }
 
@@ -197,7 +202,6 @@ class _AdminEmployeesScreenState extends ConsumerState<AdminEmployeesScreen> {
       _selectedStatus = '';
       _currentPage = 1;
       _selectedIds.clear();
-      _selectAllChecked = false;
     });
   }
 
@@ -228,23 +232,58 @@ class _AdminEmployeesScreenState extends ConsumerState<AdminEmployeesScreen> {
 
     try {
       dynamic res;
+      dynamic lastError;
+
       final endpoints = [
         ApiEndpoints.employeesAll,
         '/employees/all',
         ApiEndpoints.employees,
         '/employees',
+        ApiEndpoints.managementEmployees,
         '/management/employees',
+        ApiEndpoints.users,
         '/users',
       ];
 
       for (final ep in endpoints) {
         try {
-          res = await apiClient.get('$ep?limit=500').timeout(const Duration(seconds: 4));
-          if (res != null && _extractList(res).isNotEmpty) {
+          dynamic tempRes = await apiClient.get(ep).catchError((_) async {
+            return await apiClient.get('$ep?limit=500').catchError((_) => null);
+          });
+          if (tempRes != null && _extractList(tempRes).isNotEmpty) {
+            res = tempRes;
             break;
+          } else if (res == null && tempRes != null) {
+            res = tempRes;
           }
-        } catch (_) {}
+        } catch (e) {
+          lastError = e;
+        }
       }
+
+      // Fetch departments & designations in parallel to populate dropdown options
+      List<String> fetchedDepts = [];
+      List<String> fetchedDesigs = [];
+      try {
+        final deptsRes = await apiClient.get(ApiEndpoints.departments).catchError((_) => null);
+        final desigsRes = await apiClient.get(ApiEndpoints.designations).catchError((_) => null);
+
+        final rawDepts = _extractList(deptsRes);
+        final rawDesigs = _extractList(desigsRes);
+
+        for (final d in rawDepts) {
+          if (d is Map) {
+            final name = (d['name'] ?? d['departmentName'] ?? d['title'])?.toString();
+            if (name != null && name.trim().isNotEmpty) fetchedDepts.add(name.trim());
+          }
+        }
+        for (final d in rawDesigs) {
+          if (d is Map) {
+            final title = (d['title'] ?? d['name'] ?? d['designationTitle'])?.toString();
+            if (title != null && title.trim().isNotEmpty) fetchedDesigs.add(title.trim());
+          }
+        }
+      } catch (_) {}
 
       if (!mounted || currentReq != _requestId) return;
 
@@ -261,8 +300,17 @@ class _AdminEmployeesScreenState extends ConsumerState<AdminEmployeesScreen> {
         }
       }
 
-      final deptSet = <String>{};
-      final desigSet = <String>{};
+      if (items.isEmpty && res == null && lastError != null) {
+        final msg = lastError is ApiException ? lastError.message : lastError.toString();
+        setState(() {
+          _errorMessage = msg;
+          _isLoading = false;
+        });
+        return;
+      }
+
+      final deptSet = Set<String>.from(fetchedDepts);
+      final desigSet = Set<String>.from(fetchedDesigs);
       for (final e in items) {
         if (e.department != null && e.department!.trim().isNotEmpty) deptSet.add(e.department!);
         if (e.designation != null && e.designation!.trim().isNotEmpty) desigSet.add(e.designation!);
@@ -381,27 +429,6 @@ class _AdminEmployeesScreenState extends ConsumerState<AdminEmployeesScreen> {
     });
   }
 
-  void _toggleSelectAll(bool? val) {
-    setState(() {
-      _selectAllChecked = val ?? false;
-      if (_selectAllChecked) {
-        _selectedIds.addAll(_paginatedEmployees.map((e) => e.id));
-      } else {
-        _selectedIds.removeAll(_paginatedEmployees.map((e) => e.id));
-      }
-    });
-  }
-
-  void _toggleSelectRow(String id, bool? val) {
-    setState(() {
-      if (val == true) {
-        _selectedIds.add(id);
-      } else {
-        _selectedIds.remove(id);
-      }
-    });
-  }
-
   void _exportExcel() {
     final filtered = _filteredEmployees;
     if (filtered.isEmpty) {
@@ -490,28 +517,8 @@ class _AdminEmployeesScreenState extends ConsumerState<AdminEmployeesScreen> {
     final bool isAuthorized = userRole == UserRole.ADMIN || userRole == UserRole.HR;
 
     return GlassScaffold(
-      appBar: GlassHeader(
+      appBar: const GlassHeader(
         title: 'Employee Management',
-        actions: [
-          if (isAuthorized) ...[
-            IconButton(
-              icon: const Icon(Icons.download_rounded),
-              tooltip: 'Export Excel',
-              onPressed: _exportExcel,
-            ),
-            IconButton(
-              icon: const Icon(Icons.person_add_rounded),
-              tooltip: 'Add Employee',
-              onPressed: () async {
-                final created = await Navigator.push<bool>(
-                  context,
-                  MaterialPageRoute(builder: (_) => const AdminEmployeeFormScreen()),
-                );
-                if (created == true) _loadEmployees();
-              },
-            ),
-          ],
-        ],
       ),
       body: !isAuthorized
           ? Center(
@@ -543,6 +550,11 @@ class _AdminEmployeesScreenState extends ConsumerState<AdminEmployeesScreen> {
     if (_isLoading) {
       return const Center(child: CircularProgressIndicator());
     }
+
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final authState = ref.watch(authServiceProvider);
+    final userRole = authState.user?.role;
+    final bool isAuthorized = userRole == UserRole.ADMIN || userRole == UserRole.HR;
 
     if (_errorMessage != null) {
       return SingleChildScrollView(
@@ -576,6 +588,77 @@ class _AdminEmployeesScreenState extends ConsumerState<AdminEmployeesScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // Top Header Banner with Export & Add Employee Actions
+          Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: cardBgColor,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: glass.cardBorder, width: 1),
+              boxShadow: [
+                BoxShadow(
+                  color: isDark ? Colors.black12 : const Color(0x060F6B66),
+                  blurRadius: 4,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Employee Directory',
+                        style: TextStyle(
+                          fontSize: 17,
+                          fontWeight: FontWeight.bold,
+                          color: glass.textPrimary,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        'Manage employee profiles, directory records, and roles',
+                        style: TextStyle(
+                          fontSize: 11.5,
+                          color: glass.textSecondary,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                if (isAuthorized) ...[
+                  const SizedBox(width: 8),
+                  IconButton(
+                    icon: const Icon(Icons.download_rounded, size: 20),
+                    tooltip: 'Export Excel',
+                    onPressed: _exportExcel,
+                  ),
+                  const SizedBox(width: 4),
+                  ElevatedButton.icon(
+                    onPressed: () async {
+                      final created = await Navigator.push<bool>(
+                        context,
+                        MaterialPageRoute(builder: (_) => const AdminEmployeeFormScreen()),
+                      );
+                      if (created == true) _loadEmployees();
+                    },
+                    icon: const Icon(Icons.person_add_rounded, size: 16, color: Colors.white),
+                    label: const Text('Add', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.white)),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF0F6B63),
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+          const SizedBox(height: 14),
+
           // KPI Metric Summary Cards (4 Cards Grid)
           Row(
             children: [

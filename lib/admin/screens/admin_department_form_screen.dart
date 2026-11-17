@@ -1,14 +1,12 @@
-import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:http/http.dart' as http;
 import 'package:image_picker/image_picker.dart';
 import '../../core/api/api_client.dart';
 import '../../core/api/api_endpoints.dart';
-import '../../core/storage/storage_service.dart';
 import '../../core/auth/auth_service.dart';
+import '../../core/errors/api_exception.dart';
 import '../../core/theme/app_colors.dart';
-import '../../core/widgets/app_card.dart';
 import '../../core/widgets/glass_header.dart';
 import '../../core/widgets/glass_scaffold.dart';
 
@@ -38,7 +36,8 @@ class _AdminDepartmentFormScreenState extends ConsumerState<AdminDepartmentFormS
   List<Map<String, String>> _employeesList = [];
   List<String> _existingCodes = [];
 
-  bool get _isEdit => widget.deptId != null || widget.initialData != null;
+  String? get _effectiveDeptId => widget.deptId ?? widget.initialData?['id']?.toString() ?? widget.initialData?['_id']?.toString();
+  bool get _isEdit => _effectiveDeptId != null && _effectiveDeptId!.isNotEmpty;
 
   @override
   void initState() {
@@ -46,7 +45,7 @@ class _AdminDepartmentFormScreenState extends ConsumerState<AdminDepartmentFormS
     _loadEmployeesAndExistingCodes();
     if (widget.initialData != null) {
       _populateData(widget.initialData!);
-    } else if (_isEdit && widget.deptId != null) {
+    } else if (_isEdit && _effectiveDeptId != null) {
       _loadDetail();
     }
   }
@@ -79,12 +78,13 @@ class _AdminDepartmentFormScreenState extends ConsumerState<AdminDepartmentFormS
       final deptRes = await apiClient.get(ApiEndpoints.departments).catchError((_) => null);
       List<dynamic> depts = deptRes is List ? deptRes : (deptRes is Map ? (deptRes['items'] ?? deptRes['data'] ?? []) : []);
 
+      final currentId = _effectiveDeptId;
       List<String> codes = [];
       for (final d in depts) {
         if (d is Map<String, dynamic>) {
           final c = (d['code'] ?? '').toString().toUpperCase();
-          final id = (d['id'] ?? '').toString();
-          if (c.isNotEmpty && id != widget.deptId) {
+          final id = (d['id'] ?? d['_id'] ?? '').toString();
+          if (c.isNotEmpty && (currentId == null || id != currentId)) {
             codes.add(c);
           }
         }
@@ -131,12 +131,16 @@ class _AdminDepartmentFormScreenState extends ConsumerState<AdminDepartmentFormS
     }
   }
 
+  bool _isCodeManuallyEdited = false;
+
   String _computeDeptCode(String name) {
-    if (name.trim().isEmpty) return '';
+    final trimmed = name.trim();
+    if (trimmed.isEmpty) return '';
 
     const customMap = {
       'human resource management': 'HRM',
       'human resources': 'HR',
+      'human resource': 'HR',
       'information technology': 'IT',
       'research & development': 'R&D',
       'research and development': 'R&D',
@@ -157,44 +161,59 @@ class _AdminDepartmentFormScreenState extends ConsumerState<AdminDepartmentFormS
       'legal': 'LGL',
     };
 
-    final lower = name.toLowerCase().trim();
+    final lower = trimmed.toLowerCase();
     if (customMap.containsKey(lower)) {
       return customMap[lower]!;
     }
 
-    final cleaned = name.replaceAll(RegExp(r'[^a-zA-Z0-9\s&]'), '').trim();
+    final cleaned = trimmed.replaceAll(RegExp(r'[^a-zA-Z0-9\s&]'), '').trim();
     final stopWords = {'and', 'of', 'the', 'for', 'in'};
     final words = cleaned.split(RegExp(r'\s+')).where((w) => w.isNotEmpty && !stopWords.contains(w.toLowerCase())).toList();
 
-    if (words.isEmpty) return '';
+    if (words.isEmpty) {
+      if (cleaned.length >= 3) return cleaned.substring(0, 3).toUpperCase();
+      return cleaned.toUpperCase();
+    }
 
     if (words.length == 1) {
-      final w = words[0];
-      if (w.length <= 4) return w.toUpperCase();
-      return w.substring(0, 3).toUpperCase();
+      final w = words[0].toUpperCase();
+      if (w.length <= 4) return w;
+      return w.substring(0, 3);
+    } else if (words.length == 2) {
+      final w1 = words[0].toUpperCase();
+      final w2 = words[1].toUpperCase();
+      if (w1.length >= 2 && w2.isNotEmpty) {
+        return '${w1[0]}${w1[1]}${w2[0]}';
+      }
+      return '${w1[0]}${w2[0]}';
     } else {
-      return words.map((w) => w == '&' ? '&' : w[0]).join('').toUpperCase();
+      return words.map((w) => w == '&' ? '&' : w[0]).take(4).join('').toUpperCase();
     }
   }
 
   Future<void> _pickAndUploadImage() async {
-    final picker = ImagePicker();
-    final XFile? file = await picker.pickImage(source: ImageSource.gallery);
-    if (file == null) return;
-
-    final fileLength = await file.length();
-    if (fileLength > 10 * 1024 * 1024) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('File size exceeds 10 MB limit.'), backgroundColor: Colors.red),
-        );
-      }
-      return;
-    }
-
+    if (_isUploadingImage) return;
     setState(() => _isUploadingImage = true);
 
     try {
+      final picker = ImagePicker();
+      final XFile? file = await picker.pickImage(source: ImageSource.gallery);
+      if (file == null) {
+        if (mounted) setState(() => _isUploadingImage = false);
+        return;
+      }
+
+      final fileLength = await file.length();
+      if (fileLength > 10 * 1024 * 1024) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('File size exceeds 10 MB limit.'), backgroundColor: Colors.red),
+          );
+        }
+        if (mounted) setState(() => _isUploadingImage = false);
+        return;
+      }
+
       final apiClient = ref.read(apiClientProvider);
       final storageService = ref.read(storageServiceProvider);
       final token = await storageService.getToken();
@@ -254,6 +273,7 @@ class _AdminDepartmentFormScreenState extends ConsumerState<AdminDepartmentFormS
 
     setState(() => _isSaving = true);
     final apiClient = ref.read(apiClientProvider);
+    final targetId = _effectiveDeptId;
 
     final payload = {
       'name': _nameController.text.trim(),
@@ -261,14 +281,18 @@ class _AdminDepartmentFormScreenState extends ConsumerState<AdminDepartmentFormS
       'description': _descController.text.trim(),
       'imageUrl': _imageUrlController.text.trim().isNotEmpty ? _imageUrlController.text.trim() : null,
       'headId': _selectedHeadId.isNotEmpty ? _selectedHeadId : null,
-      'status': _status,
+      'status': _status.toUpperCase(),
     };
 
     try {
-      if (_isEdit && widget.deptId != null) {
-        await apiClient.put('${ApiEndpoints.departments}/${widget.deptId}', data: payload);
+      if (_isEdit && targetId != null && targetId.isNotEmpty) {
+        await apiClient.put('${ApiEndpoints.departments}/$targetId', data: payload).catchError((_) async {
+          return await apiClient.put('/departments/$targetId', data: payload);
+        });
       } else {
-        await apiClient.post(ApiEndpoints.departments, data: payload);
+        await apiClient.post(ApiEndpoints.departments, data: payload).catchError((_) async {
+          return await apiClient.post('/departments', data: payload);
+        });
       }
 
       if (mounted) {
@@ -279,8 +303,9 @@ class _AdminDepartmentFormScreenState extends ConsumerState<AdminDepartmentFormS
       }
     } catch (e) {
       if (mounted) {
+        final msg = e is ApiException ? e.message : 'Failed to save department: $e';
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to save department: $e'), backgroundColor: Colors.red),
+          SnackBar(content: Text(msg), backgroundColor: Colors.red),
         );
       }
     } finally {
@@ -291,83 +316,136 @@ class _AdminDepartmentFormScreenState extends ConsumerState<AdminDepartmentFormS
   @override
   Widget build(BuildContext context) {
     final dark = Theme.of(context).brightness == Brightness.dark;
+    final cardBg = dark ? AppColors.darkMainSurface : Colors.white;
+    final borderColor = dark ? AppColors.darkBordersAndDividers : const Color(0xFFE5E7EB);
 
     return GlassScaffold(
       appBar: GlassHeader(
         title: _isEdit ? 'Edit Department' : 'Add New Department',
       ),
       body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
+          ? const Center(child: CircularProgressIndicator(color: Color(0xFF0F6B63)))
           : SingleChildScrollView(
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 110),
               child: Form(
                 key: _formKey,
-                child: AppCard(
-                  padding: const EdgeInsets.all(18),
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: cardBg,
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(color: borderColor, width: 1),
+                    boxShadow: const [BoxShadow(color: Color.fromRGBO(15, 23, 42, 0.04), blurRadius: 16, offset: Offset(0, 4))],
+                  ),
+                  padding: const EdgeInsets.all(16),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
+                      // Header: 32px icon tile + title
                       Row(
-                        children: const [
-                          Icon(Icons.apartment_rounded, color: AppColors.primary, size: 22),
-                          SizedBox(width: 8),
-                          Text('Department Information', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w900, color: Color(0xFF0F172A))),
+                        children: [
+                          Container(
+                            width: 32,
+                            height: 32,
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFE6F4F1),
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            alignment: Alignment.center,
+                            child: const Icon(Icons.apartment_rounded, color: Color(0xFF0F6B63), size: 16),
+                          ),
+                          const SizedBox(width: 8),
+                          Text('Department Information', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: dark ? AppColors.darkPrimaryText : const Color(0xFF0F172A))),
                         ],
                       ),
+                      const SizedBox(height: 12),
+                      const Divider(height: 1, color: Color(0xFFE5E7EB)),
                       const SizedBox(height: 16),
-                      const Divider(height: 1, color: Color(0xFFF1F5F9)),
-                      const SizedBox(height: 20),
 
-                      // Department Name
-                      const Text('Department Name *', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: Color(0xFF64748B))),
-                      const SizedBox(height: 6),
-                      TextFormField(
-                        controller: _nameController,
-                        decoration: InputDecoration(
-                          hintText: 'e.g. Engineering',
-                          prefixIcon: const Icon(Icons.apartment_rounded, size: 18, color: Color(0xFF94A3B8)),
-                          filled: true,
-                          fillColor: dark ? AppColors.darkSecondarySurface : const Color(0xFFF8FAFC),
-                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFFE2E8F0))),
-                          enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFFE2E8F0))),
-                        ),
-                        onChanged: (val) {
-                          if (!_isEdit && _codeController.text.trim().isEmpty) {
-                            final autoCode = _computeDeptCode(val);
-                            if (autoCode.isNotEmpty) {
-                              _codeController.text = autoCode;
-                            }
-                          }
-                        },
-                        validator: (val) => (val == null || val.trim().isEmpty) ? 'Department name is required' : null,
+                      // Department Name *
+                      Row(
+                        children: const [
+                          Text('Department Name', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: Color(0xFF334155))),
+                          Text(' *', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: Colors.red)),
+                        ],
                       ),
-                      const SizedBox(height: 16),
+                      const SizedBox(height: 6),
+                      Container(
+                        height: 48,
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: const Color(0xFFCBD5E1), width: 1),
+                        ),
+                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                        alignment: Alignment.center,
+                        child: Row(
+                          children: [
+                            const Icon(Icons.apartment_rounded, size: 18, color: Color(0xFF64748B)),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: TextFormField(
+                                controller: _nameController,
+                                style: const TextStyle(fontSize: 14, color: Color(0xFF0F172A), fontWeight: FontWeight.w500),
+                                decoration: const InputDecoration(
+                                  hintText: 'e.g. Engineering',
+                                  hintStyle: TextStyle(color: Color(0xFF94A3B8), fontSize: 14, fontWeight: FontWeight.w400),
+                                  border: InputBorder.none,
+                                  enabledBorder: InputBorder.none,
+                                  focusedBorder: InputBorder.none,
+                                  isDense: true,
+                                  contentPadding: EdgeInsets.zero,
+                                ),
+                                onChanged: (val) {
+                                  if (!_isEdit && !_isCodeManuallyEdited) {
+                                    final autoCode = _computeDeptCode(val);
+                                    if (autoCode.isNotEmpty) {
+                                      setState(() {
+                                        _codeController.text = autoCode;
+                                      });
+                                    }
+                                  }
+                                },
+                                validator: (val) => (val == null || val.trim().isEmpty) ? 'Department name is required' : null,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 14),
 
-                      // Department Code with Auto Generate badge
+                      // Department Code * with Auto Generate chip
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          const Text('Department Code *', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: Color(0xFF64748B))),
+                          Row(
+                            children: const [
+                              Text('Department Code', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: Color(0xFF334155))),
+                              Text(' *', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: Colors.red)),
+                            ],
+                          ),
                           InkWell(
                             onTap: () {
                               final generated = _computeDeptCode(_nameController.text);
                               if (generated.isNotEmpty) {
-                                setState(() => _codeController.text = generated);
+                                setState(() {
+                                  _codeController.text = generated;
+                                  _isCodeManuallyEdited = false;
+                                });
                               }
                             },
                             child: Container(
+                              height: 28,
                               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                               decoration: BoxDecoration(
-                                color: const Color(0xFFEEF2FF),
-                                borderRadius: BorderRadius.circular(8),
-                                border: Border.all(color: const Color(0xFFC7D2FE)),
+                                color: const Color(0xFFE6F4F1),
+                                borderRadius: BorderRadius.circular(999),
                               ),
                               child: Row(
                                 mainAxisSize: MainAxisSize.min,
                                 children: const [
-                                  Icon(Icons.auto_fix_high, size: 12, color: Color(0xFF4338CA)),
+                                  Icon(Icons.auto_fix_high, size: 14, color: Color(0xFF0F6B63)),
                                   SizedBox(width: 4),
-                                  Text('Auto Generate', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Color(0xFF4338CA))),
+                                  Text('Auto Generate', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Color(0xFF0F6B63))),
                                 ],
                               ),
                             ),
@@ -375,105 +453,169 @@ class _AdminDepartmentFormScreenState extends ConsumerState<AdminDepartmentFormS
                         ],
                       ),
                       const SizedBox(height: 6),
-                      TextFormField(
-                        controller: _codeController,
-                        decoration: InputDecoration(
-                          hintText: 'e.g. ENG',
-                          prefixIcon: const Icon(Icons.tag_rounded, size: 18, color: Color(0xFF94A3B8)),
-                          filled: true,
-                          fillColor: dark ? AppColors.darkSecondarySurface : const Color(0xFFF8FAFC),
-                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFFE2E8F0))),
-                          enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFFE2E8F0))),
+                      Container(
+                        height: 48,
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: const Color(0xFFCBD5E1), width: 1),
                         ),
-                        validator: (val) => (val == null || val.trim().isEmpty) ? 'Department code is required' : null,
+                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                        alignment: Alignment.center,
+                        child: Row(
+                          children: [
+                            const Icon(Icons.tag_rounded, size: 18, color: Color(0xFF64748B)),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: TextFormField(
+                                controller: _codeController,
+                                style: const TextStyle(fontSize: 14, color: Color(0xFF0F172A), fontWeight: FontWeight.w500, fontFamily: 'monospace'),
+                                decoration: const InputDecoration(
+                                  hintText: 'e.g. ENG',
+                                  hintStyle: TextStyle(color: Color(0xFF94A3B8), fontSize: 14, fontWeight: FontWeight.w400),
+                                  border: InputBorder.none,
+                                  enabledBorder: InputBorder.none,
+                                  focusedBorder: InputBorder.none,
+                                  isDense: true,
+                                  contentPadding: EdgeInsets.zero,
+                                ),
+                                onChanged: (_) => _isCodeManuallyEdited = true,
+                                validator: (val) => (val == null || val.trim().isEmpty) ? 'Department code is required' : null,
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
                       const SizedBox(height: 4),
-                      const Text('Auto-generated from department name', style: TextStyle(fontSize: 10, color: Color(0xFF94A3B8))),
-                      const SizedBox(height: 16),
+                      const Text('Auto-generated from department name', style: TextStyle(fontSize: 12, color: Color(0xFF475569))),
+                      const SizedBox(height: 14),
 
                       // Department Head (HOD)
-                      const Text('Department Head (HOD)', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: Color(0xFF64748B))),
+                      const Text('Department Head (HOD)', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: Color(0xFF334155))),
                       const SizedBox(height: 6),
-                      DropdownButtonFormField<String>(
-                        value: _selectedHeadId,
-                        decoration: InputDecoration(
-                          prefixIcon: const Icon(Icons.person_outline_rounded, size: 18, color: Color(0xFF94A3B8)),
-                          filled: true,
-                          fillColor: dark ? AppColors.darkSecondarySurface : const Color(0xFFF8FAFC),
-                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFFE2E8F0))),
-                          enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFFE2E8F0))),
+                      Container(
+                        height: 48,
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: const Color(0xFFCBD5E1), width: 1),
                         ),
-                        items: [
-                          const DropdownMenuItem(value: '', child: Text('-- Unassigned --', style: TextStyle(fontSize: 13))),
-                          ..._employeesList.map((e) => DropdownMenuItem(value: e['id'], child: Text(e['name']!, style: const TextStyle(fontSize: 13)))),
-                        ],
-                        onChanged: (val) => setState(() => _selectedHeadId = val ?? ''),
+                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                        alignment: Alignment.center,
+                        child: Row(
+                          children: [
+                            const Icon(Icons.person_outline_rounded, size: 18, color: Color(0xFF64748B)),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: DropdownButtonHideUnderline(
+                                child: DropdownButton<String>(
+                                  value: _selectedHeadId,
+                                  isExpanded: true,
+                                  style: const TextStyle(fontSize: 14, color: Color(0xFF0F172A), fontWeight: FontWeight.w500),
+                                  icon: const Icon(Icons.keyboard_arrow_down_rounded, color: Color(0xFF0F6B63), size: 20),
+                                  items: [
+                                    const DropdownMenuItem(value: '', child: Text('-- Unassigned --', style: TextStyle(fontSize: 14))),
+                                    ..._employeesList.map((e) => DropdownMenuItem(value: e['id'], child: Text(e['name']!, style: const TextStyle(fontSize: 14)))),
+                                  ],
+                                  onChanged: (val) => setState(() => _selectedHeadId = val ?? ''),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 14),
+
+                      // Status
+                      const Text('Status', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: Color(0xFF334155))),
+                      const SizedBox(height: 6),
+                      Container(
+                        height: 48,
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: const Color(0xFFCBD5E1), width: 1),
+                        ),
+                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                        alignment: Alignment.center,
+                        child: Row(
+                          children: [
+                            Container(
+                              width: 8,
+                              height: 8,
+                              decoration: BoxDecoration(
+                                color: _status.toLowerCase() == 'active' ? const Color(0xFF047857) : const Color(0xFF64748B),
+                                shape: BoxShape.circle,
+                              ),
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: DropdownButtonHideUnderline(
+                                child: DropdownButton<String>(
+                                  value: _status,
+                                  isExpanded: true,
+                                  style: const TextStyle(fontSize: 14, color: Color(0xFF0F172A), fontWeight: FontWeight.w500),
+                                  icon: const Icon(Icons.keyboard_arrow_down_rounded, color: Color(0xFF0F6B63), size: 20),
+                                  items: const [
+                                    DropdownMenuItem(value: 'Active', child: Text('Active', style: TextStyle(fontSize: 14))),
+                                    DropdownMenuItem(value: 'Inactive', child: Text('Inactive', style: TextStyle(fontSize: 14))),
+                                  ],
+                                  onChanged: (val) => setState(() => _status = val ?? 'Active'),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
                       const SizedBox(height: 16),
 
-                      // Status
-                      const Text('Status', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: Color(0xFF64748B))),
-                      const SizedBox(height: 6),
-                      DropdownButtonFormField<String>(
-                        value: _status,
-                        decoration: InputDecoration(
-                          prefixIcon: const Icon(Icons.toggle_on_rounded, size: 18, color: Color(0xFF94A3B8)),
-                          filled: true,
-                          fillColor: dark ? AppColors.darkSecondarySurface : const Color(0xFFF8FAFC),
-                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFFE2E8F0))),
-                          enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFFE2E8F0))),
-                        ),
-                        items: const [
-                          DropdownMenuItem(value: 'Active', child: Text('Active', style: TextStyle(fontSize: 13))),
-                          DropdownMenuItem(value: 'Inactive', child: Text('Inactive', style: TextStyle(fontSize: 13))),
-                        ],
-                        onChanged: (val) => setState(() => _status = val ?? 'Active'),
-                      ),
-                      const SizedBox(height: 20),
-
-                      // Department Cover Banner (Dashed Upload Box)
-                      const Text('Department Cover Banner', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: Color(0xFF64748B))),
+                      // Department Cover Banner (Upload Area)
+                      const Text('Department Cover Banner', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: Color(0xFF334155))),
                       const SizedBox(height: 6),
                       InkWell(
                         onTap: _isUploadingImage ? null : _pickAndUploadImage,
+                        borderRadius: BorderRadius.circular(16),
                         child: Container(
                           width: double.infinity,
-                          padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 16),
+                          padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
                           decoration: BoxDecoration(
-                            color: dark ? AppColors.darkSecondarySurface : const Color(0xFFF8FAFC),
-                            borderRadius: BorderRadius.circular(14),
-                            border: Border.all(color: const Color(0xFFCBD5E1), style: BorderStyle.solid),
+                            color: const Color(0xFFF4FAF9),
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(color: const Color(0xFFCBD5E1), width: 1.5),
                           ),
                           child: Column(
+                            mainAxisSize: MainAxisSize.min,
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
                               _isUploadingImage
-                                  ? const SizedBox(width: 28, height: 28, child: CircularProgressIndicator(strokeWidth: 2))
+                                  ? const SizedBox(width: 28, height: 28, child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF0F6B63)))
                                   : Container(
-                                      width: 44,
-                                      height: 44,
-                                      decoration: BoxDecoration(color: const Color(0xFFE0EDFF), borderRadius: BorderRadius.circular(12)),
-                                      child: const Icon(Icons.cloud_upload_outlined, color: Color(0xFF2563EB), size: 22),
+                                      width: 40,
+                                      height: 40,
+                                      decoration: BoxDecoration(color: const Color(0xFFE6F4F1), borderRadius: BorderRadius.circular(10)),
+                                      alignment: Alignment.center,
+                                      child: const Icon(Icons.cloud_upload_outlined, color: Color(0xFF0F6B63), size: 20),
                                     ),
-                              const SizedBox(height: 12),
-                              const Text('Click to upload department cover banner', style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.bold, color: Color(0xFF1E293B))),
-                              const SizedBox(height: 4),
-                              const Text('Supports PNG, JPG, WebP (Recommended ratio 16:9 or 3:1)', style: TextStyle(fontSize: 10.5, color: Color(0xFF94A3B8))),
-                              const SizedBox(height: 14),
+                              const SizedBox(height: 6),
+                              const Text('Click to upload department cover banner', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Color(0xFF0F172A))),
+                              const SizedBox(height: 2),
+                              const Text('Supports PNG, JPG, WebP (Recommended ratio 16:9 or 3:1)', style: TextStyle(fontSize: 12, color: Color(0xFF475569))),
+                              const SizedBox(height: 8),
                               Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                                height: 36,
+                                padding: const EdgeInsets.symmetric(horizontal: 14),
                                 decoration: BoxDecoration(
                                   color: Colors.white,
                                   borderRadius: BorderRadius.circular(10),
-                                  border: Border.all(color: const Color(0xFFCBD5E1)),
-                                  boxShadow: const [BoxShadow(color: Color.fromRGBO(0, 0, 0, 0.03), blurRadius: 4, offset: Offset(0, 2))],
+                                  border: Border.all(color: const Color(0xFF0F6B63), width: 1),
                                 ),
+                                alignment: Alignment.center,
                                 child: Row(
                                   mainAxisSize: MainAxisSize.min,
                                   children: const [
-                                    Icon(Icons.folder_open_rounded, size: 14, color: Color(0xFF334155)),
+                                    Icon(Icons.folder_open_rounded, size: 16, color: Color(0xFF0F6B63)),
                                     SizedBox(width: 6),
-                                    Text('Browse File', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xFF334155))),
+                                    Text('Browse File', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: Color(0xFF0F6B63))),
                                   ],
                                 ),
                               ),
@@ -481,55 +623,91 @@ class _AdminDepartmentFormScreenState extends ConsumerState<AdminDepartmentFormS
                           ),
                         ),
                       ),
-                      const SizedBox(height: 16),
+                      const SizedBox(height: 14),
 
                       // Or paste direct image URL
-                      const Text('Or paste direct image URL', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: Color(0xFF64748B))),
+                      const Text('Or paste direct image URL', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: Color(0xFF334155))),
                       const SizedBox(height: 6),
-                      TextFormField(
-                        controller: _imageUrlController,
-                        decoration: InputDecoration(
-                          hintText: 'https://images.unsplash.com/photo-...',
-                          prefixIcon: const Icon(Icons.link_rounded, size: 18, color: Color(0xFF94A3B8)),
-                          filled: true,
-                          fillColor: dark ? AppColors.darkSecondarySurface : const Color(0xFFF8FAFC),
-                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFFE2E8F0))),
-                          enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFFE2E8F0))),
+                      Container(
+                        height: 48,
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: const Color(0xFFCBD5E1), width: 1),
+                        ),
+                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                        alignment: Alignment.center,
+                        child: Row(
+                          children: [
+                            const Icon(Icons.link_rounded, size: 18, color: Color(0xFF64748B)),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: TextFormField(
+                                controller: _imageUrlController,
+                                style: const TextStyle(fontSize: 13, color: Color(0xFF0F172A), fontWeight: FontWeight.w500),
+                                decoration: const InputDecoration(
+                                  hintText: 'https://images.unsplash.com/photo-...',
+                                  hintStyle: TextStyle(color: Color(0xFF94A3B8), fontSize: 13, fontWeight: FontWeight.w400),
+                                  border: InputBorder.none,
+                                  enabledBorder: InputBorder.none,
+                                  focusedBorder: InputBorder.none,
+                                  isDense: true,
+                                  contentPadding: EdgeInsets.zero,
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
                       ),
-                      const SizedBox(height: 16),
+                      const SizedBox(height: 14),
 
                       // Description
-                      const Text('Description', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: Color(0xFF64748B))),
+                      const Text('Description', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: Color(0xFF334155))),
                       const SizedBox(height: 6),
-                      TextFormField(
-                        controller: _descController,
-                        maxLines: 3,
-                        decoration: InputDecoration(
-                          hintText: 'Scope, purpose, and responsibilities of this department...',
-                          filled: true,
-                          fillColor: dark ? AppColors.darkSecondarySurface : const Color(0xFFF8FAFC),
-                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFFE2E8F0))),
-                          enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFFE2E8F0))),
+                      Container(
+                        constraints: const BoxConstraints(minHeight: 96),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: const Color(0xFFCBD5E1), width: 1),
+                        ),
+                        padding: const EdgeInsets.all(12),
+                        child: TextFormField(
+                          controller: _descController,
+                          maxLines: 4,
+                          style: const TextStyle(fontSize: 14, color: Color(0xFF0F172A), fontWeight: FontWeight.w500, height: 1.5),
+                          decoration: const InputDecoration(
+                            hintText: 'Scope, purpose, and responsibilities of this department...',
+                            hintStyle: TextStyle(color: Color(0xFF94A3B8), fontSize: 14, fontWeight: FontWeight.w400),
+                            border: InputBorder.none,
+                            enabledBorder: InputBorder.none,
+                            focusedBorder: InputBorder.none,
+                            isDense: true,
+                            contentPadding: EdgeInsets.zero,
+                          ),
                         ),
                       ),
-                      const SizedBox(height: 28),
+                      const SizedBox(height: 24),
 
-                      // Create Department button
+                      // Create Department / Save Changes button
                       SizedBox(
                         width: double.infinity,
-                        height: 52,
+                        height: 50,
                         child: ElevatedButton.icon(
                           onPressed: _isSaving ? null : _save,
                           icon: _isSaving
-                              ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                              : const Icon(Icons.check, size: 18),
-                          label: Text(_isSaving ? 'Saving...' : (_isEdit ? 'Save Changes' : 'Create Department'), style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w800)),
+                              ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                              : const Icon(Icons.check_rounded, size: 18, color: Colors.white),
+                          label: Text(
+                            _isSaving ? 'Saving...' : (_isEdit ? 'Save Changes' : 'Create Department'),
+                            style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: Colors.white),
+                          ),
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: AppColors.primary,
+                            backgroundColor: const Color(0xFF0F6B63),
                             foregroundColor: Colors.white,
+                            elevation: 4,
+                            shadowColor: const Color.fromRGBO(15, 107, 99, 0.22),
                             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                            elevation: 0,
                           ),
                         ),
                       ),

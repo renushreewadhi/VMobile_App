@@ -695,14 +695,12 @@ class _AdminCompanySettingsScreenState extends ConsumerState<AdminCompanySetting
     final borderColor = dark ? AppColors.darkBordersAndDividers : const Color(0xFFE5E7EB);
     final fieldBorderColor = dark ? AppColors.darkBordersAndDividers : const Color(0xFFCBD5E1);
 
-    return Stack(
-      children: [
-        SingleChildScrollView(
-          physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
-          padding: const EdgeInsets.fromLTRB(16, 12, 16, 170),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
+    return SingleChildScrollView(
+      physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 40),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
               // HR Read-Only Banner
               if (!canEdit)
                 Container(
@@ -1506,82 +1504,55 @@ class _AdminCompanySettingsScreenState extends ConsumerState<AdminCompanySetting
                   ),
                 ],
               ),
-            ],
-          ),
-        ),
-
-        // Sticky Save Bar above bottom nav with gradient fade
-        if (canEdit)
-          Positioned(
-            left: 0,
-            right: 0,
-            bottom: 0,
-            child: Container(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [
-                    (dark ? AppColors.darkAppBackground : AppColors.lightAppBackground).withOpacity(0.0),
-                    (dark ? AppColors.darkAppBackground : AppColors.lightAppBackground).withOpacity(0.95),
-                    dark ? AppColors.darkAppBackground : AppColors.lightAppBackground,
-                  ],
-                  stops: const [0.0, 0.3, 1.0],
-                ),
-              ),
-              padding: EdgeInsets.fromLTRB(
-                16,
-                16,
-                16,
-                12 + MediaQuery.of(context).padding.bottom,
-              ),
-              child: GestureDetector(
-                onTapDown: (_) => setState(() => _isSavePressed = true),
-                onTapUp: (_) {
-                  setState(() => _isSavePressed = false);
-                  if (!_isSaving) _save();
-                },
-                onTapCancel: () => setState(() => _isSavePressed = false),
-                child: AnimatedScale(
-                  scale: _isSavePressed ? 0.98 : 1.0,
-                  duration: const Duration(milliseconds: 100),
-                  child: Container(
-                    height: 50,
-                    alignment: Alignment.center,
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF0F6B63),
-                      borderRadius: BorderRadius.circular(14),
-                      boxShadow: const [
-                        BoxShadow(
-                          color: Color.fromRGBO(15, 107, 99, 0.22),
-                          blurRadius: 12,
-                          offset: Offset(0, 4),
+              if (canEdit) ...[
+            const SizedBox(height: 24),
+            GestureDetector(
+              onTapDown: (_) => setState(() => _isSavePressed = true),
+              onTapUp: (_) {
+                setState(() => _isSavePressed = false);
+                if (!_isSaving) _save();
+              },
+              onTapCancel: () => setState(() => _isSavePressed = false),
+              child: AnimatedScale(
+                scale: _isSavePressed ? 0.98 : 1.0,
+                duration: const Duration(milliseconds: 100),
+                child: Container(
+                  height: 52,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF0F6B63),
+                    borderRadius: BorderRadius.circular(14),
+                    boxShadow: const [
+                      BoxShadow(
+                        color: Color.fromRGBO(15, 107, 99, 0.22),
+                        blurRadius: 12,
+                        offset: Offset(0, 4),
+                      ),
+                    ],
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      _isSaving
+                          ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                          : const Icon(Icons.check, size: 18, color: Colors.white),
+                      const SizedBox(width: 8),
+                      const Text(
+                        'Save Changes',
+                        style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.white,
                         ),
-                      ],
-                    ),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        _isSaving
-                            ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                            : const Icon(Icons.check, size: 18, color: Colors.white),
-                        const SizedBox(width: 8),
-                        const Text(
-                          'Save Changes',
-                          style: TextStyle(
-                            fontSize: 15,
-                            fontWeight: FontWeight.w600,
-                            color: Colors.white,
-                          ),
-                        ),
-                      ],
-                    ),
+                      ),
+                    ],
                   ),
                 ),
               ),
             ),
-          ),
-      ],
+          ],
+        ],
+      ),
     );
   }
 
