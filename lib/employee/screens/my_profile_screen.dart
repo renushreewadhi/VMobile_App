@@ -197,16 +197,16 @@ class _MyProfileScreenState extends ConsumerState<MyProfileScreen> {
         'name': serverUserMap['fullName'] ?? authUser.fullName,
         'email': serverUserMap['email'] ?? authUser.email,
         'role': serverUserMap['role'] ?? authUser.role.name.toUpperCase(),
-        'department': serverUserMap['department'] ?? authUser.department ?? 'Finance',
-        'designation': serverUserMap['designation'] ?? authUser.designation ?? 'HR',
-        'organization': serverUserMap['organization'] ?? serverUserMap['companyName'] ?? 'Envision Beyond India Pvt Ltd',
-        'branch': serverUserMap['branch'] ?? serverUserMap['branchName'] ?? 'Head Office',
-        'workLocation': serverUserMap['workLocation'] ?? serverUserMap['address'] ?? 'Prarthana Raw House, 33, Anand Mahal Rd, Giriraj Society, Narotam Nagar, Surat, Gujarat 395009, India',
-        'shift': serverUserMap['shift'] ?? serverUserMap['shiftName'] ?? 'Night Shift (09:00 PM - 06:00 AM)',
-        'salary': serverUserMap['salary'] ?? serverUserMap['basicSalary'] ?? 125000,
-        'joiningDate': serverUserMap['joiningDate'] ?? serverUserMap['joinedDate'] ?? '2024-01-20',
+        'department': serverUserMap['department'] ?? authUser.department ?? '',
+        'designation': serverUserMap['designation'] ?? authUser.designation ?? '',
+        'organization': serverUserMap['organization'] ?? serverUserMap['companyName'] ?? '',
+        'branch': serverUserMap['branch'] ?? serverUserMap['branchName'] ?? '',
+        'workLocation': serverUserMap['workLocation'] ?? serverUserMap['address'] ?? '',
+        'shift': serverUserMap['shift'] ?? serverUserMap['shiftName'] ?? '',
+        'salary': serverUserMap['salary'] ?? serverUserMap['basicSalary'] ?? 0.0,
+        'joiningDate': serverUserMap['joiningDate'] ?? serverUserMap['joinedDate'] ?? '',
         'avatar': serverUserMap['avatar'] ?? authUser.avatar,
-        'phone': serverUserMap['phone'] ?? serverUserMap['phoneNumber'] ?? authUser.phone ?? '—',
+        'phone': serverUserMap['phone'] ?? serverUserMap['phoneNumber'] ?? authUser.phone ?? '',
         ...?matchedEmp,
         ...?serverUserMap,
         'employeeId': resolvedEmpCode,
@@ -223,43 +223,9 @@ class _MyProfileScreenState extends ConsumerState<MyProfileScreen> {
       if (kDebugMode) debugPrint('[MyProfile] Error fetching profile: $e');
       if (!mounted || currentReq != _requestId) return;
 
-      bool isUuidOrObjectId(String? str) {
-        if (str == null || str.trim().isEmpty) return false;
-        final clean = str.trim();
-        return RegExp(r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$').hasMatch(clean) ||
-            RegExp(r'^[0-9a-fA-F]{24}$').hasMatch(clean);
-      }
-
-      String fallbackEmpCode = (authUser.employeeId != null && authUser.employeeId!.trim().isNotEmpty && !isUuidOrObjectId(authUser.employeeId))
-          ? authUser.employeeId!
-          : 'EMP-26-0028';
-
-      final Map<String, dynamic> sessionProfile = {
-        'id': authUser.id,
-        'employeeId': fallbackEmpCode,
-        'employeeCode': fallbackEmpCode,
-        'code': fallbackEmpCode,
-        'firstName': authUser.firstName.isNotEmpty ? authUser.firstName : 'User',
-        'lastName': authUser.lastName,
-        'name': authUser.fullName,
-        'email': authUser.email,
-        'role': authUser.role.name.toUpperCase(),
-        'department': authUser.department ?? 'Finance',
-        'designation': authUser.designation ?? 'HR',
-        'organization': 'Envision Beyond India Pvt Ltd',
-        'branch': authUser.branch ?? 'Head Office',
-        'workLocation': 'Prarthana Raw House, 33, Anand Mahal Rd, Giriraj Society, Narotam Nagar, Surat, Gujarat 395009, India',
-        'shift': 'Night Shift (09:00 PM - 06:00 AM)',
-        'salary': 125000,
-        'joiningDate': '2024-01-20',
-        'avatar': authUser.avatar,
-        'phone': authUser.phone ?? '—',
-      };
-
       setState(() {
-        _profileData = sessionProfile;
-        _errorMessage = null;
         _isLoading = false;
+        _errorMessage = 'Failed to load profile: $e';
       });
     }
   }

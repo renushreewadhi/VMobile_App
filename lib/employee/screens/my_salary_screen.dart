@@ -67,10 +67,10 @@ class _MySalaryScreenState extends ConsumerState<MySalaryScreen> {
       'id': m['id']?.toString() ?? m['_id']?.toString() ?? m['payslipId']?.toString() ?? 'ps-$year-$month',
       'month': month,
       'year': year,
-      'basicSalary': basic > 0 ? basic : (gross > 0 ? gross * 0.6 : 45000.0),
-      'grossPay': gross > 0 ? gross : 75000.0,
-      'deductions': deductions > 0 ? deductions : 15750.0,
-      'netPay': net > 0 ? net : 59250.0,
+      'basicSalary': basic > 0 ? basic : (gross > 0 ? gross * 0.6 : 0.0),
+      'grossPay': gross > 0 ? gross : 0.0,
+      'deductions': deductions > 0 ? deductions : 0.0,
+      'netPay': net > 0 ? net : 0.0,
       'status': (m['status'] ?? m['paymentStatus'] ?? m['payrollStatus'] ?? 'PAID').toString().toUpperCase(),
       'paidDate': m['paidDate']?.toString() ?? m['paidOn']?.toString() ?? m['paymentDate']?.toString() ?? m['disbursementDate']?.toString() ?? '',
     };
@@ -190,21 +190,21 @@ class _MySalaryScreenState extends ConsumerState<MySalaryScreen> {
 
   double get _basicSalary {
     if (_structure != null && _structure!['basicSalary'] != null) {
-      return double.tryParse(_structure!['basicSalary'].toString()) ?? 45000.0;
+      return double.tryParse(_structure!['basicSalary'].toString()) ?? 0.0;
     }
-    return 45000.0;
+    return 0.0;
   }
 
   double get _totalGross {
     if (_salaryWorkflow['grossPay'] != null) {
-      return double.tryParse(_salaryWorkflow['grossPay'].toString()) ?? 75000.0;
+      return double.tryParse(_salaryWorkflow['grossPay'].toString()) ?? 0.0;
     }
     if (_payroll != null && _payroll!['grossPay'] != null) {
-      return double.tryParse(_payroll!['grossPay'].toString()) ?? 75000.0;
+      return double.tryParse(_payroll!['grossPay'].toString()) ?? 0.0;
     }
     if (_structure != null) {
       if (_structure!['totalEarnings'] != null) {
-        return double.tryParse(_structure!['totalEarnings'].toString()) ?? 75000.0;
+        return double.tryParse(_structure!['totalEarnings'].toString()) ?? 0.0;
       }
       final basic = double.tryParse(_structure!['basicSalary']?.toString() ?? '0') ?? 0;
       final hra = double.tryParse(_structure!['hra']?.toString() ?? '0') ?? 0;
@@ -214,28 +214,28 @@ class _MySalaryScreenState extends ConsumerState<MySalaryScreen> {
       final sum = basic + hra + conv + med + spec;
       if (sum > 0) return sum;
     }
-    return 75000.0;
+    return 0.0;
   }
 
   double get _totalDeductions {
     if (_salaryWorkflow['totalDeductions'] != null) {
-      return double.tryParse(_salaryWorkflow['totalDeductions'].toString()) ?? 15750.0;
+      return double.tryParse(_salaryWorkflow['totalDeductions'].toString()) ?? 0.0;
     }
     if (_payroll != null && _payroll!['deductions'] != null) {
-      return double.tryParse(_payroll!['deductions'].toString()) ?? 15750.0;
+      return double.tryParse(_payroll!['deductions'].toString()) ?? 0.0;
     }
     if (_structure != null) {
       if (_structure!['totalDeductions'] != null) {
-        return double.tryParse(_structure!['totalDeductions'].toString()) ?? 15750.0;
+        return double.tryParse(_structure!['totalDeductions'].toString()) ?? 0.0;
       }
       final basic = _basicSalary;
       final pf = (basic * (double.tryParse(_structure!['pfPercent']?.toString() ?? '12') ?? 12)) / 100;
       final esi = (basic * (double.tryParse(_structure!['esiPercent']?.toString() ?? '0.75') ?? 0.75)) / 100;
       final tds = (basic * (double.tryParse(_structure!['tdsPercent']?.toString() ?? '5') ?? 5)) / 100;
-      final pt = double.tryParse(_structure!['professionalTax']?.toString() ?? '200') ?? 200;
+      final pt = double.tryParse(_structure!['professionalTax']?.toString() ?? '0') ?? 0;
       return pf + esi + tds + pt;
     }
-    return 15750.0;
+    return 0.0;
   }
 
   double get _totalNet {

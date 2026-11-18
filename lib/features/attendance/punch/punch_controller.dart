@@ -451,6 +451,14 @@ class PunchController extends StateNotifier<PunchState> with WidgetsBindingObser
     state = state.copyWith(selectedTileType: tileType);
   }
 
+  void setCapturedSelfie(XFile file, String base64Str) {
+    state = state.copyWith(
+      capturedSelfie: file,
+      capturedSelfieBase64: base64Str,
+      isGalleryUpload: false,
+    );
+  }
+
   Future<void> takeSelfie(ImageSource source) async {
     try {
       final image = await _imagePicker.pickImage(
@@ -546,53 +554,76 @@ class PunchController extends StateNotifier<PunchState> with WidgetsBindingObser
       return ClockOutResult.blockedOnBreak;
     }
 
+    final now = DateTime.now();
+    final workedSeconds = state.workDuration(now).inSeconds;
+    final isLess8Hrs = workedSeconds < (8 * 3600 - 60) && !isTemporary;
+
+    if (isLess8Hrs && !isHalfDayOverride && !applyLeave && !isTemporary) {
+      return ClockOutResult.needsHalfDayOverride;
+    }
+
     state = state.copyWith(isActionInProgress: true, clearError: true);
     final attendanceService = _ref.read(attendanceServiceProvider);
     final leaveService = _ref.read(leaveServiceProvider);
 
     try {
       if (applyLeave && leaveType != null) {
-        final nowStr = DateTime.now().toIso8601String().split('T')[0];
+        final nowStr = now.toIso8601String().split('T')[0];
+        final pendingDays = state.leavePendingDays(now);
+        final userReason = (leaveReason ?? '').trim();
+        final autoReason = 'Net worked hours deficit (${state.leavePendingHoursFormatted(now)} pending)';
+        final fullReason = userReason.isNotEmpty ? '$userReason · $autoReason' : autoReason;
+        final normType = leaveType.toUpperCase().replaceAll(' ', '_');
+
         await leaveService.applyLeave({
           'leaveType': leaveType,
+          'type': normType,
           'startDate': nowStr,
           'endDate': nowStr,
-          'reason': leaveReason ?? 'Early check-out deficit hours charge',
-          'session': 'FULL_DAY',
+          'totalDays': pendingDays > 0 ? pendingDays : 0.25,
+          'reason': fullReason,
         });
       }
 
       final pos = state.currentPosition;
-      final lat = pos?.latitude ?? (state.officeLat != 0.0 ? state.officeLat : 12.9716);
-      final lng = pos?.longitude ?? (state.officeLng != 0.0 ? state.officeLng : 77.5946);
+      final lat = pos?.latitude;
+      final lng = pos?.longitude;
       final loc = pos != null
           ? 'Lat: ${pos.latitude.toStringAsFixed(4)}, Lng: ${pos.longitude.toStringAsFixed(4)}'
           : (state.officeName.isNotEmpty ? state.officeName : 'Mobile App Check-Out');
 
-      final workDuration = state.workDuration(DateTime.now());
-      final isLess8Hrs = workDuration.inHours < 8 && !isTemporary;
-      final workModeToUse = (isHalfDayOverride || isLess8Hrs || state.todayRecord['workMode'] == 'HALF_DAY')
+      final workModeToUse = (isHalfDayOverride || state.todayRecord['workMode'] == 'HALF_DAY')
           ? 'HALF_DAY'
-          : (state.todayRecord['workMode']?.toString() ?? 'OFFICE');
+          : (state.todayRecord['workMode']?.toString() ?? state.workMode);
 
       final notesToUse = isTemporary
-          ? 'Temporary clock out (Stepping out)'
-          : ((isHalfDayOverride || isLess8Hrs)
-              ? 'Half Day Check-Out (${workDuration.inHours}h ${workDuration.inMinutes.remainder(60)}m worked)'
-              : 'Punched out from mobile app');
+          ? '[TEMPORARY_CLOCKOUT] Temporary clock out (Stepping out)'
+          : (applyLeave
+              ? 'Early check-out with deficit leave applied (${state.leavePendingHoursFormatted(now)} pending)'
+              : (isHalfDayOverride
+                  ? 'Half Day Check-Out (${(workedSeconds / 3600).floor()}h ${((workedSeconds % 3600) / 60).floor()}m worked)'
+                  : 'Punched out from mobile app'));
 
-      await attendanceService.rawPost(ApiEndpoints.punchOut, body: {
-        'latitude': lat,
-        'longitude': lng,
+      final payload = <String, dynamic>{
+        if (lat != null) 'latitude': lat,
+        if (lng != null) 'longitude': lng,
+        if (pos?.accuracy != null) 'accuracy': pos!.accuracy,
         'location': loc,
         'notes': notesToUse,
         'verificationType': 'CLOCK_OUT',
         'workMode': workModeToUse,
-        'wfhReason': 'Check-out authorized',
+        'allowEarlyCheckOut': true,
         'isTemporaryClockOut': isTemporary,
-      });
+      };
 
-      state = state.copyWith(isActionInProgress: false, isTemporaryClockOut: isTemporary);
+      await attendanceService.rawPost(ApiEndpoints.punchOut, body: payload);
+
+      state = state.copyWith(
+        isActionInProgress: false,
+        isTemporaryClockOut: isTemporary,
+        checkOutAt: isTemporary ? null : DateTime.now(),
+      );
+
       if (isTemporary) {
         emitMessage('Clocked out temporarily. Remember to clock back in before shift end!');
       } else {
@@ -602,18 +633,9 @@ class PunchController extends StateNotifier<PunchState> with WidgetsBindingObser
       return ClockOutResult.success;
     } catch (e) {
       final errStr = e.toString().replaceFirst("ApiException: ", "").replaceFirst("Exception: ", "");
-      
-      if (!isTemporary && (errStr.contains('8.00 net working hours') ||
-          errStr.contains('complete at least') ||
-          errStr.contains('Status: 400') ||
-          state.workDuration(DateTime.now()).inHours < 8)) {
-        state = state.copyWith(isActionInProgress: false);
-        return ClockOutResult.needsHalfDayOverride;
-      } else {
-        state = state.copyWith(isActionInProgress: false);
-        emitMessage('Clock-out failed: $errStr', isError: true);
-        return ClockOutResult.failure;
-      }
+      state = state.copyWith(isActionInProgress: false);
+      emitMessage('Clock-out failed: $errStr', isError: true);
+      return ClockOutResult.failure;
     }
   }
 

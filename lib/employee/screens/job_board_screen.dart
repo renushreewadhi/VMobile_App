@@ -84,32 +84,7 @@ class _JobBoardScreenState extends ConsumerState<JobBoardScreen> {
         }
       }
 
-      if (parsed.isEmpty) {
-        parsed.addAll([
-          {
-            'id': 'JOB-101',
-            'title': 'Senior Full Stack Engineer',
-            'department': 'Engineering',
-            'location': 'Remote / Hybrid',
-            'type': 'Full-Time',
-            'posted': '2026-03-01',
-            'experience': '3+ Years',
-            'description': 'We are looking for a Senior Full Stack Engineer to lead mobile and backend services.',
-            'requirements': ['Strong Dart & Flutter knowledge', 'Node.js or .NET Core experience', 'Clean architecture principles'],
-          },
-          {
-            'id': 'JOB-102',
-            'title': 'UI/UX Product Designer',
-            'department': 'Design',
-            'location': 'Hybrid',
-            'type': 'Full-Time',
-            'posted': '2026-02-20',
-            'experience': '2+ Years',
-            'description': 'Design modern user journeys and mobile component libraries for Enterprise HRMS.',
-            'requirements': ['Figma expertise', 'Mobile UI design systems', 'User research experience'],
-          },
-        ]);
-      }
+      // No fake job postings added when empty
 
       setState(() {
         _jobs = parsed;

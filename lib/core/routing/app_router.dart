@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../admin/admin_role_shell.dart';
@@ -17,9 +18,11 @@ class AppRouter extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final authState = ref.watch(authServiceProvider);
-    debugPrint('[AuthDiag:AppRouter] state -> isLoading: ${authState.isLoading}, isAuthenticated: ${authState.isAuthenticated}, user: ${authState.user?.email}, role: ${authState.user?.role}');
+    if (kDebugMode) {
+      debugPrint('[AuthDiag:AppRouter] state -> isInitializing: ${authState.isInitializing}, isLoading: ${authState.isLoading}, isAuthenticated: ${authState.isAuthenticated}, user: ${authState.user?.email}, role: ${authState.user?.role}');
+    }
 
-    if (authState.isLoading) {
+    if (authState.isInitializing) {
       final isDark = Theme.of(context).brightness == Brightness.dark;
       return Scaffold(
         backgroundColor: isDark ? const Color(0xFF0F2E2C) : const Color(0xFFE9FBF8),

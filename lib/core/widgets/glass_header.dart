@@ -6,6 +6,7 @@ import '../theme/app_colors.dart';
 import '../theme/theme_provider.dart';
 import '../auth/auth_service.dart';
 import '../../employee/screens/my_profile_screen.dart';
+import '../../employee/screens/notifications_screen.dart';
 import 'theme_toggle_button.dart';
 
 class GlassHeader extends ConsumerWidget implements PreferredSizeWidget {
@@ -92,7 +93,35 @@ class GlassHeader extends ConsumerWidget implements PreferredSizeWidget {
                             children: actions ?? [
                               const ThemeToggleButton(size: 20),
                               if (authState.isAuthenticated && authState.user != null) ...[
-                                const SizedBox(width: 2),
+                                const SizedBox(width: 4),
+                                IconButton(
+                                  visualDensity: VisualDensity.compact,
+                                  icon: Stack(
+                                    children: [
+                                      Icon(Icons.notifications_outlined, color: isDark ? Colors.white : const Color(0xFF0F172A), size: 22),
+                                      Positioned(
+                                        right: 0,
+                                        top: 0,
+                                        child: Container(
+                                          width: 7,
+                                          height: 7,
+                                          decoration: const BoxDecoration(
+                                            color: AppColors.primary,
+                                            shape: BoxShape.circle,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  tooltip: 'Notifications',
+                                  onPressed: () {
+                                    Navigator.push(
+                                      context,
+                                      MaterialPageRoute(builder: (_) => const NotificationsScreen()),
+                                    );
+                                  },
+                                ),
+                                const SizedBox(width: 4),
                                 PopupMenuButton<String>(
                                   offset: const Offset(0, 48),
                                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
@@ -108,6 +137,11 @@ class GlassHeader extends ConsumerWidget implements PreferredSizeWidget {
                                           MaterialPageRoute(builder: (_) => const MyProfileScreen(showAppBar: true)),
                                         );
                                       }
+                                    } else if (value == 'notifications') {
+                                      Navigator.push(
+                                        context,
+                                        MaterialPageRoute(builder: (_) => const NotificationsScreen()),
+                                      );
                                     } else if (value == 'logout') {
                                       final confirm = await showDialog<bool>(
                                         context: context,
@@ -146,6 +180,63 @@ class GlassHeader extends ConsumerWidget implements PreferredSizeWidget {
                                   },
                                   itemBuilder: (BuildContext context) => <PopupMenuEntry<String>>[
                                     PopupMenuItem<String>(
+                                      enabled: false,
+                                      child: Container(
+                                        padding: const EdgeInsets.symmetric(vertical: 4),
+                                        child: Row(
+                                          children: [
+                                            Container(
+                                              width: 38,
+                                              height: 38,
+                                              decoration: BoxDecoration(
+                                                shape: BoxShape.circle,
+                                                gradient: LinearGradient(
+                                                  colors: glass.avatarGradient,
+                                                  begin: Alignment.topLeft,
+                                                  end: Alignment.bottomRight,
+                                                ),
+                                              ),
+                                              child: Center(
+                                                child: Text(
+                                                  initial,
+                                                  style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.white),
+                                                ),
+                                              ),
+                                            ),
+                                            const SizedBox(width: 10),
+                                            Expanded(
+                                              child: Column(
+                                                crossAxisAlignment: CrossAxisAlignment.start,
+                                                mainAxisSize: MainAxisSize.min,
+                                                children: [
+                                                  Text(
+                                                    user?.fullName.isNotEmpty == true ? user!.fullName : 'User',
+                                                    style: TextStyle(
+                                                      fontSize: 13,
+                                                      fontWeight: FontWeight.bold,
+                                                      color: isDark ? Colors.white : const Color(0xFF0F172A),
+                                                    ),
+                                                    maxLines: 1,
+                                                    overflow: TextOverflow.ellipsis,
+                                                  ),
+                                                  Text(
+                                                    user?.email ?? '',
+                                                    style: TextStyle(
+                                                      fontSize: 11,
+                                                      color: isDark ? Colors.white70 : const Color(0xFF64748B),
+                                                    ),
+                                                    maxLines: 1,
+                                                    overflow: TextOverflow.ellipsis,
+                                                  ),
+                                                ],
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ),
+                                    const PopupMenuDivider(height: 1),
+                                    PopupMenuItem<String>(
                                       value: 'profile',
                                       child: Row(
                                         children: [
@@ -153,6 +244,23 @@ class GlassHeader extends ConsumerWidget implements PreferredSizeWidget {
                                           const SizedBox(width: 10),
                                           Text(
                                             'My Profile',
+                                            style: TextStyle(
+                                              fontSize: 14,
+                                              fontWeight: FontWeight.w600,
+                                              color: isDark ? Colors.white : const Color(0xFF0F172A),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                    PopupMenuItem<String>(
+                                      value: 'notifications',
+                                      child: Row(
+                                        children: [
+                                          Icon(Icons.notifications_none_rounded, size: 18, color: isDark ? Colors.white : const Color(0xFF0F172A)),
+                                          const SizedBox(width: 10),
+                                          Text(
+                                            'Notifications',
                                             style: TextStyle(
                                               fontSize: 14,
                                               fontWeight: FontWeight.w600,
@@ -227,14 +335,14 @@ class GlassHeader extends ConsumerWidget implements PreferredSizeWidget {
                     ),
                     child: Row(
                       children: [
-                        if (showBackButton)
+                        if (showBackButton || (leading == null && canPop))
                           IconButton(
                             icon: Icon(Icons.arrow_back_ios_new_rounded, size: 18, color: glass.textPrimary),
                             onPressed: onBackPressed ?? () => Navigator.of(context).maybePop(),
                             padding: EdgeInsets.zero,
                             constraints: const BoxConstraints(),
                           ),
-                        if (showBackButton) const SizedBox(width: 12),
+                        if (showBackButton || (leading == null && canPop)) const SizedBox(width: 12),
                         Expanded(
                           child: Text(
                             title!,

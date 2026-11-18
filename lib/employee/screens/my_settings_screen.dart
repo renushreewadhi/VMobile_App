@@ -165,17 +165,50 @@ class _MySettingsScreenState extends ConsumerState<MySettingsScreen> {
   }
 
   Future<void> _toggleMFA(bool val) async {
+    String? passwordConfirm;
+    if (!val) {
+      passwordConfirm = await showDialog<String>(
+        context: context,
+        builder: (ctx) {
+          final ctrl = TextEditingController();
+          return AlertDialog(
+            title: const Text('Confirm Password'),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text('Please enter your password to disable MFA.'),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: ctrl,
+                  obscureText: true,
+                  decoration: const InputDecoration(labelText: 'Password'),
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+              TextButton(onPressed: () => Navigator.pop(ctx, ctrl.text), child: const Text('Confirm')),
+            ],
+          );
+        },
+      );
+      if (passwordConfirm == null || passwordConfirm.isEmpty) return;
+    }
+
     final apiClient = ref.read(apiClientProvider);
     try {
-      final res = await apiClient.post('/settings/mfa/toggle', body: {'enable': val}).catchError((_) => null);
-      if (res != null && mounted) {
+      await apiClient.post('/settings/mfa/toggle', body: {
+        'enable': val,
+        if (passwordConfirm != null) 'password': passwordConfirm,
+      });
+      if (mounted) {
         setState(() => _mfaEnabled = val);
         _toast(val ? 'MFA Enabled' : 'MFA Disabled');
-      } else if (mounted) {
-        _toast('Failed to update MFA status');
       }
-    } catch (_) {
-      if (mounted) _toast('Network error');
+    } catch (e) {
+      if (mounted) {
+        _toast(e.toString().replaceFirst('ApiException: ', '').replaceFirst('Exception: ', ''));
+      }
     }
   }
 
@@ -188,6 +221,14 @@ class _MySettingsScreenState extends ConsumerState<MySettingsScreen> {
       _toast('Please fill all fields');
       return;
     }
+    if (newP.length < 8) {
+      _toast('New password must be at least 8 characters long');
+      return;
+    }
+    if (cur == newP) {
+      _toast('New password must be different from current password');
+      return;
+    }
     if (newP != conP) {
       _toast('New passwords do not match');
       return;
@@ -196,19 +237,19 @@ class _MySettingsScreenState extends ConsumerState<MySettingsScreen> {
     setState(() => _savingPassword = true);
     final apiClient = ref.read(apiClientProvider);
     try {
-      final res = await apiClient.post('/settings/password/change', body: {
+      await apiClient.post('/settings/password/change', body: {
         'currentPassword': cur,
         'newPassword': newP,
-      }).catchError((_) => null);
+      });
 
-      if (res != null && mounted) {
+      if (mounted) {
         _toast('Password updated successfully');
         setState(() => _showPasswordModal = false);
-      } else if (mounted) {
-        _toast('Failed to update password');
       }
-    } catch (_) {
-      if (mounted) _toast('Network error');
+    } catch (e) {
+      if (mounted) {
+        _toast(e.toString().replaceFirst('ApiException: ', '').replaceFirst('Exception: ', ''));
+      }
     } finally {
       if (mounted) setState(() => _savingPassword = false);
     }

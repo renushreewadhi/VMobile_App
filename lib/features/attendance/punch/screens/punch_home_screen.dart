@@ -110,9 +110,13 @@ class _PunchHomeState extends ConsumerState<PunchInOutScreen> {
 
   void _showEarlyCheckoutOverrideDialog() {
     final state = ref.read(punchControllerProvider);
-    final workDuration = state.workDuration(DateTime.now());
+    final now = DateTime.now();
+    final workDuration = state.workDuration(now);
+    final pendingHoursStr = state.leavePendingHoursFormatted(now);
+    final pendingDaysStr = state.leavePendingDaysFormatted(now);
     bool applyLeave = false;
     String selectedLeaveType = 'Unpaid Leave';
+    final reasonController = TextEditingController();
 
     showDialog(
       context: context,
@@ -136,15 +140,25 @@ class _PunchHomeState extends ConsumerState<PunchInOutScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Container(
-                  padding: const EdgeInsets.all(10),
+                  padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
-                    color: Colors.orange.withOpacity(0.12),
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: Colors.orange.withOpacity(0.3)),
+                    color: Colors.amber.withOpacity(0.12),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Colors.amber.withOpacity(0.4)),
                   ),
-                  child: Text(
-                    'Net work duration: ${workDuration.inHours}h ${workDuration.inMinutes.remainder(60)}m worked (Required: 8h). Choose how you would like to clock out:',
-                    style: const TextStyle(fontSize: 11.5, height: 1.35),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Net Worked Duration: ${workDuration.inHours}h ${workDuration.inMinutes.remainder(60)}m (Required: 8h)',
+                        style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'Pending Deficit: $pendingHoursStr ($pendingDaysStr days)',
+                        style: TextStyle(fontSize: 11.5, color: Colors.amber.shade900, fontWeight: FontWeight.w600),
+                      ),
+                    ],
                   ),
                 ),
                 const SizedBox(height: 14),
@@ -164,13 +178,13 @@ class _PunchHomeState extends ConsumerState<PunchInOutScreen> {
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                   ),
                 ),
-                const SizedBox(height: 8),
+                const SizedBox(height: 10),
                 // Option 2: Apply Leave for Deficit
                 CheckboxListTile(
                   value: applyLeave,
                   onChanged: (val) => setDialogState(() => applyLeave = val ?? false),
                   title: const Text('Charge pending hours to leave', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
-                  subtitle: const Text('Deduct deficit hours from leave balance / payroll', style: TextStyle(fontSize: 11)),
+                  subtitle: Text('Apply $pendingDaysStr days leave for deficit ($pendingHoursStr)', style: const TextStyle(fontSize: 11)),
                   controlAffinity: ListTileControlAffinity.leading,
                   contentPadding: EdgeInsets.zero,
                 ),
@@ -187,18 +201,33 @@ class _PunchHomeState extends ConsumerState<PunchInOutScreen> {
                       DropdownMenuItem(value: 'Unpaid Leave', child: Text('Unpaid Leave (LWP)')),
                       DropdownMenuItem(value: 'Casual Leave', child: Text('Casual Leave')),
                       DropdownMenuItem(value: 'Sick Leave', child: Text('Sick Leave')),
+                      DropdownMenuItem(value: 'Earned Leave', child: Text('Earned Leave')),
+                      DropdownMenuItem(value: 'Paid Leave', child: Text('Paid Leave')),
                     ],
                     onChanged: (val) => setDialogState(() => selectedLeaveType = val ?? 'Unpaid Leave'),
+                  ),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: reasonController,
+                    decoration: InputDecoration(
+                      labelText: 'Reason for Early Checkout (Optional)',
+                      isDense: true,
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                    ),
                   ),
                   const SizedBox(height: 10),
                   ElevatedButton.icon(
                     onPressed: () async {
                       Navigator.pop(dialogCtx);
                       final controller = ref.read(punchControllerProvider.notifier);
-                      await controller.clockOut(applyLeave: true, leaveType: selectedLeaveType);
+                      await controller.clockOut(
+                        applyLeave: true,
+                        leaveType: selectedLeaveType,
+                        leaveReason: reasonController.text.trim(),
+                      );
                     },
                     icon: const Icon(Icons.check_circle_outline, size: 18),
-                    label: const Text('Clock Out & Apply Leave'),
+                    label: const Text('Clock Out & Apply Deficit Leave'),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: AppColors.error,
                       foregroundColor: Colors.white,

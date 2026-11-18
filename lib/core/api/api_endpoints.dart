@@ -41,6 +41,7 @@ class ApiEndpoints {
   static const String leaveApply = '/leave/apply';
   static const String leavePending = '/leave/pending';
   static const String leaveBalances = '/leave/balances';
+  static const String leaveTypes = '/leave/types';
   static String approveOrRejectLeave(String id) => '/leave/$id/approve-or-reject';
 
   // Performance

@@ -246,35 +246,9 @@ class _DailyWorkUpdateScreenState extends ConsumerState<DailyWorkUpdateScreen> {
       setState(() => _loading = false);
     } catch (e) {
       if (!mounted) return;
-      final sampleMine = [
-        {
-          'id': 'EOD-201',
-          'employeeName': 'Employee One',
-          'date': '2026-10-17',
-          'projectName': 'EOD Work Summary & Module Progress',
-          'hoursWorked': 8.0,
-          'status': 'Approved',
-          'workDescription': 'Completed UI enhancement for EOD updates tab and validated backend API response.',
-          'taskTitle': 'EOD Work Summary & Module Progress',
-          'blockerIssue': 'None',
-          'tomorrowPlan': 'Review pending tasks and implement notification triggers.',
-        },
-        {
-          'id': 'EOD-202',
-          'employeeName': 'Employee One',
-          'date': '2026-10-16',
-          'projectName': 'Database Migration & Query Optimization',
-          'hoursWorked': 7.5,
-          'status': 'Approved',
-          'workDescription': 'Optimized SQL queries and migration scripts for user profiles.',
-          'taskTitle': 'Database Migration & Query Optimization',
-          'blockerIssue': 'None',
-          'tomorrowPlan': 'Continue API testing.',
-        }
-      ];
       setState(() {
-        _pastUpdates = sampleMine.map((u) => _mapToItem(u)).toList();
-        _teamUpdates = _pastUpdates;
+        _pastUpdates = [];
+        _teamUpdates = [];
         _updateStats(_activeTab == 'my' ? _pastUpdates : _teamUpdates);
         _loading = false;
       });

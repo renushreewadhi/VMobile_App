@@ -128,6 +128,26 @@ class PunchState {
     return value.isNegative ? Duration.zero : value;
   }
 
+  double get leaveRequiredHours => 8.0;
+
+  double workedHours(DateTime now) => workDuration(now).inSeconds / 3600.0;
+
+  double leavePendingHours(DateTime now) {
+    final pending = leaveRequiredHours - workedHours(now);
+    return pending < 0 ? 0.0 : pending;
+  }
+
+  double leavePendingDays(DateTime now) => leavePendingHours(now) / leaveRequiredHours;
+
+  String leavePendingHoursFormatted(DateTime now) {
+    final pendingSec = (leavePendingHours(now) * 3600).round();
+    final h = pendingSec ~/ 3600;
+    final m = (pendingSec % 3600) ~/ 60;
+    return '${h}h ${m.toString().padLeft(2, '0')}m';
+  }
+
+  String leavePendingDaysFormatted(DateTime now) => leavePendingDays(now).toStringAsFixed(2);
+
   Duration breakDuration(DateTime now) {
     if (isOnBreak && breakStartedAt != null) {
       return completedBreak + now.difference(breakStartedAt!);

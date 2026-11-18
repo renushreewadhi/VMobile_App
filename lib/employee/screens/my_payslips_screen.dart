@@ -275,17 +275,17 @@ class _MyPayslipsScreenState extends ConsumerState<MyPayslipsScreen> {
   void _showPayslipModal(Map<String, dynamic> record) {
     final user = ref.read(authServiceProvider).user;
     final period = _formatMonthYear(record['month'], record['year']);
-    final basic = record['basicSalary'] ?? 45000;
-    final allowances = record['allowances'] ?? 30000;
-    final deductions = record['deductions'] ?? 5750;
-    final gross = record['grossPay'] ?? 75000;
-    final net = record['netPay'] ?? 69250;
-    final status = record['status']?.toString().toUpperCase() ?? 'PAID';
-    final payDate = record['paidDate']?.toString() ?? record['paymentDate']?.toString() ?? record['payDate']?.toString() ?? '28 ${record['month']?.toString().substring(0, math.min(3, record['month'].toString().length))} ${record['year'] ?? 2026}';
-    final employeeName = user?.fullName.isNotEmpty == true ? user!.fullName : 'Employee One';
-    final employeeId = (user?.employeeId != null && user!.employeeId!.isNotEmpty) ? user.employeeId! : 'EMP-26-0028';
-    final designation = user?.designation?.isNotEmpty == true ? user!.designation! : 'Software Engineer';
-    final department = user?.department?.isNotEmpty == true ? user!.department! : 'Engineering';
+    final basic = record['basicSalary'] ?? 0.0;
+    final allowances = record['allowances'] ?? 0.0;
+    final deductions = record['deductions'] ?? 0.0;
+    final gross = record['grossPay'] ?? 0.0;
+    final net = record['netPay'] ?? 0.0;
+    final status = record['status']?.toString().toUpperCase() ?? 'PENDING';
+    final payDate = record['paidDate']?.toString() ?? record['paymentDate']?.toString() ?? record['payDate']?.toString() ?? '--';
+    final employeeName = user?.fullName.isNotEmpty == true ? user!.fullName : 'Employee';
+    final employeeId = (user?.employeeId != null && user!.employeeId!.isNotEmpty) ? user.employeeId! : '--';
+    final designation = user?.designation?.isNotEmpty == true ? user!.designation! : '--';
+    final department = user?.department?.isNotEmpty == true ? user!.department! : '--';
     final slipNo = 'SLIP #${period.toUpperCase()}';
 
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -688,11 +688,11 @@ class _MyPayslipsScreenState extends ConsumerState<MyPayslipsScreen> {
                 itemBuilder: (context, index) {
                   final record = filteredHistory[index];
                   final period = _formatMonthYear(record['month'], record['year']);
-                  final basic = record['basicSalary'] ?? 45000;
-                  final allowances = record['allowances'] ?? 30000;
-                  final deduct = record['deductions'] ?? 5750;
-                  final netPay = record['netPay'] ?? 69250;
-                  final status = record['status']?.toString().toUpperCase() ?? 'PAID';
+                  final basic = record['basicSalary'] ?? 0.0;
+                  final allowances = record['allowances'] ?? 0.0;
+                  final deduct = record['deductions'] ?? 0.0;
+                  final netPay = record['netPay'] ?? 0.0;
+                  final status = record['status']?.toString().toUpperCase() ?? 'PENDING';
 
                   return AppCard(
                     padding: const EdgeInsets.all(14),
@@ -741,17 +741,17 @@ class _MyPayslipsScreenState extends ConsumerState<MyPayslipsScreen> {
         ? Map<String, dynamic>.from(_salaryWorkflow['structure'] as Map)
         : <String, dynamic>{};
 
-    final basic = structureMap['basicSalary'] ?? 45000.0;
-    final hra = structureMap['hra'] ?? 18000.0;
-    final conveyance = structureMap['conveyance'] ?? 1600.0;
-    final medical = structureMap['medicalAllowance'] ?? 1250.0;
-    final special = structureMap['specialAllowance'] ?? 9150.0;
-    final gross = structureMap['totalEarnings'] ?? 75000.0;
+    final basic = structureMap['basicSalary'] ?? 0.0;
+    final hra = structureMap['hra'] ?? 0.0;
+    final conveyance = structureMap['conveyance'] ?? 0.0;
+    final medical = structureMap['medicalAllowance'] ?? 0.0;
+    final special = structureMap['specialAllowance'] ?? 0.0;
+    final gross = structureMap['totalEarnings'] ?? 0.0;
 
-    final pf = structureMap['pfAmount'] ?? 5400.0;
-    final pt = structureMap['professionalTax'] ?? 350.0;
-    final deductions = structureMap['totalDeductions'] ?? 5750.0;
-    final net = structureMap['netSalary'] ?? 69250.0;
+    final pf = structureMap['pfAmount'] ?? 0.0;
+    final pt = structureMap['professionalTax'] ?? 0.0;
+    final deductions = structureMap['totalDeductions'] ?? 0.0;
+    final net = structureMap['netSalary'] ?? 0.0;
 
     final filteredHistory = _salaryHistory.where((item) {
       final y = int.tryParse(item['year']?.toString() ?? '');

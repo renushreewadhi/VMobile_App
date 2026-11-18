@@ -9,23 +9,28 @@ import '../models/user_model.dart';
 import '../storage/storage_service.dart';
 
 class AuthState {
+  final bool? _isInitializing;
   final bool isLoading;
   final bool isAuthenticated;
   final bool isOfflineSession;
   final UserModel? user;
   final String? errorMessage;
 
+  bool get isInitializing => _isInitializing ?? false;
+
   AuthState({
+    bool? isInitializing,
     required this.isLoading,
     required this.isAuthenticated,
     this.isOfflineSession = false,
     this.user,
     this.errorMessage,
-  });
+  }) : _isInitializing = isInitializing;
 
-  factory AuthState.initial() => AuthState(isLoading: true, isAuthenticated: false, isOfflineSession: false);
+  factory AuthState.initial() => AuthState(isInitializing: true, isLoading: false, isAuthenticated: false, isOfflineSession: false);
 
   AuthState copyWith({
+    bool? isInitializing,
     bool? isLoading,
     bool? isAuthenticated,
     bool? isOfflineSession,
@@ -33,11 +38,12 @@ class AuthState {
     String? errorMessage,
   }) {
     return AuthState(
+      isInitializing: isInitializing ?? _isInitializing,
       isLoading: isLoading ?? this.isLoading,
       isAuthenticated: isAuthenticated ?? this.isAuthenticated,
       isOfflineSession: isOfflineSession ?? this.isOfflineSession,
       user: user ?? this.user,
-      errorMessage: errorMessage,
+      errorMessage: errorMessage ?? this.errorMessage,
     );
   }
 }
@@ -103,7 +109,7 @@ class AuthService extends StateNotifier<AuthState> {
       if (!rememberMe) {
         await _storageService.clearSession();
         _apiClient.setAuthToken(null);
-        if (mounted) state = AuthState(isLoading: false, isAuthenticated: false, isOfflineSession: false);
+        if (mounted) state = AuthState(isInitializing: false, isLoading: false, isAuthenticated: false, isOfflineSession: false);
         return;
       }
 
@@ -111,7 +117,7 @@ class AuthService extends StateNotifier<AuthState> {
       final userJsonStr = await _storageService.getUserData();
 
       if (token == null || token.isEmpty) {
-        if (mounted) state = AuthState(isLoading: false, isAuthenticated: false, isOfflineSession: false);
+        if (mounted) state = AuthState(isInitializing: false, isLoading: false, isAuthenticated: false, isOfflineSession: false);
         return;
       }
 
@@ -133,36 +139,36 @@ class AuthService extends StateNotifier<AuthState> {
         if (data is Map<String, dynamic>) {
           final serverUser = UserModel.fromJson(data);
           await _storageService.saveUserData(jsonEncode(serverUser.toJson()));
-          if (mounted) state = AuthState(isLoading: false, isAuthenticated: true, isOfflineSession: false, user: serverUser);
+          if (mounted) state = AuthState(isInitializing: false, isLoading: false, isAuthenticated: true, isOfflineSession: false, user: serverUser);
           return;
         }
       } on UnauthorizedException catch (_) {
         // Stale or revoked token on server — purge local session
         await _storageService.clearSession();
         _apiClient.setAuthToken(null);
-        if (mounted) state = AuthState(isLoading: false, isAuthenticated: false, isOfflineSession: false);
+        if (mounted) state = AuthState(isInitializing: false, isLoading: false, isAuthenticated: false, isOfflineSession: false);
         return;
       } on ForbiddenException catch (_) {
         await _storageService.clearSession();
         _apiClient.setAuthToken(null);
-        if (mounted) state = AuthState(isLoading: false, isAuthenticated: false, isOfflineSession: false);
+        if (mounted) state = AuthState(isInitializing: false, isLoading: false, isAuthenticated: false, isOfflineSession: false);
         return;
       } catch (_) {
         // OBS-01 Remediation: Mark session as offline & unverified
         if (cachedUser != null) {
-          if (mounted) state = AuthState(isLoading: false, isAuthenticated: true, isOfflineSession: true, user: cachedUser);
+          if (mounted) state = AuthState(isInitializing: false, isLoading: false, isAuthenticated: true, isOfflineSession: true, user: cachedUser);
           return;
         }
       }
 
       if (cachedUser != null) {
-        if (mounted) state = AuthState(isLoading: false, isAuthenticated: true, isOfflineSession: true, user: cachedUser);
+        if (mounted) state = AuthState(isInitializing: false, isLoading: false, isAuthenticated: true, isOfflineSession: true, user: cachedUser);
       } else {
-        if (mounted) state = AuthState(isLoading: false, isAuthenticated: false, isOfflineSession: false);
+        if (mounted) state = AuthState(isInitializing: false, isLoading: false, isAuthenticated: false, isOfflineSession: false);
       }
     } catch (e) {
       debugPrint('[AuthDiag:AuthService] Error initializing auth: $e');
-      if (mounted) state = AuthState(isLoading: false, isAuthenticated: false, isOfflineSession: false);
+      if (mounted) state = AuthState(isInitializing: false, isLoading: false, isAuthenticated: false, isOfflineSession: false);
     } finally {
       _isInitializing = false;
     }
@@ -198,6 +204,25 @@ class AuthService extends StateNotifier<AuthState> {
       // Still offline
     }
     return false;
+  }
+
+  Future<void> refreshCurrentUser() async {
+    try {
+      final meResponse = await _apiClient.get(ApiEndpoints.me);
+      final data = meResponse is Map<String, dynamic> && meResponse.containsKey('data')
+          ? meResponse['data']
+          : meResponse;
+
+      if (data is Map<String, dynamic>) {
+        final serverUser = UserModel.fromJson(data);
+        await _storageService.saveUserData(jsonEncode(serverUser.toJson()));
+        if (mounted) {
+          state = state.copyWith(user: serverUser);
+        }
+      }
+    } catch (e) {
+      debugPrint('[AuthService] refreshCurrentUser failed: $e');
+    }
   }
 
   /// SEC-06: Production Authentication without Demo Fallback
@@ -269,7 +294,7 @@ class AuthService extends StateNotifier<AuthState> {
       await _storageService.saveUserData(jsonEncode(user.toJson()));
       debugPrint('[AuthDiag:AuthService] login data and authoritative profile persisted successfully. ID: ${user.id}, Role: ${user.role}');
 
-      state = AuthState(isLoading: false, isAuthenticated: true, isOfflineSession: false, user: user);
+      state = AuthState(isInitializing: false, isLoading: false, isAuthenticated: true, isOfflineSession: false, user: user);
       debugPrint('[AuthDiag:AuthService] login state updated to authenticated');
       return true;
     } on UnauthorizedException catch (e) {
@@ -353,13 +378,15 @@ class AuthService extends StateNotifier<AuthState> {
   Future<void> logout() async {
     debugPrint('[AuthDiag:AuthService] logout initiated');
     final epoch = ++_sessionEpoch;
+    final currentUser = state.user;
+    final refreshToken = await _storageService.getRefreshToken();
 
     // 1. Drop the user from the UI immediately (avatar, header, router).
-    state = AuthState(isLoading: false, isAuthenticated: false, isOfflineSession: false, user: null);
+    state = AuthState(isInitializing: false, isLoading: false, isAuthenticated: false, isOfflineSession: false, user: null);
 
-    // 2. Best-effort server logout while the token is still on the client, bounded by a timeout.
+    // 2. Best-effort server logout with refresh token while the token is still on the client, bounded by a timeout.
     try {
-      await _apiClient.post(ApiEndpoints.logout, body: {}).timeout(const Duration(seconds: 5));
+      await _apiClient.post(ApiEndpoints.logout, body: {'refreshToken': refreshToken ?? ''}).timeout(const Duration(seconds: 5));
       debugPrint('[AuthDiag:AuthService] logout backend API call completed');
     } catch (e) {
       debugPrint('[AuthDiag:AuthService] logout backend API call error (ignored): $e');
@@ -371,6 +398,11 @@ class AuthService extends StateNotifier<AuthState> {
       return;
     }
     _apiClient.setAuthToken(null);
+    if (currentUser != null) {
+      try {
+        await _storageService.clearAccountCache(currentUser.id);
+      } catch (_) {}
+    }
     await _storageService.clearSession();
     debugPrint('[AuthDiag:AuthService] logout complete');
   }

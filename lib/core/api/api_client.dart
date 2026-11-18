@@ -148,6 +148,19 @@ class ApiClient {
     Map<String, String>? headers,
     String method = 'POST',
   }) async {
+    final duplicatedFiles = <Map<String, dynamic>>[];
+    if (files != null) {
+      for (final file in files) {
+        final bytes = await file.finalize().toBytes();
+        duplicatedFiles.add({
+          'field': file.field,
+          'bytes': bytes,
+          'filename': file.filename,
+          'contentType': file.contentType,
+        });
+      }
+    }
+
     final uri = _buildUri(endpoint);
     try {
       return await _retryWithTokenRefresh(
@@ -160,8 +173,17 @@ class ApiClient {
           if (fields != null) {
             request.fields.addAll(fields);
           }
-          if (files != null) {
-            request.files.addAll(files);
+          if (duplicatedFiles.isNotEmpty) {
+            for (final f in duplicatedFiles) {
+              request.files.add(
+                http.MultipartFile.fromBytes(
+                  f['field'] as String,
+                  f['bytes'] as Uint8List,
+                  filename: f['filename'] as String?,
+                  contentType: f['contentType'],
+                ),
+              );
+            }
           }
 
           final streamedResponse = await _httpClient
@@ -183,16 +205,20 @@ class ApiClient {
     Map<String, String>? headers,
   }) async {
     final uri = _buildUri(endpoint, queryParams);
-    final builtHeaders = _buildHeaders(headers);
     try {
-      final response = await _httpClient
-          .get(uri, headers: builtHeaders)
-          .timeout(const Duration(seconds: AppConfig.requestTimeoutSeconds));
-      if (response.statusCode >= 200 && response.statusCode < 300) {
-        return response.bodyBytes;
+      final response = await _retryWithTokenRefresh(
+        () => _httpClient
+            .get(uri, headers: _buildHeaders(headers))
+            .timeout(const Duration(seconds: AppConfig.requestTimeoutSeconds)),
+        endpoint,
+      );
+      if (response is Uint8List) return response;
+      if (response is http.Response) {
+        if (response.statusCode >= 200 && response.statusCode < 300) {
+          return response.bodyBytes;
+        }
       }
-      _processResponse(response, endpoint); // Will throw appropriate ApiException
-      return response.bodyBytes;
+      return Uint8List(0);
     } catch (e, st) {
       throw _handleException(e, st);
     }
@@ -220,8 +246,6 @@ class ApiClient {
     Map<String, String>? headers,
   }) async {
     final uri = _buildUri(endpoint, queryParams);
-    final request = http.Request('GET', uri);
-    request.headers.addAll(_buildHeaders(headers));
 
     if (!targetFile.parent.existsSync()) {
       await targetFile.parent.create(recursive: true);
@@ -231,19 +255,30 @@ class ApiClient {
     if (await tempFile.exists()) await tempFile.delete();
 
     try {
-      final streamedResponse = await _httpClient.send(request).timeout(
-        const Duration(seconds: AppConfig.requestTimeoutSeconds),
+      await _retryWithTokenRefresh(
+        () async {
+          final request = http.Request('GET', uri);
+          request.headers.addAll(_buildHeaders(headers));
+
+          final streamedResponse = await _httpClient.send(request).timeout(
+            const Duration(seconds: AppConfig.requestTimeoutSeconds),
+          );
+
+          if (streamedResponse.statusCode < 200 || streamedResponse.statusCode >= 300) {
+            final responseBody = await streamedResponse.stream.bytesToString();
+            return http.Response(responseBody, streamedResponse.statusCode, headers: streamedResponse.headers);
+          }
+
+          if (await tempFile.exists()) await tempFile.delete();
+          final sink = tempFile.openWrite();
+          await streamedResponse.stream.pipe(sink);
+          await sink.flush();
+          await sink.close();
+
+          return http.Response('', 200, headers: streamedResponse.headers);
+        },
+        endpoint,
       );
-
-      if (streamedResponse.statusCode < 200 || streamedResponse.statusCode >= 300) {
-        final responseBody = await streamedResponse.stream.bytesToString();
-        final dummyResponse = http.Response(responseBody, streamedResponse.statusCode, headers: streamedResponse.headers);
-        _processResponse(dummyResponse);
-        throw ApiException('Failed to download binary file (HTTP ${streamedResponse.statusCode}).');
-      }
-
-      final sink = tempFile.openWrite();
-      await streamedResponse.stream.pipe(sink);
 
       final length = await tempFile.length();
       if (length < 4) {

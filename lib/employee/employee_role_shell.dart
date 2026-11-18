@@ -23,13 +23,7 @@ class _EmployeeRoleShellState extends ConsumerState<EmployeeRoleShell> {
   Widget build(BuildContext context) {
     final screens = [
       EmployeeDashboardScreen(onNavigateTab: (tabIndex) {
-        if (tabIndex == 2) {
-          setState(() => _currentIndex = 3); // My Leave
-        } else if (tabIndex == 3) {
-          setState(() => _currentIndex = 4); // More / Tasks
-        } else {
-          setState(() => _currentIndex = tabIndex);
-        }
+        setState(() => _currentIndex = tabIndex.clamp(0, 4));
       }),
       const MyAttendanceScreen(showAppBar: false),
       const PunchInOutScreen(showAppBar: false),

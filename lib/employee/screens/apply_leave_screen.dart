@@ -91,58 +91,74 @@ class _ApplyLeaveScreenState extends ConsumerState<ApplyLeaveScreen> with Single
       _error = null;
     });
     final leaveService = ref.read(leaveServiceProvider);
+    final mappedBalances = <String, Map<String, dynamic>>{};
+
     try {
-      final res = await leaveService.getLeaveBalances();
-      if (!mounted) return;
+      final res = await leaveService.getLeaveBalances().catchError((_) => null);
+      if (mounted && res != null) {
+        List<dynamic> rawBalances = [];
+        if (res is List) {
+          rawBalances = res;
+        } else if (res is Map<String, dynamic> && res['data'] is List) {
+          rawBalances = res['data'];
+        }
 
-      List<dynamic> rawBalances = [];
-      if (res is List) {
-        rawBalances = res;
-      } else if (res is Map<String, dynamic> && res['data'] is List) {
-        rawBalances = res['data'];
-      }
+        for (final b in rawBalances) {
+          if (b is Map) {
+            final rawType = (b['leaveType'] ?? b['type'] ?? '').toString();
+            if (_isExcludedBalanceType(rawType)) continue;
 
-      final mappedBalances = <String, Map<String, dynamic>>{};
+            final normName = _normalizeBalanceType(rawType);
+            final total = int.tryParse(b['entitled']?.toString() ?? b['total']?.toString() ?? '0') ?? 0;
+            final used = int.tryParse(b['taken']?.toString() ?? b['used']?.toString() ?? '0') ?? 0;
+            final rem = (b['remaining'] != null)
+                ? (int.tryParse(b['remaining'].toString()) ?? 0)
+                : (total - used).clamp(0, 9999);
 
-      for (final b in rawBalances) {
-        if (b is Map) {
-          final rawType = (b['leaveType'] ?? b['type'] ?? '').toString();
-          if (_isExcludedBalanceType(rawType)) continue;
-
-          final normName = _normalizeBalanceType(rawType);
-          final total = int.tryParse(b['entitled']?.toString() ?? b['total']?.toString() ?? '0') ?? 0;
-          final used = int.tryParse(b['taken']?.toString() ?? b['used']?.toString() ?? '0') ?? 0;
-          final rem = (b['remaining'] != null)
-              ? (int.tryParse(b['remaining'].toString()) ?? 0)
-              : (total - used).clamp(0, 9999);
-
-          mappedBalances[normName] = {
-            'key': normName,
-            'rawType': rawType.isNotEmpty ? rawType : normName,
-            'remaining': rem < 0 ? 0 : rem,
-            'display': '$normName ($rem days remaining)',
-          };
+            mappedBalances[normName] = {
+              'key': normName,
+              'rawType': rawType.isNotEmpty ? rawType : normName,
+              'remaining': rem < 0 ? 0 : rem,
+              'display': '$normName ($rem days remaining)',
+            };
+          }
         }
       }
+    } catch (_) {}
 
-      final updatedOptions = <String, String>{};
-      for (final item in mappedBalances.values) {
-        updatedOptions[item['key']] = item['display'];
+    // Fallback & standard HR leave types to ensure dropdown is always populated
+    final standardTypes = [
+      'Sick Leave',
+      'Casual Leave',
+      'Paid Leave',
+      'Earned Leave',
+      'Compensatory Leave',
+      'Unpaid Leave',
+      'Personal Leave',
+    ];
+
+    final updatedOptions = <String, String>{};
+    for (final st in standardTypes) {
+      if (mappedBalances.containsKey(st)) {
+        updatedOptions[st] = mappedBalances[st]!['display'] as String;
+      } else {
+        updatedOptions[st] = st;
       }
+    }
 
+    for (final entry in mappedBalances.entries) {
+      if (!updatedOptions.containsKey(entry.key)) {
+        updatedOptions[entry.key] = entry.value['display'] as String;
+      }
+    }
+
+    if (mounted) {
       setState(() {
         _leaveTypeOptions = updatedOptions;
         if (_leaveTypeOptions.isNotEmpty && !_leaveTypeOptions.containsKey(_selectedLeaveTypeKey)) {
           _selectedLeaveTypeKey = _leaveTypeOptions.keys.first;
         }
         _loadingBalances = false;
-      });
-    } catch (e) {
-      if (!mounted) return;
-      setState(() {
-        _loadingBalances = false;
-        _error = 'Failed to load leave balances from server: ${e.toString()}';
-        _leaveTypeOptions = {};
       });
     }
   }
@@ -226,8 +242,11 @@ class _ApplyLeaveScreenState extends ConsumerState<ApplyLeaveScreen> with Single
     final contact = _contactPhoneController.text.trim();
     final rawReason = _reasonController.text.trim();
 
+    final normalizedType = _selectedLeaveTypeKey.toUpperCase().replaceAll(' ', '_');
+
     final payload = <String, dynamic>{
       'leaveType': _selectedLeaveTypeKey,
+      'type': normalizedType,
       'duration': _selectedDuration,
       'startDate': _startDate!.toIso8601String(),
       'endDate': effectiveEndDate.toIso8601String(),
