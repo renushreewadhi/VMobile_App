@@ -304,7 +304,9 @@ class _EmployeeDashboardScreenState extends ConsumerState<EmployeeDashboardScree
                   CircleAvatar(
                     radius: 26,
                     backgroundColor: AppColors.primary.withOpacity(0.15),
-                    backgroundImage: avatarUrl.isNotEmpty ? NetworkImage(avatarUrl) : null,
+                    backgroundImage: avatarUrl.isNotEmpty
+                        ? NetworkImage(avatarUrl.startsWith('http') ? avatarUrl : (avatarUrl.startsWith('/') ? 'https://hrms.etaprise.ai$avatarUrl' : 'https://hrms.etaprise.ai/$avatarUrl'))
+                        : null,
                     child: avatarUrl.isEmpty
                         ? Text(
                             employeeName.isNotEmpty ? employeeName[0].toUpperCase() : 'R',

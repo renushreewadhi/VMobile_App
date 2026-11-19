@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
@@ -9,9 +10,13 @@ import '../../core/api/employee_service.dart';
 import '../../core/auth/auth_service.dart';
 import '../../core/models/user_model.dart';
 import '../../core/theme/app_colors.dart';
-import '../../shared/widgets/app_card.dart';
 import '../../shared/widgets/loading_shimmer.dart';
+import '../../shared/widgets/empty_state_widget.dart';
+import '../../shared/widgets/error_state_widget.dart';
 import '../../core/widgets/glass_scaffold.dart';
+import '../widgets/profile_info_row.dart';
+import '../widgets/profile_section_card.dart';
+import '../widgets/authenticated_image.dart';
 import 'edit_profile_screen.dart';
 
 class MyProfileScreen extends ConsumerStatefulWidget {
@@ -22,7 +27,7 @@ class MyProfileScreen extends ConsumerStatefulWidget {
   ConsumerState<MyProfileScreen> createState() => _MyProfileScreenState();
 }
 
-class _MyProfileScreenState extends ConsumerState<MyProfileScreen> {
+class _MyProfileScreenState extends ConsumerState<MyProfileScreen> with SingleTickerProviderStateMixin {
   int _activeTab = 0; // 0: Employment, 1: Personal, 2: Financial, 3: Security
   bool _isLoading = true;
   String? _errorMessage;
@@ -31,12 +36,24 @@ class _MyProfileScreenState extends ConsumerState<MyProfileScreen> {
   String? _currentUserId;
   bool _maskFinancial = true;
 
+  late final AnimationController _animController;
+
   @override
   void initState() {
     super.initState();
+    _animController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 300),
+    );
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) _checkUserAndLoad();
     });
+  }
+
+  @override
+  void dispose() {
+    _animController.dispose();
+    super.dispose();
   }
 
   void _checkUserAndLoad() {
@@ -219,6 +236,7 @@ class _MyProfileScreenState extends ConsumerState<MyProfileScreen> {
         _isLoading = false;
         _errorMessage = null;
       });
+      _animController.forward(from: 0);
     } catch (e) {
       if (kDebugMode) debugPrint('[MyProfile] Error fetching profile: $e');
       if (!mounted || currentReq != _requestId) return;
@@ -257,21 +275,42 @@ class _MyProfileScreenState extends ConsumerState<MyProfileScreen> {
     if (val == null || val.trim().isEmpty) return '—';
     if (!_maskFinancial) return val;
     if (isAccount && val.length > 4) {
-      return '****${val.substring(val.length - 4)}';
+      return '•••• ${val.substring(val.length - 4)}';
     }
     if (val.length > 4) {
-      return '*****${val.substring(val.length - 4)}';
+      return '•••• ${val.substring(val.length - 4)}';
     }
-    return '****';
+    return '••••';
   }
 
   void _openEditModal() {
     Navigator.push(
       context,
       MaterialPageRoute(builder: (context) => const EditProfileScreen()),
-    ).then((_) {
-      if (mounted) _fetchProfile();
+    ).then((result) {
+      if (mounted) {
+        if (result is String && result.isNotEmpty) {
+          setState(() {
+            _profileData?['avatar'] = result;
+          });
+        }
+        _fetchProfile();
+      }
     });
+  }
+
+  void _copyToClipboard(String text, String label) {
+    if (text.isEmpty || text == '—') return;
+    Clipboard.setData(ClipboardData(text: text));
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          content: Text('Copied $label to clipboard'),
+          duration: const Duration(seconds: 2),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
   }
 
   @override
@@ -283,48 +322,79 @@ class _MyProfileScreenState extends ConsumerState<MyProfileScreen> {
     });
 
     if (_isLoading) {
-      final skeleton = const LoadingShimmer();
+      final skeleton = Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          children: [
+            const LoadingShimmer(height: 220, borderRadius: 24),
+            const SizedBox(height: 16),
+            const LoadingShimmer(height: 50, borderRadius: 14),
+            const SizedBox(height: 16),
+            const LoadingShimmer(height: 300, borderRadius: 20),
+          ],
+        ),
+      );
       if (!widget.showAppBar) return skeleton;
       return GlassScaffold(title: 'My Profile', body: skeleton);
     }
 
     if (_profileData == null || _profileData!.isEmpty) {
       final errBody = Center(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Icon(Icons.account_circle_outlined, size: 54, color: Colors.grey),
-              const SizedBox(height: 16),
-              const Text('Profile Unlinked or Unavailable', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-              const SizedBox(height: 8),
-              Text(_errorMessage ?? 'No profile data available.', textAlign: TextAlign.center, style: TextStyle(fontSize: 14, color: Colors.grey[600])),
-              const SizedBox(height: 24),
-              ElevatedButton.icon(onPressed: _fetchProfile, icon: const Icon(Icons.refresh), label: const Text('Retry')),
-            ],
-          ),
-        ),
+        child: _errorMessage != null
+            ? ErrorStateWidget(
+                errorMessage: _errorMessage!,
+                onRetry: _fetchProfile,
+              )
+            : Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const EmptyStateWidget(
+                    title: 'Profile Unavailable',
+                    message: 'No profile details found for your account.',
+                  ),
+                  const SizedBox(height: 16),
+                  ElevatedButton.icon(
+                    onPressed: _fetchProfile,
+                    icon: const Icon(Icons.refresh),
+                    label: const Text('Retry'),
+                  ),
+                ],
+              ),
       );
       if (!widget.showAppBar) return errBody;
       return GlassScaffold(title: 'My Profile', body: errBody);
     }
 
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final bottomInset = MediaQuery.paddingOf(context).bottom;
 
-    final bodyContent = SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 120),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          _buildHeroHeader(context, isDark),
-          const SizedBox(height: 16),
-          _buildTabsNav(context, isDark),
-          const SizedBox(height: 16),
-          _buildActiveTabContent(context, isDark),
-          const SizedBox(height: 32),
-        ],
-      ),
+    final bodyContent = CustomScrollView(
+      physics: const BouncingScrollPhysics(),
+      slivers: [
+        SliverToBoxAdapter(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
+            child: _buildHeroHeader(context, isDark),
+          ),
+        ),
+        SliverPersistentHeader(
+          pinned: true,
+          delegate: _StickyTabBarDelegate(
+            child: _buildTabsNav(context, isDark),
+          ),
+        ),
+        SliverPadding(
+          padding: EdgeInsets.fromLTRB(16, 16, 16, 24 + bottomInset),
+          sliver: SliverToBoxAdapter(
+            child: MediaQuery.of(context).disableAnimations
+                ? _buildActiveTabContent(context, isDark)
+                : FadeTransition(
+                    opacity: _animController,
+                    child: _buildActiveTabContent(context, isDark),
+                  ),
+          ),
+        ),
+      ],
     );
 
     if (!widget.showAppBar) return bodyContent;
@@ -340,21 +410,16 @@ class _MyProfileScreenState extends ConsumerState<MyProfileScreen> {
     final firstName = p['firstName'] ?? p['name'] ?? 'Employee';
     final lastName = p['lastName'] ?? '';
     final fullName = '$firstName $lastName'.trim();
-    final email = p['email'] ?? '—';
-    final role = p['role'] ?? 'Employee';
-    final organization = p['organization'] ?? p['companyName'] ?? p['branch'] ?? 'Etaprise HRMS';
-    final employeeId = p['employeeId'] ?? p['code'] ?? '—';
-    final department = p['department'] ?? 'Human Resources';
-    final team = p['teamName'] ?? p['team'] ?? 'Core HR';
-    final shift = p['shiftName'] ?? p['shift'] ?? 'General Shift';
-    final workLocation = p['workLocation'] ?? 'Headquarters';
+    final email = (p['email'] ?? '—').toString();
+    final role = (p['role'] ?? 'Employee').toString();
+    final employeeId = (p['employeeId'] ?? p['code'] ?? '—').toString();
+    final shift = (p['shiftName'] ?? p['shift'] ?? '').toString();
     final avatarUrl = _resolveAvatarUrl(p['avatar'] ?? p['avatarUrl']);
 
     final surfaceColor = isDark ? AppColors.darkMainSurface : Colors.white;
     final textColor = isDark ? AppColors.darkPrimaryText : AppColors.lightPrimaryText;
     final secondaryTextColor = isDark ? AppColors.darkSecondaryText : AppColors.lightSecondaryText;
     final borderColor = isDark ? AppColors.darkBordersAndDividers : AppColors.lightBordersAndDividers;
-    final pillBg = isDark ? AppColors.darkSecondarySurface : AppColors.lightSecondarySurface;
 
     return Container(
       decoration: BoxDecoration(
@@ -362,133 +427,142 @@ class _MyProfileScreenState extends ConsumerState<MyProfileScreen> {
         borderRadius: BorderRadius.circular(24),
         border: Border.all(color: borderColor),
         boxShadow: [
-          BoxShadow(color: Colors.black.withAlpha(isDark ? 50 : 10), blurRadius: 20, offset: const Offset(0, 8)),
+          BoxShadow(
+            color: Colors.black.withAlpha(isDark ? 50 : 10),
+            blurRadius: 20,
+            offset: const Offset(0, 8),
+          ),
         ],
       ),
       clipBehavior: Clip.antiAlias,
       child: Column(
         children: [
-          // Cover Banner
+          // Teal Gradient Banner
           Container(
-            height: 100,
+            height: 90,
             decoration: const BoxDecoration(
               gradient: LinearGradient(
-                colors: [Color(0xFF1E3A8A), Color(0xFF2563EB), Color(0xFF4F46E5)],
+                colors: [Color(0xFF0F6B66), Color(0xFF148079), Color(0xFF1DA79E)],
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
               ),
             ),
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             alignment: Alignment.topRight,
-            child: ElevatedButton.icon(
-              onPressed: _openEditModal,
-              icon: const Icon(Icons.edit, size: 14, color: Colors.white),
-              label: const Text('Edit Profile', style: TextStyle(color: Colors.white, fontSize: 12)),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.white.withAlpha(60),
-                elevation: 0,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            child: Semantics(
+              button: true,
+              label: 'Edit Profile',
+              child: ElevatedButton.icon(
+                onPressed: _openEditModal,
+                icon: const Icon(Icons.edit_rounded, size: 15, color: AppColors.primary),
+                label: const Text('Edit Profile', style: TextStyle(color: AppColors.primary, fontWeight: FontWeight.bold, fontSize: 13)),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.white,
+                  foregroundColor: AppColors.primary,
+                  elevation: 2,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                ),
               ),
             ),
           ),
 
-          // Main Info Bar
+          // Main Info Block
           Padding(
             padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
             child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    Transform.translate(
-                      offset: const Offset(0, -40),
-                      child: Container(
-                        width: 84,
-                        height: 84,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: surfaceColor,
-                          border: Border.all(color: surfaceColor, width: 4),
-                          boxShadow: [
-                            BoxShadow(color: Colors.black.withAlpha(40), blurRadius: 10, offset: const Offset(0, 4)),
-                          ],
-                        ),
-                        child: ClipOval(
-                          child: avatarUrl.isNotEmpty
-                              ? Image.network(
-                                  avatarUrl,
-                                  fit: BoxFit.cover,
-                                  errorBuilder: (c, e, s) => _defaultAvatar(fullName),
-                                )
-                              : _defaultAvatar(fullName),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 14),
-                    Expanded(
-                      child: Padding(
-                        padding: const EdgeInsets.only(top: 10),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
-                              children: [
-                                Expanded(
-                                  child: Text(
-                                    fullName,
-                                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: textColor),
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                ),
-                                const SizedBox(width: 8),
-                                Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                                  decoration: BoxDecoration(
-                                    color: isDark ? AppColors.darkPrimary.withAlpha(80) : AppColors.lightPrimary,
-                                    borderRadius: BorderRadius.circular(12),
-                                    border: Border.all(color: isDark ? AppColors.darkPrimary : const Color(0xFFBFDBFE)),
-                                  ),
-                                  child: Text(
-                                    role,
-                                    style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: isDark ? Colors.blueAccent : AppColors.primary),
-                                  ),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 4),
-                            Row(
-                              children: [
-                                Icon(Icons.email_outlined, size: 13, color: secondaryTextColor),
-                                const SizedBox(width: 6),
-                                Expanded(
-                                  child: Text(
-                                    email,
-                                    style: TextStyle(fontSize: 12.5, color: secondaryTextColor),
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ],
+                Transform.translate(
+                  offset: const Offset(0, -42),
+                  child: Column(
+                    children: [
+                      Semantics(
+                        label: 'Profile picture for $fullName',
+                        child: Container(
+                          width: 88,
+                          height: 88,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: surfaceColor,
+                            border: Border.all(color: surfaceColor, width: 4),
+                            boxShadow: [
+                              BoxShadow(color: Colors.black.withAlpha(40), blurRadius: 10, offset: const Offset(0, 4)),
+                            ],
+                          ),
+                          child: ClipOval(
+                            child: avatarUrl.isNotEmpty
+                                ? AuthenticatedImage(
+                                    imageUrl: avatarUrl,
+                                    fit: BoxFit.cover,
+                                    placeholder: (c) => Container(
+                                      color: AppColors.primary.withAlpha(50),
+                                      child: const Center(child: SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.primary))),
+                                    ),
+                                    errorWidget: (c) => _defaultAvatar(fullName),
+                                  )
+                                : _defaultAvatar(fullName),
+                          ),
                         ),
                       ),
-                    ),
-                  ],
+                      const SizedBox(height: 8),
+                      Text(
+                        fullName,
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          fontSize: 21,
+                          fontWeight: FontWeight.w700,
+                          color: textColor,
+                          letterSpacing: -0.3,
+                        ),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      const SizedBox(height: 4),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Flexible(
+                            child: Text(
+                              email,
+                              style: TextStyle(fontSize: 13, color: secondaryTextColor),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          if (email != '—') ...[
+                            const SizedBox(width: 4),
+                            Semantics(
+                              button: true,
+                              label: 'Copy email address',
+                              child: InkWell(
+                                onTap: () => _copyToClipboard(email, 'Email'),
+                                borderRadius: BorderRadius.circular(12),
+                                child: const Padding(
+                                  padding: EdgeInsets.all(4),
+                                  child: Icon(Icons.copy_rounded, size: 14, color: AppColors.primary),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ],
+                  ),
                 ),
-                const SizedBox(height: 4),
-                Wrap(
-                  spacing: 6,
-                  runSpacing: 6,
-                  children: [
-                    _buildHeroPill(Icons.business, organization, pillBg, textColor),
-                    _buildHeroPill(Icons.badge, 'ID: $employeeId', pillBg, secondaryTextColor),
-                    _buildHeroPill(Icons.account_tree, department, pillBg, secondaryTextColor),
-                    _buildHeroPill(Icons.group, team, pillBg, secondaryTextColor),
-                    _buildHeroPill(Icons.access_time, shift, isDark ? const Color(0xFF3B2D0C) : const Color(0xFFFEF3C7), isDark ? const Color(0xFFFDE047) : const Color(0xFF92400E)),
-                    _buildHeroPill(Icons.location_on, workLocation, isDark ? const Color(0xFF1E1B4B) : const Color(0xFFEEF2FF), isDark ? const Color(0xFF818CF8) : const Color(0xFF4338CA)),
-                  ],
+                Transform.translate(
+                  offset: const Offset(0, -24),
+                  child: Wrap(
+                    alignment: WrapAlignment.center,
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      if (role.isNotEmpty)
+                        _buildHeroChip(role, AppColors.primary.withAlpha(25), AppColors.primary, Icons.badge_outlined),
+                      if (employeeId.isNotEmpty && employeeId != '—')
+                        _buildHeroChip('ID: $employeeId', isDark ? AppColors.darkSecondarySurface : AppColors.lightSecondarySurface, secondaryTextColor, Icons.fingerprint, onCopy: () => _copyToClipboard(employeeId, 'Employee ID')),
+                      if (shift.isNotEmpty && shift != '—')
+                        _buildHeroChip(shift, isDark ? const Color(0xFF3B2D0C) : const Color(0xFFFEF3C7), isDark ? const Color(0xFFFDE047) : const Color(0xFF92400E), Icons.access_time_rounded),
+                    ],
+                  ),
                 ),
               ],
             ),
@@ -504,22 +578,23 @@ class _MyProfileScreenState extends ConsumerState<MyProfileScreen> {
       alignment: Alignment.center,
       child: Text(
         name.isNotEmpty ? name[0].toUpperCase() : 'U',
-        style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: Colors.white),
+        style: const TextStyle(fontSize: 32, fontWeight: FontWeight.bold, color: Colors.white),
       ),
     );
   }
 
-  Widget _buildHeroPill(IconData icon, String label, Color bg, Color fg) {
+  Widget _buildHeroChip(String label, Color bg, Color fg, IconData icon, {VoidCallback? onCopy}) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      constraints: const BoxConstraints(minHeight: 32),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
         color: bg,
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(16),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 12, color: fg),
+          Icon(icon, size: 13, color: fg),
           const SizedBox(width: 5),
           Flexible(
             child: Text(
@@ -528,6 +603,13 @@ class _MyProfileScreenState extends ConsumerState<MyProfileScreen> {
               overflow: TextOverflow.ellipsis,
             ),
           ),
+          if (onCopy != null) ...[
+            const SizedBox(width: 4),
+            GestureDetector(
+              onTap: onCopy,
+              child: Icon(Icons.copy_rounded, size: 12, color: fg),
+            ),
+          ],
         ],
       ),
     );
@@ -535,18 +617,27 @@ class _MyProfileScreenState extends ConsumerState<MyProfileScreen> {
 
   Widget _buildTabsNav(BuildContext context, bool isDark) {
     final tabs = [
-      {'title': 'Employment', 'icon': Icons.business_center},
-      {'title': 'Personal', 'icon': Icons.person},
-      {'title': 'Financial', 'icon': Icons.account_balance_wallet},
-      {'title': 'Security', 'icon': Icons.shield},
+      {'title': 'Employment', 'icon': Icons.business_center_rounded},
+      {'title': 'Personal', 'icon': Icons.person_rounded},
+      {'title': 'Financial', 'icon': Icons.account_balance_wallet_rounded},
+      {'title': 'Security', 'icon': Icons.shield_rounded},
     ];
 
-    final navBg = isDark ? AppColors.darkSecondarySurface : AppColors.lightSecondarySurface;
+    final navBg = isDark ? AppColors.darkMainSurface : Colors.white;
+    final borderColor = isDark ? AppColors.darkBordersAndDividers : AppColors.lightBordersAndDividers;
 
     return Container(
       decoration: BoxDecoration(
         color: navBg,
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: borderColor),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withAlpha(isDark ? 40 : 12),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
       ),
       padding: const EdgeInsets.all(4),
       child: Row(
@@ -554,31 +645,49 @@ class _MyProfileScreenState extends ConsumerState<MyProfileScreen> {
           final tab = tabs[index];
           final isActive = _activeTab == index;
           return Expanded(
-            child: GestureDetector(
-              onTap: () => setState(() => _activeTab = index),
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 200),
-                padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 2),
-                decoration: BoxDecoration(
-                  color: isActive ? AppColors.primary : Colors.transparent,
-                  borderRadius: BorderRadius.circular(10),
-                  boxShadow: isActive ? [BoxShadow(color: AppColors.primary.withAlpha(80), blurRadius: 8, offset: const Offset(0, 4))] : [],
-                ),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(tab['icon'] as IconData, size: 15, color: isActive ? Colors.white : (isDark ? AppColors.darkSecondaryText : AppColors.lightSecondaryText)),
-                    const SizedBox(height: 3),
-                    Text(
-                      tab['title'] as String,
-                      style: TextStyle(
-                        fontSize: 10.5,
-                        fontWeight: isActive ? FontWeight.bold : FontWeight.w600,
-                        color: isActive ? Colors.white : (isDark ? AppColors.darkSecondaryText : AppColors.lightSecondaryText),
-                      ),
-                      overflow: TextOverflow.ellipsis,
+            child: Semantics(
+              selected: isActive,
+              button: true,
+              label: tab['title'] as String,
+              child: InkWell(
+                onTap: () {
+                  if (_activeTab != index) {
+                    setState(() => _activeTab = index);
+                    _animController.forward(from: 0);
+                  }
+                },
+                borderRadius: BorderRadius.circular(12),
+                child: Container(
+                  constraints: const BoxConstraints(minHeight: 48),
+                  padding: const EdgeInsets.symmetric(vertical: 5, horizontal: 2),
+                  decoration: BoxDecoration(
+                    color: isActive ? AppColors.primary : Colors.transparent,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          tab['icon'] as IconData,
+                          size: 20,
+                          color: isActive ? Colors.white : (isDark ? AppColors.darkSecondaryText : AppColors.lightSecondaryText),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          tab['title'] as String,
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: isActive ? FontWeight.bold : FontWeight.w600,
+                            color: isActive ? Colors.white : (isDark ? AppColors.darkSecondaryText : AppColors.lightSecondaryText),
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
                     ),
-                  ],
+                  ),
                 ),
               ),
             ),
@@ -606,151 +715,138 @@ class _MyProfileScreenState extends ConsumerState<MyProfileScreen> {
   Widget _buildEmploymentTab(bool isDark) {
     final p = _profileData!;
     final history = p['branchHistory'] is List ? p['branchHistory'] as List : [];
+    final screenWidth = MediaQuery.of(context).size.width;
+    final isCompact = screenWidth < 340 || MediaQuery.textScalerOf(context).scale(1.0) > 1.3;
 
     return Column(
       children: [
-        AppCard(
+        ProfileSectionCard(
+          title: 'Employment Overview',
+          subtitle: 'Official designation, team structure, and location',
+          icon: Icons.badge_outlined,
           child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _buildSectionHeader('Employment Overview', 'Official designation, team structure, and location', Icons.badge, isDark),
-              const Divider(height: 24),
-              LayoutBuilder(
-                builder: (context, constraints) {
-                  return Wrap(
-                    spacing: 12,
-                    runSpacing: 12,
-                    children: [
-                      _detailCard('Organization', p['organization'] ?? p['companyName'] ?? p['branch'] ?? 'Etaprise HRMS', Icons.business, isDark, constraints: constraints),
-                      _detailCard('Employee ID', p['employeeId'] ?? p['code'] ?? '—', Icons.fingerprint, isDark, isCode: true, constraints: constraints),
-                      _detailCard('Department', p['department'] ?? 'Human Resources', Icons.account_tree, isDark, constraints: constraints),
-                      _detailCard('Designation', p['designation'] ?? 'HR Manager', Icons.work, isDark, constraints: constraints),
-                      _detailCard('Branch', p['branch'] ?? p['branchName'] ?? 'Main Office', Icons.account_balance, isDark, constraints: constraints),
-                      _detailCard('Team', p['teamName'] ?? p['team'] ?? 'Core HR', Icons.groups, isDark, constraints: constraints),
-                      _detailCard('Reporting Manager', p['reportingManagerName'] ?? p['reportingManager'] ?? '—', Icons.person_pin, isDark, constraints: constraints),
-                      _detailCard('Joined Date', _formatDate(p['joiningDate'] ?? p['joinedDate']), Icons.calendar_today, isDark, constraints: constraints),
-                      _detailCard('Work Location', p['workLocation'] ?? 'Headquarters', Icons.location_on, isDark, constraints: constraints),
-                      _detailCard('Assigned Shift', p['shiftName'] ?? p['shift'] ?? 'General Shift', Icons.access_time, isDark, constraints: constraints),
-                      _detailCard('Salary (CTC)', p['salary'] != null ? '₹ ${p['salary']}' : null, Icons.payments, isDark, isGreen: true, constraints: constraints),
-                    ],
-                  );
-                },
+              ProfileInfoRow(label: 'Organization', value: (p['organization'] ?? p['companyName'] ?? p['company'] ?? p['branchName'] ?? p['branch'])?.toString(), icon: Icons.business_rounded),
+              _gridPair(
+                isCompact,
+                ProfileInfoRow(label: 'Department', value: (p['departmentName'] ?? p['department'])?.toString(), icon: Icons.account_tree_rounded),
+                ProfileInfoRow(label: 'Designation', value: (p['designationName'] ?? p['designation'])?.toString(), icon: Icons.work_rounded),
               ),
+              _gridPair(
+                isCompact,
+                ProfileInfoRow(label: 'Branch', value: (p['branchName'] ?? p['branch'])?.toString(), icon: Icons.account_balance_rounded),
+                ProfileInfoRow(label: 'Team', value: (p['teamName'] ?? p['team'])?.toString(), icon: Icons.groups_rounded),
+              ),
+              _gridPair(
+                isCompact,
+                ProfileInfoRow(label: 'Reporting Manager', value: (p['reportingManagerName'] ?? p['reportingManager'] ?? p['managerName'] ?? p['manager'])?.toString(), icon: Icons.person_pin_rounded),
+                ProfileInfoRow(label: 'Joined Date', value: _formatDate(p['joiningDate'] ?? p['joinedDate']), icon: Icons.calendar_today_rounded),
+              ),
+              _gridPair(
+                isCompact,
+                ProfileInfoRow(label: 'Work Location', value: (p['workLocation'] ?? p['location'] ?? p['address'])?.toString(), icon: Icons.location_on_rounded),
+                ProfileInfoRow(label: 'Assigned Shift', value: (p['shiftName'] ?? p['shift'])?.toString(), icon: Icons.access_time_rounded),
+              ),
+              ProfileInfoRow(label: 'Salary (CTC)', value: (p['salary'] != null && p['salary'].toString() != '0') ? '₹ ${p['salary']}' : (p['basicSalary'] != null ? '₹ ${p['basicSalary']}' : null), icon: Icons.payments_rounded, isGreen: true),
             ],
           ),
         ),
-        const SizedBox(height: 16),
-        AppCard(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _buildSectionHeader('Branch Assignment History', 'Track of previous and current branch transfers', Icons.alt_route, isDark),
-              const Divider(height: 24),
-              history.isEmpty
-                  ? Text('No branch history available', style: TextStyle(color: isDark ? AppColors.darkSecondaryText : AppColors.lightSecondaryText))
-                  : ListView.separated(
-                      shrinkWrap: true,
-                      physics: const NeverScrollableScrollPhysics(),
-                      itemCount: history.length,
-                      separatorBuilder: (context, idx) => const Divider(height: 16),
-                      itemBuilder: (context, idx) {
-                        final h = history[idx] as Map<String, dynamic>;
-                        final isActive = h['isActive'] == true;
-                        return Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Expanded(
-                              child: Row(
-                                children: [
-                                  const Icon(Icons.business, size: 16, color: AppColors.primary),
-                                  const SizedBox(width: 10),
-                                  Expanded(
-                                    child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                      children: [
-                                        Text(h['branchName'] ?? h['branchId'] ?? 'HQ', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13.5, color: isDark ? AppColors.darkPrimaryText : AppColors.lightPrimaryText), overflow: TextOverflow.ellipsis),
-                                        const SizedBox(height: 2),
-                                        Text('${_formatDate(h['startDate'])} - ${h['endDate'] != null ? _formatDate(h['endDate']) : 'Present'}', style: TextStyle(fontSize: 11.5, color: isDark ? AppColors.darkSecondaryText : AppColors.lightSecondaryText), overflow: TextOverflow.ellipsis),
-                                      ],
-                                    ),
-                                  ),
-                                ],
-                              ),
+        if (history.isNotEmpty)
+          ProfileSectionCard(
+            title: 'Branch Assignment History',
+            subtitle: 'Track of previous and current branch transfers',
+            icon: Icons.alt_route_rounded,
+            child: ListView.separated(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: history.length,
+              separatorBuilder: (context, idx) => Divider(height: 16, color: (isDark ? AppColors.darkBordersAndDividers : AppColors.lightBordersAndDividers).withOpacity(0.15)),
+              itemBuilder: (context, idx) {
+                final h = history[idx] as Map<String, dynamic>;
+                final isActive = h['isActive'] == true;
+                return Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Expanded(
+                      child: Row(
+                        children: [
+                          const Icon(Icons.business_rounded, size: 16, color: AppColors.primary),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(h['branchName'] ?? h['branchId'] ?? 'HQ', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13.5, color: isDark ? AppColors.darkPrimaryText : AppColors.lightPrimaryText), overflow: TextOverflow.ellipsis),
+                                const SizedBox(height: 2),
+                                Text('${_formatDate(h['startDate'])} - ${h['endDate'] != null ? _formatDate(h['endDate']) : 'Present'}', style: TextStyle(fontSize: 11.5, color: isDark ? AppColors.darkSecondaryText : AppColors.lightSecondaryText), overflow: TextOverflow.ellipsis),
+                              ],
                             ),
-                            const SizedBox(width: 8),
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                              decoration: BoxDecoration(
-                                color: isActive ? AppColors.successBg : AppColors.errorBg,
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              child: Text(
-                                isActive ? 'Active' : 'Previous',
-                                style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: isActive ? AppColors.success : AppColors.error),
-                              ),
-                            ),
-                          ],
-                        );
-                      },
+                          ),
+                        ],
+                      ),
                     ),
-            ],
+                    const SizedBox(width: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: isActive ? AppColors.successBg : AppColors.errorBg,
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Text(
+                        isActive ? 'Active' : 'Previous',
+                        style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: isActive ? AppColors.success : AppColors.error),
+                      ),
+                    ),
+                  ],
+                );
+              },
+            ),
           ),
-        ),
       ],
     );
   }
 
   Widget _buildPersonalTab(bool isDark) {
     final p = _profileData!;
+    final screenWidth = MediaQuery.of(context).size.width;
+    final isCompact = screenWidth < 340 || MediaQuery.textScalerOf(context).scale(1.0) > 1.3;
 
     return Column(
       children: [
-        AppCard(
+        ProfileSectionCard(
+          title: 'Personal Details',
+          subtitle: 'Basic personal identifiers and background details',
+          icon: Icons.person_outline_rounded,
           child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _buildSectionHeader('Personal Details', 'Basic personal identifiers and background details', Icons.person_outline, isDark),
-              const Divider(height: 24),
-              LayoutBuilder(
-                builder: (context, constraints) {
-                  return Wrap(
-                    spacing: 12,
-                    runSpacing: 12,
-                    children: [
-                      _detailCard('Email Address', p['email'], Icons.email, isDark, constraints: constraints),
-                      _detailCard('Phone Number', p['phone'], Icons.phone, isDark, constraints: constraints),
-                      _detailCard('Date of Birth', _formatDate(p['dateOfBirth']), Icons.cake, isDark, constraints: constraints),
-                      _detailCard('Gender', p['gender'], Icons.wc, isDark, constraints: constraints),
-                      _detailCard('Marital Status', p['maritalStatus'], Icons.favorite, isDark, constraints: constraints),
-                      _detailCard('Nationality', p['nationality'], Icons.flag, isDark, constraints: constraints),
-                    ],
-                  );
-                },
+              ProfileInfoRow(label: 'Email Address', value: (p['email'] ?? '').toString(), icon: Icons.email_rounded, showCopyIcon: true),
+              ProfileInfoRow(label: 'Phone Number', value: (p['phone'] ?? '').toString(), icon: Icons.phone_rounded),
+              ProfileInfoRow(label: 'Date of Birth', value: _formatDate(p['dateOfBirth']), icon: Icons.cake_rounded),
+              _gridPair(
+                isCompact,
+                ProfileInfoRow(label: 'Gender', value: (p['gender'] ?? '').toString(), icon: Icons.wc_rounded),
+                ProfileInfoRow(label: 'Marital Status', value: (p['maritalStatus'] ?? '').toString(), icon: Icons.favorite_rounded),
               ),
+              ProfileInfoRow(label: 'Nationality', value: (p['nationality'] ?? '').toString(), icon: Icons.flag_rounded),
             ],
           ),
         ),
-        const SizedBox(height: 16),
-        AppCard(
+        ProfileSectionCard(
+          title: 'Residential Address',
+          subtitle: 'Current mailing and home location records',
+          icon: Icons.home_outlined,
           child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _buildSectionHeader('Residential Address', 'Current mailing and home location records', Icons.home_outlined, isDark),
-              const Divider(height: 24),
-              LayoutBuilder(
-                builder: (context, constraints) {
-                  return Wrap(
-                    spacing: 12,
-                    runSpacing: 12,
-                    children: [
-                      _detailCard('Street Address', p['address'], Icons.home, isDark, fullWidth: true, constraints: constraints),
-                      _detailCard('City', p['city'], Icons.location_city, isDark, constraints: constraints),
-                      _detailCard('State / Province', p['state'], Icons.map, isDark, constraints: constraints),
-                      _detailCard('Country', p['country'], Icons.public, isDark, constraints: constraints),
-                      _detailCard('Postal Code', p['zipCode'] ?? p['postalCode'], Icons.markunread_mailbox, isDark, isCode: true, constraints: constraints),
-                    ],
-                  );
-                },
+              ProfileInfoRow(label: 'Street Address', value: (p['address'] ?? '').toString(), icon: Icons.home_rounded),
+              _gridPair(
+                isCompact,
+                ProfileInfoRow(label: 'City', value: (p['city'] ?? '').toString(), icon: Icons.location_city_rounded),
+                ProfileInfoRow(label: 'State / Province', value: (p['state'] ?? '').toString(), icon: Icons.map_rounded),
+              ),
+              _gridPair(
+                isCompact,
+                ProfileInfoRow(label: 'Country', value: (p['country'] ?? '').toString(), icon: Icons.public_rounded),
+                ProfileInfoRow(label: 'Postal Code', value: (p['zipCode'] ?? p['postalCode'] ?? '').toString(), icon: Icons.markunread_mailbox_rounded, isCode: true),
               ),
             ],
           ),
@@ -761,61 +857,48 @@ class _MyProfileScreenState extends ConsumerState<MyProfileScreen> {
 
   Widget _buildFinancialTab(bool isDark) {
     final p = _profileData!;
+    final screenWidth = MediaQuery.of(context).size.width;
+    final isCompact = screenWidth < 340 || MediaQuery.textScalerOf(context).scale(1.0) > 1.3;
 
     return Column(
       children: [
-        AppCard(
+        ProfileSectionCard(
+          title: 'Bank & Payroll Accounts',
+          subtitle: 'Disbursement accounts and tax identifiers',
+          icon: Icons.account_balance_rounded,
+          isSensitive: true,
+          trailing: Semantics(
+            button: true,
+            label: _maskFinancial ? 'Reveal Financial Data' : 'Hide Financial Data',
+            child: IconButton(
+              icon: Icon(_maskFinancial ? Icons.visibility_off_rounded : Icons.visibility_rounded, size: 20, color: AppColors.primary),
+              tooltip: _maskFinancial ? 'Reveal Financial Data' : 'Mask Financial Data',
+              onPressed: () => setState(() => _maskFinancial = !_maskFinancial),
+            ),
+          ),
           child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Expanded(child: _buildSectionHeader('Bank & Payroll Accounts', 'Disbursement accounts and tax identifiers', Icons.account_balance, isDark)),
-                  IconButton(
-                    icon: Icon(_maskFinancial ? Icons.visibility_off : Icons.visibility, size: 20),
-                    tooltip: _maskFinancial ? 'Reveal Financial Data' : 'Mask Financial Data',
-                    onPressed: () => setState(() => _maskFinancial = !_maskFinancial),
-                  ),
-                ],
-              ),
-              const Divider(height: 24),
-              LayoutBuilder(
-                builder: (context, constraints) {
-                  return Wrap(
-                    spacing: 12,
-                    runSpacing: 12,
-                    children: [
-                      _detailCard('Bank Name', p['bankName'], Icons.account_balance, isDark, constraints: constraints),
-                      _detailCard('Account Number', _maskValue(p['bankAccountNumber']?.toString(), isAccount: true), Icons.credit_card, isDark, isCode: true, constraints: constraints),
-                      _detailCard('IFSC Code', _maskValue(p['ifscCode']?.toString()), Icons.qr_code, isDark, isCode: true, constraints: constraints),
-                      _detailCard('Tax ID / PAN', _maskValue(p['panNumber'] ?? p['taxId']?.toString()), Icons.receipt_long, isDark, isCode: true, constraints: constraints),
-                    ],
-                  );
-                },
+              ProfileInfoRow(label: 'Bank Name', value: (p['bankName'] ?? '').toString(), icon: Icons.account_balance_rounded),
+              ProfileInfoRow(label: 'Account Number', value: _maskValue(p['bankAccountNumber']?.toString(), isAccount: true), copyText: p['bankAccountNumber']?.toString(), icon: Icons.credit_card_rounded, isCode: true, showCopyIcon: !_maskFinancial),
+              _gridPair(
+                isCompact,
+                ProfileInfoRow(label: 'IFSC Code', value: _maskValue(p['ifscCode']?.toString()), copyText: p['ifscCode']?.toString(), icon: Icons.qr_code_rounded, isCode: true),
+                ProfileInfoRow(label: 'Tax ID / PAN', value: _maskValue(p['panNumber'] ?? p['taxId']?.toString()), copyText: (p['panNumber'] ?? p['taxId'])?.toString(), icon: Icons.receipt_long_rounded, isCode: true),
               ),
             ],
           ),
         ),
-        const SizedBox(height: 16),
-        AppCard(
+        ProfileSectionCard(
+          title: 'Emergency Contacts',
+          subtitle: 'Primary point of contact during emergency situations',
+          icon: Icons.emergency_rounded,
           child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _buildSectionHeader('Emergency Contacts', 'Primary point of contact during emergency situations', Icons.emergency, isDark),
-              const Divider(height: 24),
-              LayoutBuilder(
-                builder: (context, constraints) {
-                  return Wrap(
-                    spacing: 12,
-                    runSpacing: 12,
-                    children: [
-                      _detailCard('Contact Name', p['emergencyContactName'], Icons.security, isDark, constraints: constraints),
-                      _detailCard('Contact Phone', p['emergencyContactPhone'], Icons.phone_forwarded, isDark, constraints: constraints),
-                      _detailCard('Relationship', p['emergencyContactRelation'], Icons.people, isDark, constraints: constraints),
-                    ],
-                  );
-                },
+              ProfileInfoRow(label: 'Contact Name', value: (p['emergencyContactName'] ?? '').toString(), icon: Icons.security_rounded),
+              _gridPair(
+                isCompact,
+                ProfileInfoRow(label: 'Contact Phone', value: (p['emergencyContactPhone'] ?? '').toString(), icon: Icons.phone_forwarded_rounded),
+                ProfileInfoRow(label: 'Relationship', value: (p['emergencyContactRelation'] ?? '').toString(), icon: Icons.people_rounded),
               ),
             ],
           ),
@@ -828,19 +911,20 @@ class _MyProfileScreenState extends ConsumerState<MyProfileScreen> {
     final textColor = isDark ? AppColors.darkPrimaryText : AppColors.lightPrimaryText;
     final secondaryTextColor = isDark ? AppColors.darkSecondaryText : AppColors.lightSecondaryText;
 
-    return AppCard(
+    return ProfileSectionCard(
+      title: 'System Preferences',
+      subtitle: 'Notification settings and location verification rules',
+      icon: Icons.settings_suggest_rounded,
+      isSensitive: true,
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _buildSectionHeader('System Preferences', 'Notification settings and location verification rules', Icons.settings_suggest, isDark),
-          const Divider(height: 24),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Expanded(
                 child: Row(
                   children: [
-                    const Icon(Icons.notifications_active, color: AppColors.primary),
+                    const Icon(Icons.notifications_active_rounded, color: AppColors.primary, size: 20),
                     const SizedBox(width: 12),
                     Expanded(
                       child: Column(
@@ -859,14 +943,14 @@ class _MyProfileScreenState extends ConsumerState<MyProfileScreen> {
               const Text('Managed via Server', style: TextStyle(fontSize: 12, fontStyle: FontStyle.italic, color: Colors.grey)),
             ],
           ),
-          const Divider(height: 24),
+          Divider(height: 24, color: (isDark ? AppColors.darkBordersAndDividers : AppColors.lightBordersAndDividers).withOpacity(0.15)),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Expanded(
                 child: Row(
                   children: [
-                    const Icon(Icons.location_searching, color: AppColors.success),
+                    const Icon(Icons.location_searching_rounded, color: AppColors.success, size: 20),
                     const SizedBox(width: 12),
                     Expanded(
                       child: Column(
@@ -894,89 +978,41 @@ class _MyProfileScreenState extends ConsumerState<MyProfileScreen> {
     );
   }
 
-  Widget _buildSectionHeader(String title, String subtitle, IconData icon, bool isDark) {
-    final textColor = isDark ? AppColors.darkPrimaryText : AppColors.lightPrimaryText;
-    final secondaryTextColor = isDark ? AppColors.darkSecondaryText : AppColors.lightSecondaryText;
-
+  Widget _gridPair(bool isCompact, Widget first, Widget second) {
+    if (isCompact) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [first, second],
+      );
+    }
     return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Container(
-          width: 38,
-          height: 38,
-          decoration: BoxDecoration(
-            color: isDark ? AppColors.darkPrimary.withAlpha(80) : AppColors.lightPrimary,
-            borderRadius: BorderRadius.circular(10),
-          ),
-          child: Icon(icon, color: AppColors.primary, size: 18),
-        ),
+        Expanded(child: first),
         const SizedBox(width: 12),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(title, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: textColor), overflow: TextOverflow.ellipsis),
-              const SizedBox(height: 2),
-              Text(subtitle, style: TextStyle(fontSize: 11.5, color: secondaryTextColor), overflow: TextOverflow.ellipsis),
-            ],
-          ),
-        ),
+        Expanded(child: second),
       ],
     );
   }
+}
 
-  Widget _detailCard(String label, String? value, IconData icon, bool isDark, {bool isCode = false, bool isGreen = false, bool fullWidth = false, required BoxConstraints constraints}) {
-    final cardBg = isDark ? AppColors.darkSecondarySurface : AppColors.lightInputBackground;
-    final borderColor = isDark ? AppColors.darkBordersAndDividers : AppColors.lightBordersAndDividers;
-    final textColor = isDark ? AppColors.darkPrimaryText : AppColors.lightPrimaryText;
-    final secondaryTextColor = isDark ? AppColors.darkSecondaryText : AppColors.lightSecondaryText;
+class _StickyTabBarDelegate extends SliverPersistentHeaderDelegate {
+  final Widget child;
+  _StickyTabBarDelegate({required this.child});
 
-    double cardWidth;
-    if (fullWidth || constraints.maxWidth < 450) {
-      cardWidth = double.infinity;
-    } else {
-      cardWidth = (constraints.maxWidth - 12) / 2;
-    }
+  @override
+  Widget build(BuildContext context, double shrinkOffset, bool overlapsContent) {
+    return SizedBox.expand(child: child);
+  }
 
-    return SizedBox(
-      width: cardWidth,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-        decoration: BoxDecoration(
-          color: cardBg,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: borderColor),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Icon(icon, size: 13, color: AppColors.primary),
-                const SizedBox(width: 6),
-                Expanded(
-                  child: Text(
-                    label.toUpperCase(),
-                    style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.bold, color: secondaryTextColor),
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 6),
-            Text(
-              value ?? '—',
-              style: TextStyle(
-                fontSize: 13.5,
-                fontWeight: FontWeight.w600,
-                color: isGreen ? AppColors.success : textColor,
-                fontFamily: isCode ? 'monospace' : null,
-              ),
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-            ),
-          ],
-        ),
-      ),
-    );
+  @override
+  double get maxExtent => 64.0;
+
+  @override
+  double get minExtent => 64.0;
+
+  @override
+  bool shouldRebuild(covariant _StickyTabBarDelegate oldDelegate) {
+    return oldDelegate.child != child;
   }
 }

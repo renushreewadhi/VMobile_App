@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+
 import '../../../../core/theme/glass_theme.dart';
 
 class InfoTile extends StatelessWidget {
@@ -68,7 +69,9 @@ class InfoTile extends StatelessWidget {
                   Text(
                     label,
                     style: TextStyle(
-                      color: dark ? const Color(0xFFCBD5E1) : const Color(0xFF334155),
+                      color: dark
+                          ? const Color(0xFFCBD5E1)
+                          : const Color(0xFF334155),
                       fontSize: 12,
                       fontWeight: FontWeight.w800,
                     ),
@@ -80,7 +83,11 @@ class InfoTile extends StatelessWidget {
                     fit: BoxFit.scaleDown,
                     child: Text(
                       value,
-                      style: TextStyle(color: text, fontSize: 13, fontWeight: FontWeight.w900),
+                      style: TextStyle(
+                        color: text,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w900,
+                      ),
                     ),
                   ),
                 ],

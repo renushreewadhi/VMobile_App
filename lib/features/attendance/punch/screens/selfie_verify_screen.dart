@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -78,19 +79,25 @@ class _SelfieVerifyScreenState extends ConsumerState<SelfieVerifyScreen> {
   }
 
   Future<void> _captureSelfie() async {
-    if (_cameraController == null || !_cameraController!.value.isInitialized) return;
+    if (_cameraController == null || !_cameraController!.value.isInitialized)
+      return;
     try {
       setState(() => _isCameraInitializing = true);
       final xFile = await _cameraController!.takePicture();
       final bytes = await xFile.readAsBytes();
       final base64Str = base64Encode(bytes);
 
-      ref.read(punchControllerProvider.notifier).setCapturedSelfie(xFile, base64Str);
+      ref
+          .read(punchControllerProvider.notifier)
+          .setCapturedSelfie(xFile, base64Str);
       if (mounted) setState(() => _isCameraInitializing = false);
     } catch (e) {
       if (mounted) setState(() => _isCameraInitializing = false);
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to capture photo: $e'), backgroundColor: AppColors.error),
+        SnackBar(
+          content: Text('Failed to capture photo: $e'),
+          backgroundColor: AppColors.error,
+        ),
       );
     }
   }
@@ -115,15 +122,28 @@ class _SelfieVerifyScreenState extends ConsumerState<SelfieVerifyScreen> {
               spacing: 8,
               children: [
                 Chip(
-                  avatar: const Icon(Icons.check_circle_rounded, color: Color(0xFF10B981), size: 16),
+                  avatar: const Icon(
+                    Icons.check_circle_rounded,
+                    color: Color(0xFF10B981),
+                    size: 16,
+                  ),
                   label: Text(
-                    state.workMode == 'OFFICE' ? 'Inside office area' : 'Work from home',
-                    style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
+                    state.workMode == 'OFFICE'
+                        ? 'Inside office area'
+                        : 'Work from home',
+                    style: const TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                   backgroundColor: Colors.white.withOpacity(0.1),
                 ),
                 Chip(
-                  avatar: const Icon(Icons.check_circle_rounded, color: Color(0xFF10B981), size: 16),
+                  avatar: const Icon(
+                    Icons.check_circle_rounded,
+                    color: Color(0xFF10B981),
+                    size: 16,
+                  ),
                   label: const Text(
                     'Selfie required',
                     style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
@@ -141,7 +161,9 @@ class _SelfieVerifyScreenState extends ConsumerState<SelfieVerifyScreen> {
                   decoration: BoxDecoration(
                     color: Colors.black45,
                     border: Border.all(
-                      color: state.capturedSelfie != null ? AppColors.success : AppColors.primary,
+                      color: state.capturedSelfie != null
+                          ? AppColors.success
+                          : AppColors.primary,
                       width: 3.5,
                     ),
                   ),
@@ -153,34 +175,47 @@ class _SelfieVerifyScreenState extends ConsumerState<SelfieVerifyScreen> {
                             SizedBox(height: 12),
                             Text(
                               'Opening front camera...',
-                              style: TextStyle(color: Colors.white70, fontSize: 12),
+                              style: TextStyle(
+                                color: Colors.white70,
+                                fontSize: 12,
+                              ),
                             ),
                           ],
                         )
                       : _cameraError != null
-                          ? Center(
-                              child: Padding(
-                                padding: const EdgeInsets.all(12),
-                                child: Text(
-                                  _cameraError!,
-                                  textAlign: TextAlign.center,
-                                  style: const TextStyle(color: Colors.white70, fontSize: 12),
-                                ),
+                      ? Center(
+                          child: Padding(
+                            padding: const EdgeInsets.all(12),
+                            child: Text(
+                              _cameraError!,
+                              textAlign: TextAlign.center,
+                              style: const TextStyle(
+                                color: Colors.white70,
+                                fontSize: 12,
                               ),
-                            )
-                          : state.capturedSelfie != null
-                              ? Image.file(File(state.capturedSelfie!.path), fit: BoxFit.cover)
-                              : (_cameraController != null && _cameraController!.value.isInitialized)
-                                  ? AspectRatio(
-                                      aspectRatio: _cameraController!.value.aspectRatio,
-                                      child: CameraPreview(_cameraController!),
-                                    )
-                                  : const Center(
-                                      child: Text(
-                                        'Camera preview unavailable',
-                                        style: TextStyle(color: Colors.white70, fontSize: 12),
-                                      ),
-                                    ),
+                            ),
+                          ),
+                        )
+                      : state.capturedSelfie != null
+                      ? Image.file(
+                          File(state.capturedSelfie!.path),
+                          fit: BoxFit.cover,
+                        )
+                      : (_cameraController != null &&
+                            _cameraController!.value.isInitialized)
+                      ? AspectRatio(
+                          aspectRatio: _cameraController!.value.aspectRatio,
+                          child: CameraPreview(_cameraController!),
+                        )
+                      : const Center(
+                          child: Text(
+                            'Camera preview unavailable',
+                            style: TextStyle(
+                              color: Colors.white70,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ),
                 ),
               ),
             ),
@@ -200,20 +235,33 @@ class _SelfieVerifyScreenState extends ConsumerState<SelfieVerifyScreen> {
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 IconButton(
-                  onPressed: state.capturedSelfie != null ? _retakeSelfie : _captureSelfie,
-                  icon: Icon(state.capturedSelfie != null ? Icons.refresh_rounded : Icons.camera_alt_rounded, size: 26),
+                  onPressed: state.capturedSelfie != null
+                      ? _retakeSelfie
+                      : _captureSelfie,
+                  icon: Icon(
+                    state.capturedSelfie != null
+                        ? Icons.refresh_rounded
+                        : Icons.camera_alt_rounded,
+                    size: 26,
+                  ),
                   style: IconButton.styleFrom(
                     backgroundColor: Colors.white.withOpacity(0.2),
                     padding: const EdgeInsets.all(14),
                   ),
-                  tooltip: state.capturedSelfie != null ? 'Retake Selfie' : 'Capture Selfie',
+                  tooltip: state.capturedSelfie != null
+                      ? 'Retake Selfie'
+                      : 'Capture Selfie',
                 ),
                 const SizedBox(width: 16),
                 ElevatedButton(
-                  onPressed: state.capturedSelfieBase64 == null || state.isActionInProgress
+                  onPressed:
+                      state.capturedSelfieBase64 == null ||
+                          state.isActionInProgress
                       ? null
                       : () async {
-                          final controller = ref.read(punchControllerProvider.notifier);
+                          final controller = ref.read(
+                            punchControllerProvider.notifier,
+                          );
                           final success = await controller.clockIn(
                             workMode: state.workMode,
                             wfhReason: state.wfhReason,
@@ -221,9 +269,12 @@ class _SelfieVerifyScreenState extends ConsumerState<SelfieVerifyScreen> {
                             isGallery: false,
                           );
                           if (success && mounted) {
-                            Navigator.of(context).popUntil((route) => route.isFirst);
+                            Navigator.of(context)
+                                .popUntil((route) => route.isFirst);
                             Navigator.of(context).push(
-                              MaterialPageRoute(builder: (_) => const ClockInSuccessScreen()),
+                              MaterialPageRoute(
+                                builder: (_) => const ClockInSuccessScreen(),
+                              ),
                             );
                           }
                         },
@@ -231,12 +282,30 @@ class _SelfieVerifyScreenState extends ConsumerState<SelfieVerifyScreen> {
                     backgroundColor: AppColors.primary,
                     disabledBackgroundColor: Colors.grey.withOpacity(0.3),
                     foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 14),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 28,
+                      vertical: 14,
+                    ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
                   ),
                   child: state.isActionInProgress
-                      ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                      : const Text('Use photo & Clock in', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13.5)),
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Colors.white,
+                          ),
+                        )
+                      : const Text(
+                          'Use photo & Clock in',
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 13.5,
+                          ),
+                        ),
                 ),
               ],
             ),
@@ -245,7 +314,8 @@ class _SelfieVerifyScreenState extends ConsumerState<SelfieVerifyScreen> {
       ),
     );
 
-    if (!widget.showAppBar) return Material(color: Colors.transparent, child: bodyContent);
+    if (!widget.showAppBar)
+      return Material(color: Colors.transparent, child: bodyContent);
 
     return GlassScaffold(
       appBar: GlassHeader(

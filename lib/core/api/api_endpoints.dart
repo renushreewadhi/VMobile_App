@@ -17,6 +17,7 @@ class ApiEndpoints {
   static const String breakStart = '/attendance/break/start';
   static const String breakEnd = '/attendance/break/end';
   static const String attendanceSummary = '/attendance/summary';
+  static const String attendanceSummaryTeam = '/attendance/summary/team';
   static const String attendanceTeam = '/attendance/team';
   static const String attendanceRecords = '/attendance';
   static const String attendanceLateArrivals = '/attendance/late-arrivals';
@@ -29,7 +30,17 @@ class ApiEndpoints {
   static const String attendanceRules = '/attendance/rules';
   static const String attendanceSettings = '/attendance/settings';
   static const String attendanceOfficeLocation = '/attendance/office-location';
+  static const String validateGeofence = '/attendance/validate-geofence';
+  static const String verifyFace = '/attendance/verify-face';
+  static String employeeAttendance(String employeeId) => '/attendance/employee/$employeeId';
+  static String attendanceMyDate(String date) => '/attendance/my-date/$date';
+  static const String myShift = '/attendance/my-shift';
+  static const String shiftsCurrent = '/shifts/current';
   static const String attendanceVerifications = '/attendance/verifications';
+  static String attendanceVerificationApprove(String id) => '/attendance/verifications/$id/approve';
+  static String attendanceVerificationReject(String id) => '/attendance/verifications/$id/reject';
+  static String wfhCancel(String id) => '/attendance/wfh-requests/$id/cancel';
+  static String correctionDetail(String id) => '/attendance/corrections/$id';
   static const String shifts = '/shifts';
   static String shiftDetail(String id) => '/shifts/$id';
   static const String shiftAssignments = '/shifts/assignments';

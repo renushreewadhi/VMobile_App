@@ -36,14 +36,16 @@ class AuthState {
     bool? isOfflineSession,
     UserModel? user,
     String? errorMessage,
+    bool clearError = false,
+    bool clearUser = false,
   }) {
     return AuthState(
       isInitializing: isInitializing ?? _isInitializing,
       isLoading: isLoading ?? this.isLoading,
       isAuthenticated: isAuthenticated ?? this.isAuthenticated,
       isOfflineSession: isOfflineSession ?? this.isOfflineSession,
-      user: user ?? this.user,
-      errorMessage: errorMessage ?? this.errorMessage,
+      user: clearUser ? null : (user ?? this.user),
+      errorMessage: clearError ? null : (errorMessage ?? this.errorMessage),
     );
   }
 }

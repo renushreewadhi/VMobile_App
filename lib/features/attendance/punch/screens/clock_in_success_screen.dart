@@ -35,12 +35,20 @@ class ClockInSuccessScreen extends ConsumerWidget {
                   color: Color(0xFF10B981),
                   shape: BoxShape.circle,
                 ),
-                child: const Icon(Icons.check_rounded, color: Colors.white, size: 48),
+                child: const Icon(
+                  Icons.check_rounded,
+                  color: Colors.white,
+                  size: 48,
+                ),
               ),
               const SizedBox(height: 20),
               Text(
                 'You\'re clocked in',
-                style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900, color: Theme.of(context).colorScheme.onSurface),
+                style: TextStyle(
+                  fontSize: 22,
+                  fontWeight: FontWeight.w900,
+                  color: Theme.of(context).colorScheme.onSurface,
+                ),
               ),
               const SizedBox(height: 6),
               Text(
@@ -59,11 +67,17 @@ class ClockInSuccessScreen extends ConsumerWidget {
                   children: [
                     _rowItem('Clock-in time', _time(state.checkInAt)),
                     const Divider(height: 24),
-                    _rowItem('Status', state.todayRecord['status']?.toString() ?? 'On time'),
+                    _rowItem(
+                      'Status',
+                      state.todayRecord['status']?.toString() ?? 'On time',
+                    ),
                     const Divider(height: 24),
                     _rowItem('Location', state.checkInLocation),
                     const Divider(height: 24),
-                    _rowItem('Shift', '${state.shiftName} (${state.shiftStartTime} – ${state.shiftEndTime})'),
+                    _rowItem(
+                      'Shift',
+                      '${state.shiftName} (${state.shiftStartTime} – ${state.shiftEndTime})',
+                    ),
                     const Divider(height: 24),
                     _rowItem('Selfie', 'Verified'),
                   ],
@@ -74,12 +88,22 @@ class ClockInSuccessScreen extends ConsumerWidget {
                 width: double.infinity,
                 height: 52,
                 child: ElevatedButton(
-                  onPressed: () => Navigator.of(context).popUntil((route) => route.isFirst),
+                  onPressed: () =>
+                      Navigator.of(context).popUntil((route) => route.isFirst),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppColors.primary,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
                   ),
-                  child: const Text('Done', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14)),
+                  child: const Text(
+                    'Done',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 14,
+                    ),
+                  ),
                 ),
               ),
               const SizedBox(height: 12),
@@ -87,10 +111,19 @@ class ClockInSuccessScreen extends ConsumerWidget {
                 onPressed: () {
                   Navigator.of(context).popUntil((route) => route.isFirst);
                   Navigator.of(context).push(
-                    MaterialPageRoute(builder: (_) => const MyAttendanceScreen(showAppBar: true)),
+                    MaterialPageRoute(
+                      builder: (_) =>
+                          const MyAttendanceScreen(showAppBar: true),
+                    ),
                   );
                 },
-                child: Text('View my attendance', style: TextStyle(color: AppColors.primary, fontWeight: FontWeight.bold)),
+                child: Text(
+                  'View my attendance',
+                  style: TextStyle(
+                    color: AppColors.primary,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
               ),
             ],
           ),
@@ -103,8 +136,18 @@ class ClockInSuccessScreen extends ConsumerWidget {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        Text(label, style: TextStyle(color: Colors.grey[600], fontSize: 12, fontWeight: FontWeight.w600)),
-        Text(value, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+        Text(
+          label,
+          style: TextStyle(
+            color: Colors.grey[600],
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        Text(
+          value,
+          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
+        ),
       ],
     );
   }

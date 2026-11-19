@@ -198,7 +198,7 @@ class ApiClient {
     }
   }
 
-  /// Explicitly downloads binary content (PDF payslips, documents, images) as raw bytes.
+  /// Explicitly downloads binary content (PDF payslips, documents, images) as raw bytes for any 2xx response.
   Future<Uint8List> getBytes(
     String endpoint, {
     Map<String, String>? queryParams,
@@ -216,6 +216,8 @@ class ApiClient {
       if (response is http.Response) {
         if (response.statusCode >= 200 && response.statusCode < 300) {
           return response.bodyBytes;
+        } else {
+          _processResponse(response, endpoint);
         }
       }
       return Uint8List(0);
@@ -225,6 +227,9 @@ class ApiClient {
   }
 
   Uri _buildUri(String endpoint, [Map<String, String>? queryParams]) {
+    if (endpoint.startsWith('http://') || endpoint.startsWith('https://')) {
+      return Uri.parse(endpoint).replace(queryParameters: queryParams);
+    }
     final cleanEndpoint = endpoint.startsWith('/') ? endpoint : '/$endpoint';
     final fullUrl = '${AppConfig.apiBaseUrl}$cleanEndpoint';
     return Uri.parse(fullUrl).replace(queryParameters: queryParams);

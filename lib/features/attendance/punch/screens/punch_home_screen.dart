@@ -1,21 +1,19 @@
-import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/glass_theme.dart';
 import '../../../../core/widgets/glass_scaffold.dart';
+import '../../../../core/api/leave_service.dart';
 import '../../../../employee/screens/apply_leave_screen.dart';
 import '../../../../employee/screens/my_attendance_screen.dart';
 import '../clock_ticker.dart';
 import '../punch_controller.dart';
-import '../punch_state.dart';
-import '../widgets/activity_row.dart';
 import '../widgets/hero_card.dart';
-import '../widgets/location_summary_card.dart';
-import '../widgets/metric_tile.dart';
 import '../widgets/post_shift_banner.dart';
-import '../widgets/primary_action_button.dart';
+import '../widgets/punch_overview_section.dart';
+import '../widgets/punch_activity_timeline.dart';
+import '../widgets/clock_out_sheet.dart';
 import 'location_check_screen.dart';
 import '../../../../shared/widgets/loading_shimmer.dart';
 
@@ -34,247 +32,99 @@ class PunchInOutPage extends PunchInOutScreen {
 class _PunchHomeState extends ConsumerState<PunchInOutScreen> {
   void _showMessage(String message, {bool isError = false}) {
     if (!mounted) return;
+    final bottomInset = MediaQuery.paddingOf(context).bottom + 64.0;
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
       ..showSnackBar(
         SnackBar(
           content: Text(message),
           behavior: SnackBarBehavior.floating,
+          margin: EdgeInsets.only(bottom: bottomInset, left: 16, right: 16),
           backgroundColor: isError ? AppColors.error : AppColors.success,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(14),
+          ),
         ),
       );
   }
 
-  String _two(int value) => value.toString().padLeft(2, '0');
-
-  String _time(DateTime? value) {
-    if (value == null) return '--:--';
-    final hour = value.hour % 12 == 0 ? 12 : value.hour % 12;
-    return '${_two(hour)}:${_two(value.minute)} ${value.hour >= 12 ? 'PM' : 'AM'}';
-  }
-
-  String _duration(Duration value) {
-    final hours = value.inHours;
-    final minutes = value.inMinutes.remainder(60);
-    final seconds = value.inSeconds.remainder(60);
-    return '${_two(hours)}:${_two(minutes)}:${_two(seconds)}';
-  }
-
   void _openLocationCheck() {
-    Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => const LocationCheckScreen()),
-    );
+    Navigator.of(context)
+        .push(MaterialPageRoute(builder: (_) => const LocationCheckScreen()));
   }
 
-  void _openClockOutModal() {
-    final state = ref.read(punchControllerProvider);
-    final workedHours = state.workDuration(DateTime.now()).inHours;
-    final isHalfDayEligible = workedHours >= 4 ||
-        state.todayRecord['workMode'] == 'HALF_DAY' ||
-        state.todayRecord['isHalfDay'] == true;
-
-    showDialog(
-      context: context,
-      builder: (dialogCtx) => AlertDialog(
-        title: Text(isHalfDayEligible && workedHours < 8
-            ? 'Confirm Half-Day Clock Out'
-            : 'Confirm Clock Out'),
-        content: Text(
-          isHalfDayEligible && workedHours < 8
-              ? 'You have completed ${workedHours}h ${state.workDuration(DateTime.now()).inMinutes.remainder(60)}m today (Half-Day threshold met). Ready to clock out now?'
-              : 'Are you ready to end your workday? Your check-out time will be recorded on the server.',
-        ),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogCtx),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () async {
-              Navigator.pop(dialogCtx);
-              final controller = ref.read(punchControllerProvider.notifier);
-              final result = await controller.clockOut(isHalfDayOverride: isHalfDayEligible);
-              if (result == ClockOutResult.needsHalfDayOverride) {
-                _showEarlyCheckoutOverrideDialog();
-              }
-            },
-            style: FilledButton.styleFrom(backgroundColor: AppColors.primary),
-            child: const Text('Clock Out'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _showEarlyCheckoutOverrideDialog() {
+  void _openClockOutModal() async {
     final state = ref.read(punchControllerProvider);
     final now = DateTime.now();
-    final workDuration = state.workDuration(now);
-    final pendingHoursStr = state.leavePendingHoursFormatted(now);
-    final pendingDaysStr = state.leavePendingDaysFormatted(now);
-    bool applyLeave = false;
-    String selectedLeaveType = 'Unpaid Leave';
-    final reasonController = TextEditingController();
+    final workedHours = state.workedHours(now);
+    final requiredHours = state.minWorkHours;
+
+    List<dynamic> balances = [];
+    try {
+      final leaveService = ref.read(leaveServiceProvider);
+      final res = await leaveService.getLeaveBalances();
+      if (res is List) {
+        balances = res;
+      } else if (res is Map && res['data'] is List) {
+        balances = res['data'];
+      }
+    } catch (_) {}
+
+    if (!mounted) return;
 
     showDialog(
       context: context,
-      builder: (dialogCtx) => StatefulBuilder(
-        builder: (ctx, setDialogState) => AlertDialog(
-          title: const Row(
-            children: [
-              Icon(Icons.shield_outlined, color: AppColors.primary, size: 22),
-              SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  'Early / Incomplete Shift Options',
-                  style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
-                ),
-              ),
-            ],
-          ),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: Colors.amber.withOpacity(0.12),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: Colors.amber.withOpacity(0.4)),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Net Worked Duration: ${workDuration.inHours}h ${workDuration.inMinutes.remainder(60)}m (Required: 8h)',
-                        style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        'Pending Deficit: $pendingHoursStr ($pendingDaysStr days)',
-                        style: TextStyle(fontSize: 11.5, color: Colors.amber.shade900, fontWeight: FontWeight.w600),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 14),
-                // Option 1: Temporary Clock Out (Stepping Out)
-                ElevatedButton.icon(
-                  onPressed: () async {
-                    Navigator.pop(dialogCtx);
-                    final controller = ref.read(punchControllerProvider.notifier);
-                    await controller.clockOut(isTemporary: true);
-                  },
-                  icon: const Icon(Icons.access_time_rounded, size: 18),
-                  label: const Text('Temporary Clock Out (Stepping Out)'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.amber.shade800,
-                    foregroundColor: Colors.white,
-                    minimumSize: const Size(double.infinity, 44),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                  ),
-                ),
-                const SizedBox(height: 10),
-                // Option 2: Apply Leave for Deficit
-                CheckboxListTile(
-                  value: applyLeave,
-                  onChanged: (val) => setDialogState(() => applyLeave = val ?? false),
-                  title: const Text('Charge pending hours to leave', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
-                  subtitle: Text('Apply $pendingDaysStr days leave for deficit ($pendingHoursStr)', style: const TextStyle(fontSize: 11)),
-                  controlAffinity: ListTileControlAffinity.leading,
-                  contentPadding: EdgeInsets.zero,
-                ),
-                if (applyLeave) ...[
-                  const SizedBox(height: 6),
-                  DropdownButtonFormField<String>(
-                    value: selectedLeaveType,
-                    decoration: InputDecoration(
-                      labelText: 'Leave Type',
-                      isDense: true,
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-                    ),
-                    items: const [
-                      DropdownMenuItem(value: 'Unpaid Leave', child: Text('Unpaid Leave (LWP)')),
-                      DropdownMenuItem(value: 'Casual Leave', child: Text('Casual Leave')),
-                      DropdownMenuItem(value: 'Sick Leave', child: Text('Sick Leave')),
-                      DropdownMenuItem(value: 'Earned Leave', child: Text('Earned Leave')),
-                      DropdownMenuItem(value: 'Paid Leave', child: Text('Paid Leave')),
-                    ],
-                    onChanged: (val) => setDialogState(() => selectedLeaveType = val ?? 'Unpaid Leave'),
-                  ),
-                  const SizedBox(height: 8),
-                  TextField(
-                    controller: reasonController,
-                    decoration: InputDecoration(
-                      labelText: 'Reason for Early Checkout (Optional)',
-                      isDense: true,
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-                  ElevatedButton.icon(
-                    onPressed: () async {
-                      Navigator.pop(dialogCtx);
-                      final controller = ref.read(punchControllerProvider.notifier);
-                      await controller.clockOut(
-                        applyLeave: true,
-                        leaveType: selectedLeaveType,
-                        leaveReason: reasonController.text.trim(),
-                      );
-                    },
-                    icon: const Icon(Icons.check_circle_outline, size: 18),
-                    label: const Text('Clock Out & Apply Deficit Leave'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.error,
-                      foregroundColor: Colors.white,
-                      minimumSize: const Size(double.infinity, 44),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                    ),
-                  ),
-                ],
-                const SizedBox(height: 8),
-                // Option 3: Half Day
-                OutlinedButton.icon(
-                  onPressed: () async {
-                    Navigator.pop(dialogCtx);
-                    final controller = ref.read(punchControllerProvider.notifier);
-                    await controller.clockOut(isHalfDayOverride: true);
-                  },
-                  icon: const Icon(Icons.hourglass_bottom, size: 18),
-                  label: const Text('Clock Out as Half-Day'),
-                  style: OutlinedButton.styleFrom(
-                    minimumSize: const Size(double.infinity, 44),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(dialogCtx),
-              child: const Text('Cancel'),
-            ),
-          ],
+      barrierDismissible: true,
+      barrierColor: Colors.black.withAlpha(140),
+      builder: (ctx) => Dialog(
+        backgroundColor: Colors.transparent,
+        insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+        child: ClockOutSheet(
+          workedHours: workedHours,
+          requiredHours: requiredHours,
+          pendingHours: state.leavePendingHours(now),
+          workedFormatted: state.workedTimeFormatted(now),
+          requiredFormatted: '${requiredHours.toInt()}h 00m',
+          pendingFormatted: state.leavePendingHoursFormatted(now),
+          leaveBalances: balances,
+          onConfirm: (applyLeave, leaveType, reason) async {
+            Navigator.pop(ctx);
+            final controller = ref.read(punchControllerProvider.notifier);
+            final pending = state.leavePendingHours(now);
+            ClockOutResult result;
+            if (applyLeave && pending > 0.02) {
+              result = await controller.clockOut(
+                applyLeave: true,
+                leaveType: leaveType ?? 'Unpaid Leave',
+                leaveReason: reason,
+              );
+            } else if (pending > 0.02) {
+              result = await controller.clockOut(isTemporary: true);
+            } else {
+              result = await controller.clockOut(
+                isTemporary: false,
+                applyLeave: false,
+              );
+            }
+            if (result == ClockOutResult.needsDeficitLeaveOverride) {
+              _showMessage(
+                'Net worked hours deficit detected. Apply leave or clock out temporarily.',
+                isError: true,
+              );
+            }
+          },
+          onCancel: () => Navigator.pop(ctx),
         ),
       ),
     );
   }
 
   void _openRegularizationModal() {
-    final state = ref.read(punchControllerProvider);
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (ctx) => _RegularizationModal(
-        employeeId: state.employeeId,
-        todayRecord: state.todayRecord,
         onSubmit: (payload) async {
           Navigator.pop(ctx);
           final controller = ref.read(punchControllerProvider.notifier);
@@ -287,8 +137,7 @@ class _PunchHomeState extends ConsumerState<PunchInOutScreen> {
   @override
   Widget build(BuildContext context) {
     final state = ref.watch(punchControllerProvider);
-    final tickerAsync = ref.watch(clockTickerProvider);
-    final now = tickerAsync.value ?? DateTime.now();
+    final now = DateTime.now();
 
     if (state.isLoading && state.todayRecord.isEmpty) {
       final skeleton = const DashboardSkeleton();
@@ -312,156 +161,182 @@ class _PunchHomeState extends ConsumerState<PunchInOutScreen> {
     final mutedColor = glass.textSecondary;
     final surfaceColor = glass.cardFill;
     final borderColor = glass.cardBorder;
+    final bottomNavInset = MediaQuery.paddingOf(context).bottom;
 
     final content = RefreshIndicator(
       onRefresh: () => ref.read(punchControllerProvider.notifier).loadAllData(),
       child: SingleChildScrollView(
-        physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
-        padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                if (state.isLoading)
-                  const Padding(
-                    padding: EdgeInsets.only(bottom: 12),
-                    child: LinearProgressIndicator(minHeight: 2),
-                  ),
-                AnimatedSize(
-                  duration: const Duration(milliseconds: 250),
-                  child: state.error != null
-                      ? Padding(
-                          padding: const EdgeInsets.only(bottom: 12),
-                          child: Container(
-                            padding: const EdgeInsets.all(12),
-                            decoration: BoxDecoration(
-                              color: Colors.red.withOpacity(0.1),
-                              borderRadius: BorderRadius.circular(12),
-                              border: Border.all(color: Colors.red.withOpacity(0.3)),
-                            ),
-                            child: Row(
-                              children: [
-                                const Icon(Icons.error_outline_rounded, color: Colors.red, size: 18),
-                                const SizedBox(width: 8),
-                                Expanded(
-                                  child: Text(
-                                    state.error!,
-                                    style: TextStyle(color: textColor, fontSize: 12, fontWeight: FontWeight.bold),
-                                  ),
-                                ),
-                                IconButton(
-                                  icon: const Icon(Icons.close_rounded, size: 16, color: Colors.red),
-                                  onPressed: () {
-                                    ref.read(punchControllerProvider.notifier).clearError();
-                                  },
-                                  constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
-                                  padding: EdgeInsets.zero,
-                                ),
-                              ],
-                            ),
-                          ),
-                        )
-                      : const SizedBox.shrink(),
-                ),
+        physics: const AlwaysScrollableScrollPhysics(
+          parent: BouncingScrollPhysics(),
+        ),
+        padding: EdgeInsets.fromLTRB(16, 12, 16, 16 + bottomNavInset),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (state.isLoading)
+              const Padding(
+                padding: EdgeInsets.only(bottom: 8),
+                child: LinearProgressIndicator(minHeight: 2),
+              ),
 
-                if (state.isPostShiftWarning30m(now)) ...[
-                  PostShiftBanner(
-                    dark: isDark,
-                    text: textColor,
-                    shiftEndTime: state.shiftEndTime,
-                    onCheckOutPressed: _openClockOutModal,
-                  ),
-                  const SizedBox(height: 14),
-                ],
-
-                if (state.isTemporaryClockOut) ...[
-                  Container(
-                    padding: const EdgeInsets.all(14),
-                    decoration: BoxDecoration(
-                      color: Colors.amber.withOpacity(0.12),
-                      borderRadius: BorderRadius.circular(18),
-                      border: Border.all(color: Colors.amber.withOpacity(0.4)),
-                    ),
-                    child: Row(
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.all(8),
-                          decoration: const BoxDecoration(color: Colors.amber, shape: BoxShape.circle),
-                          child: const Icon(Icons.access_time_rounded, color: Colors.white, size: 20),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                '⚠️ Shift Incomplete (Stepped Out)',
-                                style: TextStyle(color: textColor, fontWeight: FontWeight.bold, fontSize: 12),
-                              ),
-                              const SizedBox(height: 2),
-                              Text(
-                                'You clocked out early without leave. Clock in before shift end (${state.shiftEndTime}) to resume work.',
-                                style: TextStyle(color: textColor.withOpacity(0.8), fontSize: 11),
-                              ),
-                            ],
+            // Status Banner Slot (Slim 40px warning banner)
+            AnimatedSize(
+              duration: const Duration(milliseconds: 250),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (state.error != null)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 12),
+                      child: Container(
+                        height: 40,
+                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                        decoration: BoxDecoration(
+                          color: Colors.red.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(
+                            color: Colors.red.withOpacity(0.3),
                           ),
                         ),
-                      ],
+                        child: Row(
+                          children: [
+                            const Icon(
+                              Icons.error_outline_rounded,
+                              color: Colors.red,
+                              size: 16,
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                state.error!,
+                                style: TextStyle(
+                                  color: textColor,
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                            IconButton(
+                              icon: const Icon(
+                                Icons.close_rounded,
+                                size: 16,
+                                color: Colors.red,
+                              ),
+                              onPressed: () => ref
+                                  .read(punchControllerProvider.notifier)
+                                  .clearError(),
+                              constraints: const BoxConstraints(
+                                minWidth: 28,
+                                minHeight: 28,
+                              ),
+                              padding: EdgeInsets.zero,
+                            ),
+                          ],
+                        ),
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 14),
+                  if (state.isPostShiftWarning30m(now))
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 12),
+                      child: PostShiftBanner(
+                        dark: isDark,
+                        text: textColor,
+                        shiftEndTime: state.shiftEndTime,
+                        onCheckOutPressed: _openClockOutModal,
+                      ),
+                    ),
+                  if (state.isTemporaryClockOut)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 12),
+                      child: Container(
+                        height: 40,
+                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                        decoration: BoxDecoration(
+                          color: Colors.amber.withOpacity(0.12),
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(
+                            color: Colors.amber.withOpacity(0.4),
+                          ),
+                        ),
+                        child: Row(
+                          children: [
+                            const Icon(
+                              Icons.access_time_rounded,
+                              color: Colors.amber,
+                              size: 18,
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                'Stepped out early. Clock in to resume work.',
+                                style: TextStyle(
+                                  color: textColor,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 12,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
                 ],
-
-                HeroCard(
-                  state: state,
-                  now: now,
-                  dark: isDark,
-                  text: textColor,
-                  muted: mutedColor,
-                  surface: surfaceColor,
-                  border: borderColor,
-                ),
-                const SizedBox(height: 14),
-
-                LocationSummaryCard(
-                  state: state,
-                  dark: isDark,
-                  text: textColor,
-                  muted: mutedColor,
-                  surface: surfaceColor,
-                  border: borderColor,
-                  onTap: _openLocationCheck,
-                  onRetry: () => ref.read(punchControllerProvider.notifier).refreshGps(),
-                ),
-                const SizedBox(height: 14),
-
-                _buildMetricsSection(isDark, textColor, mutedColor, surfaceColor, borderColor, now, state),
-                const SizedBox(height: 14),
-
-                _buildQuickActionButtons(isDark, textColor, borderColor),
-                const SizedBox(height: 18),
-
-                _buildTodayActivityCard(isDark, textColor, mutedColor, surfaceColor, borderColor, now, state),
-                const SizedBox(height: 24),
-
-                _buildPrimaryActionArea(state),
-
-                const SizedBox(height: 16),
-                Center(
-                  child: Text(
-                    'SERVER SYNCED  •  LIVE ATTENDANCE PROTOCOL',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      color: mutedColor,
-                      fontSize: 9,
-                      letterSpacing: 1.1,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ),
-              ],
+              ),
             ),
-          ),
-        );
+
+            // 1. ONE Unified Hero Card with Action Row embedded inside
+            HeroCard(
+              state: state,
+              dark: isDark,
+              text: textColor,
+              muted: mutedColor,
+              surface: surfaceColor,
+              border: borderColor,
+              onClockIn: _openLocationCheck,
+              onClockOut: _openClockOutModal,
+              onToggleBreak: () =>
+                  ref.read(punchControllerProvider.notifier).toggleBreak(),
+              onTapLocation: _openLocationCheck,
+            ),
+            const SizedBox(height: 12),
+
+            // 2. Quick Action Buttons (Apply Leave | Regularize)
+            _buildQuickActionButtons(isDark, textColor, borderColor),
+            const SizedBox(height: 12),
+
+            // 3. Today's Activity Timeline
+            PunchActivityTimeline(
+              state: state,
+              isDark: isDark,
+              isTodaySelected: true,
+              selectedDateDisplay: 'Today',
+              onPrevDay: () {},
+              onNextDay: () {},
+              onToday: () {},
+            ),
+            const SizedBox(height: 12),
+
+            // 4. Collapsed 30-Day Overview 4-Column Strip
+            PunchOverviewSection(
+              state: state,
+              isDark: isDark,
+              onViewAll: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => const MyAttendanceScreen(showAppBar: true),
+                  ),
+                );
+              },
+            ),
+            const SizedBox(height: 16),
+          ],
+        ),
+      ),
+    );
 
     if (!widget.showAppBar) return content;
 
@@ -472,257 +347,87 @@ class _PunchHomeState extends ConsumerState<PunchInOutScreen> {
     );
   }
 
-  Widget _buildMetricsSection(bool dark, Color text, Color muted, Color surface, Color border, DateTime now, PunchState state) {
-    final workDur = state.workDuration(now);
-    final remaining = const Duration(hours: 8) - workDur;
-    final safeRemaining = remaining.isNegative ? Duration.zero : remaining;
-    final breakDur = state.breakDuration(now);
-
-    return Row(
-      children: [
-        Expanded(
-          child: MetricTile(
-            dark: dark, text: text, muted: muted, surface: surface, border: border,
-            icon: Icons.work_history_rounded, label: 'WORKED', value: _duration(workDur), iconColor: const Color(0xFF10B981),
-          ),
-        ),
-        const SizedBox(width: 8),
-        Expanded(
-          child: MetricTile(
-            dark: dark, text: text, muted: muted, surface: surface, border: border,
-            icon: Icons.hourglass_bottom_rounded, label: 'REMAINING', value: _duration(safeRemaining), iconColor: const Color(0xFFF59E0B),
-          ),
-        ),
-        const SizedBox(width: 8),
-        Expanded(
-          child: MetricTile(
-            dark: dark, text: text, muted: muted, surface: surface, border: border,
-            icon: Icons.login_rounded, label: 'CHECK IN', value: _time(state.checkInAt), iconColor: const Color(0xFF6366F1),
-          ),
-        ),
-        const SizedBox(width: 8),
-        Expanded(
-          child: MetricTile(
-            dark: dark, text: text, muted: muted, surface: surface, border: border,
-            icon: state.checkedIn ? Icons.coffee_rounded : Icons.logout_rounded,
-            label: state.checkedIn ? 'BREAK' : 'CHECK OUT',
-            value: state.checkedIn ? _duration(breakDur) : _time(state.checkOutAt),
-            iconColor: state.checkedIn ? const Color(0xFFF59E0B) : const Color(0xFFEC4899),
-          ),
-        ),
-      ],
-    );
-  }
-
   Widget _buildQuickActionButtons(bool dark, Color text, Color border) {
     return Row(
       children: [
         Expanded(
-          child: OutlinedButton.icon(
-            onPressed: () async {
-              await Navigator.of(context).push(MaterialPageRoute(builder: (_) => const ApplyLeaveScreen()));
-              ref.read(punchControllerProvider.notifier).loadAllData();
-            },
-            icon: const Icon(Icons.umbrella_rounded, size: 16),
-            label: const Text('Apply Leave', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 12)),
-            style: OutlinedButton.styleFrom(
-              foregroundColor: text,
-              padding: const EdgeInsets.symmetric(vertical: 14),
-              side: BorderSide(color: border),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          child: SizedBox(
+            height: 40,
+            child: OutlinedButton.icon(
+              onPressed: () async {
+                await Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => const ApplyLeaveScreen()),
+                );
+                ref.read(punchControllerProvider.notifier).loadAllData();
+              },
+              icon: const Icon(
+                Icons.umbrella_rounded,
+                size: 16,
+                color: AppColors.primary,
+              ),
+              label: const Text(
+                'Apply Leave',
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 13,
+                  color: AppColors.primary,
+                ),
+              ),
+              style: OutlinedButton.styleFrom(
+                padding: const EdgeInsets.symmetric(horizontal: 8),
+                side: const BorderSide(color: AppColors.primary, width: 1.5),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10),
+                ),
+              ),
             ),
           ),
         ),
-        const SizedBox(width: 12),
+        const SizedBox(width: 10),
         Expanded(
-          child: OutlinedButton.icon(
-            onPressed: _openRegularizationModal,
-            icon: const Icon(Icons.edit_calendar_rounded, size: 16),
-            label: const Text('Regularize', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 12)),
-            style: OutlinedButton.styleFrom(
-              foregroundColor: text,
-              padding: const EdgeInsets.symmetric(vertical: 14),
-              side: BorderSide(color: border),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-            ),
-          ),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: OutlinedButton.icon(
-            onPressed: () async {
-              await Navigator.of(context).push(MaterialPageRoute(builder: (_) => const MyAttendanceScreen(showAppBar: true)));
-              ref.read(punchControllerProvider.notifier).loadAllData();
-            },
-            icon: const Icon(Icons.bar_chart_rounded, size: 16),
-            label: const Text('Attendance', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 12)),
-            style: OutlinedButton.styleFrom(
-              foregroundColor: text,
-              padding: const EdgeInsets.symmetric(vertical: 14),
-              side: BorderSide(color: border),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          child: SizedBox(
+            height: 40,
+            child: OutlinedButton.icon(
+              onPressed: _openRegularizationModal,
+              icon: const Icon(
+                Icons.edit_calendar_rounded,
+                size: 16,
+                color: AppColors.primary,
+              ),
+              label: const Text(
+                'Regularize',
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 13,
+                  color: AppColors.primary,
+                ),
+              ),
+              style: OutlinedButton.styleFrom(
+                padding: const EdgeInsets.symmetric(horizontal: 8),
+                side: const BorderSide(color: AppColors.primary, width: 1.5),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10),
+                ),
+              ),
             ),
           ),
         ),
       ],
-    );
-  }
-
-  Widget _buildTodayActivityCard(bool dark, Color text, Color muted, Color surface, Color border, DateTime now, PunchState state) {
-    final hasActivity = state.checkInAt != null;
-
-    return Container(
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: surface,
-        borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: border),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text("Today's Attendance Activity", style: TextStyle(color: text, fontSize: 15, fontWeight: FontWeight.w800)),
-          const SizedBox(height: 14),
-          if (!hasActivity)
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.symmetric(vertical: 20),
-              alignment: Alignment.center,
-              child: Column(
-                children: [
-                  Icon(Icons.event_note_rounded, size: 36, color: muted.withOpacity(0.5)),
-                  const SizedBox(height: 8),
-                  Text('No attendance recorded today yet.', style: TextStyle(color: muted, fontSize: 12)),
-                ],
-              ),
-            )
-          else ...[
-            ActivityRow(
-              dark: dark,
-              icon: Icons.login_rounded,
-              title: 'Check-In',
-              time: _time(state.checkInAt),
-              location: state.checkInLocation,
-              color: const Color(0xFF10B981),
-              text: text,
-              muted: muted,
-            ),
-            if (state.completedBreak > Duration.zero || state.isOnBreak)
-              ActivityRow(
-                dark: dark,
-                icon: Icons.coffee_rounded,
-                title: state.isOnBreak ? 'Break (Active)' : 'Break Duration',
-                time: _duration(state.breakDuration(now)),
-                location: 'Total Break Time',
-                color: const Color(0xFFF59E0B),
-                text: text,
-                muted: muted,
-              ),
-            if (state.checkOutAt != null)
-              ActivityRow(
-                dark: dark,
-                icon: Icons.logout_rounded,
-                title: 'Check-Out',
-                time: _time(state.checkOutAt),
-                location: state.checkOutLocation,
-                color: const Color(0xFFEC4899),
-                text: text,
-                muted: muted,
-              ),
-          ],
-        ],
-      ),
-    );
-  }
-
-  Widget _buildPrimaryActionArea(PunchState state) {
-    if (state.checkOutAt != null && !state.isTemporaryClockOut) {
-      return Container(
-        width: double.infinity,
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: AppColors.primary.withOpacity(0.1),
-          borderRadius: BorderRadius.circular(18),
-          border: Border.all(color: AppColors.primary.withOpacity(0.3)),
-        ),
-        child: const Text(
-          '✨ Day Complete · Shift Finished Successfully',
-          textAlign: TextAlign.center,
-          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
-        ),
-      );
-    }
-
-    if (state.isTemporaryClockOut) {
-      return PrimaryActionButton(
-        title: 'Clock In (Resume Shift)',
-        subtitle: 'Continue tracking today\'s shift',
-        icon: Icons.login_rounded,
-        isLoading: state.isActionInProgress,
-        onPressed: _openLocationCheck,
-      );
-    }
-
-    if (state.checkedIn) {
-      return Row(
-        children: [
-          Expanded(
-            child: OutlinedButton.icon(
-              onPressed: state.isActionInProgress ? null : () => ref.read(punchControllerProvider.notifier).toggleBreak(),
-              icon: Icon(state.isOnBreak ? Icons.play_arrow_rounded : Icons.pause_rounded, size: 18),
-              label: Text(state.isOnBreak ? 'End break' : 'Start break', style: const TextStyle(fontWeight: FontWeight.bold)),
-              style: OutlinedButton.styleFrom(
-                padding: const EdgeInsets.symmetric(vertical: 16),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-              ),
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: PrimaryActionButton(
-              title: 'Clock out',
-              backgroundColor: const Color(0xFFEF4444),
-              icon: Icons.logout_rounded,
-              isLoading: state.isActionInProgress,
-              onPressed: state.isOnBreak
-                  ? () => _showMessage('End your break before clocking out.', isError: true)
-                  : _openClockOutModal,
-            ),
-          ),
-        ],
-      );
-    }
-
-    return PrimaryActionButton(
-      title: 'Clock in',
-      subtitle: 'Location + selfie check',
-      icon: Icons.login_rounded,
-      isLoading: state.isActionInProgress,
-      onPressed: _openLocationCheck,
     );
   }
 }
 
 class _RegularizationModal extends StatefulWidget {
-  final String employeeId;
-  final Map<String, dynamic> todayRecord;
-  final Function(Map<String, dynamic> payload) onSubmit;
-
-  const _RegularizationModal({
-    required this.employeeId,
-    required this.todayRecord,
-    required this.onSubmit,
-  });
+  final Function(Map<String, dynamic>) onSubmit;
+  const _RegularizationModal({required this.onSubmit});
 
   @override
   State<_RegularizationModal> createState() => _RegularizationModalState();
 }
 
 class _RegularizationModalState extends State<_RegularizationModal> {
-  final _reasonController = TextEditingController();
-  DateTime _selectedDate = DateTime.now();
-  TimeOfDay _correctedCheckIn = const TimeOfDay(hour: 9, minute: 0);
-  TimeOfDay _correctedCheckOut = const TimeOfDay(hour: 18, minute: 0);
+  final TextEditingController _reasonController = TextEditingController();
+  final String _dateStr = DateTime.now().toIso8601String().substring(0, 10);
 
   @override
   void dispose() {
@@ -730,141 +435,96 @@ class _RegularizationModalState extends State<_RegularizationModal> {
     super.dispose();
   }
 
-  Future<void> _pickDate() async {
-    final picked = await showDatePicker(
-      context: context,
-      initialDate: _selectedDate,
-      firstDate: DateTime.now().subtract(const Duration(days: 60)),
-      lastDate: DateTime.now(),
-    );
-    if (picked != null) setState(() => _selectedDate = picked);
-  }
-
-  Future<void> _pickTime(bool isIn) async {
-    final picked = await showTimePicker(
-      context: context,
-      initialTime: isIn ? _correctedCheckIn : _correctedCheckOut,
-    );
-    if (picked != null) {
-      setState(() {
-        if (isIn) {
-          _correctedCheckIn = picked;
-        } else {
-          _correctedCheckOut = picked;
-        }
-      });
-    }
-  }
-
-  String _formatTimeOfDay(TimeOfDay tod) {
-    final dt = DateTime(2026, 1, 1, tod.hour, tod.minute);
-    final hour = dt.hour % 12 == 0 ? 12 : dt.hour % 12;
-    final min = dt.minute.toString().padLeft(2, '0');
-    final period = dt.hour >= 12 ? 'PM' : 'AM';
-    return '$hour:$min $period';
-  }
-
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final text = isDark ? AppColors.darkPrimaryText : AppColors.lightPrimaryText;
-    final muted = isDark ? AppColors.darkSecondaryText : AppColors.lightSecondaryText;
-    final surface = isDark ? AppColors.darkMainSurface : AppColors.lightMainSurface;
-
-    final dateStr = '${_selectedDate.year}-${_selectedDate.month.toString().padLeft(2, '0')}-${_selectedDate.day.toString().padLeft(2, '0')}';
+    final surfaceColor = isDark ? AppColors.darkMainSurface : Colors.white;
+    final textColor = isDark
+        ? AppColors.darkPrimaryText
+        : AppColors.lightPrimaryText;
 
     return Container(
-      padding: EdgeInsets.only(
-        top: 20, left: 20, right: 20,
-        bottom: MediaQuery.of(context).viewInsets.bottom + 20,
-      ),
       decoration: BoxDecoration(
-        color: surface,
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+        color: surfaceColor,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      padding: EdgeInsets.fromLTRB(
+        20,
+        20,
+        20,
+        20 + MediaQuery.viewInsetsOf(context).bottom,
       ),
       child: SingleChildScrollView(
         child: Column(
-          mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
           children: [
-            Center(
-              child: Container(
-                width: 40,
-                height: 4,
-                decoration: BoxDecoration(color: muted.withOpacity(0.3), borderRadius: BorderRadius.circular(2)),
-              ),
-            ),
-            const SizedBox(height: 16),
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text('Regularize Attendance', style: TextStyle(color: text, fontSize: 18, fontWeight: FontWeight.w900)),
-                IconButton(onPressed: () => Navigator.pop(context), icon: Icon(Icons.close_rounded, color: muted)),
-              ],
-            ),
-            const SizedBox(height: 14),
-            Row(
-              children: [
-                Text('Target Date: $dateStr', style: TextStyle(color: text, fontSize: 13, fontWeight: FontWeight.bold)),
-                const Spacer(),
-                TextButton.icon(
-                  onPressed: _pickDate,
-                  icon: const Icon(Icons.calendar_today_rounded, size: 16),
-                  label: const Text('Change Date'),
+                Text(
+                  'Attendance Regularization Request',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: textColor,
+                  ),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.close_rounded, size: 20),
+                  onPressed: () => Navigator.pop(context),
                 ),
               ],
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: TextEditingController(text: _dateStr),
+              readOnly: true,
+              decoration: InputDecoration(
+                labelText: 'Select Date',
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                suffixIcon: const Icon(Icons.calendar_today_rounded, size: 18),
+              ),
             ),
             const SizedBox(height: 12),
-            Row(
-              children: [
-                Expanded(
-                  child: OutlinedButton(
-                    onPressed: () => _pickTime(true),
-                    child: Text('In: ${_formatTimeOfDay(_correctedCheckIn)}'),
-                  ),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: OutlinedButton(
-                    onPressed: () => _pickTime(false),
-                    child: Text('Out: ${_formatTimeOfDay(_correctedCheckOut)}'),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 14),
             TextField(
               controller: _reasonController,
-              maxLines: 2,
+              maxLines: 3,
               decoration: InputDecoration(
                 labelText: 'Reason for Regularization',
-                hintText: 'Forgot to clock in, device battery died, etc...',
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                hintText: 'Explain missing clock-in/out or network issue...',
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
               ),
             ),
             const SizedBox(height: 20),
             SizedBox(
               width: double.infinity,
-              height: 50,
+              height: 48,
               child: ElevatedButton(
                 onPressed: () {
-                  final payload = {
-                    'employeeId': widget.employeeId,
-                    'date': dateStr,
-                    'correctedCheckIn': _formatTimeOfDay(_correctedCheckIn),
-                    'correctedCheckOut': _formatTimeOfDay(_correctedCheckOut),
+                  widget.onSubmit({
+                    'attendanceDate': _dateStr,
                     'reason': _reasonController.text.trim(),
-                  };
-                  widget.onSubmit(payload);
+                    'correctionType': 'MISSING_PUNCH',
+                  });
                 },
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppColors.primary,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
                 ),
-                child: const Text('SUBMIT REGULARIZATION', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                child: const Text(
+                  'Submit Request',
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+                ),
               ),
             ),
-            const SizedBox(height: 12),
           ],
         ),
       ),

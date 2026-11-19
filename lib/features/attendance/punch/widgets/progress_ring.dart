@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+
 import '../../../../core/theme/app_colors.dart';
 
 class ProgressRing extends StatelessWidget {
@@ -42,14 +43,20 @@ class ProgressRing extends StatelessWidget {
               value: progress,
               strokeWidth: 12,
               strokeCap: StrokeCap.round,
-              valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFF10B981)),
+              valueColor: const AlwaysStoppedAnimation<Color>(
+                Color(0xFF10B981),
+              ),
             ),
             Column(
               mainAxisSize: MainAxisSize.min,
               children: [
                 Text(
                   'Worked today',
-                  style: TextStyle(color: muted, fontSize: 11, fontWeight: FontWeight.w600),
+                  style: TextStyle(
+                    color: muted,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
                 const SizedBox(height: 4),
                 Semantics(
@@ -67,7 +74,11 @@ class ProgressRing extends StatelessWidget {
                 const SizedBox(height: 2),
                 Text(
                   'of 08:00:00',
-                  style: TextStyle(color: muted, fontSize: 10, fontWeight: FontWeight.w700),
+                  style: TextStyle(
+                    color: muted,
+                    fontSize: 10,
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
               ],
             ),

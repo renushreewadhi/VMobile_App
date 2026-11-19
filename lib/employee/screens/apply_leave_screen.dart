@@ -94,7 +94,7 @@ class _ApplyLeaveScreenState extends ConsumerState<ApplyLeaveScreen> with Single
     final mappedBalances = <String, Map<String, dynamic>>{};
 
     try {
-      final res = await leaveService.getLeaveBalances().catchError((_) => null);
+      final res = await leaveService.getLeaveBalances();
       if (mounted && res != null) {
         List<dynamic> rawBalances = [];
         if (res is List) {
@@ -124,7 +124,13 @@ class _ApplyLeaveScreenState extends ConsumerState<ApplyLeaveScreen> with Single
           }
         }
       }
-    } catch (_) {}
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _error = 'Failed to load leave balances: $e';
+        });
+      }
+    }
 
     // Fallback & standard HR leave types to ensure dropdown is always populated
     final standardTypes = [

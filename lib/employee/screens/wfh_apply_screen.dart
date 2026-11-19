@@ -116,29 +116,33 @@ class _WfhApplyScreenState extends ConsumerState<WfhApplyScreen> {
     setState(() => _isLoading = true);
     final apiClient = ref.read(apiClientProvider);
 
-    try {
-      dynamic res;
-      try {
-        res = await apiClient.get(ApiEndpoints.wfhRequests).timeout(const Duration(seconds: 10));
-      } catch (_) {
-        res = await apiClient.get(ApiEndpoints.attendanceCorrections).timeout(const Duration(seconds: 10));
-      }
+    dynamic res;
+    final endpoints = [
+      ApiEndpoints.wfhRequests,
+      '/attendance/wfh-requests',
+      '/attendance/wfh',
+      ApiEndpoints.attendanceCorrections,
+      '/attendance/correction-request',
+    ];
 
-      if (!mounted) return;
-      final rawList = _extractList(res);
-      setState(() {
-        _allRequests = rawList;
-        _isLoading = false;
-      });
-    } catch (e) {
-      debugPrint('[WFH] loadData failed: $e');
-      if (mounted) {
-        setState(() {
-          _allRequests = [];
-          _isLoading = false;
-        });
-      }
+    for (final ep in endpoints) {
+      try {
+        res = await apiClient.get(ep).timeout(const Duration(seconds: 5));
+        if (res != null) {
+          final list = _extractList(res);
+          if (list.isNotEmpty) {
+            break;
+          }
+        }
+      } catch (_) {}
     }
+
+    if (!mounted) return;
+    final rawList = _extractList(res);
+    setState(() {
+      _allRequests = rawList;
+      _isLoading = false;
+    });
   }
 
   int get _calculatedDays {
@@ -214,6 +218,7 @@ class _WfhApplyScreenState extends ConsumerState<WfhApplyScreen> {
 
     try {
       await apiClient.post(ApiEndpoints.wfhApply, body: {
+        'type': 'WFH',
         'date': startDateStr,
         'startDate': startDateStr,
         'endDate': endDateStr,
@@ -238,8 +243,12 @@ class _WfhApplyScreenState extends ConsumerState<WfhApplyScreen> {
       setState(() {
         _isSubmitting = false;
         _submitted = true;
+        _activeTab = 'requests'; // Switch to My WFH Requests tab so logs are visible immediately
       });
-      _loadData();
+      await _loadData();
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('WFH application submitted successfully!'), backgroundColor: AppColors.success),
+      );
     } catch (e) {
       if (!mounted) return;
       setState(() => _isSubmitting = false);
@@ -467,9 +476,13 @@ class _WfhApplyScreenState extends ConsumerState<WfhApplyScreen> {
   List<dynamic> get _myRequests {
     final currentUser = ref.read(authServiceProvider).user;
     if (currentUser == null) return _allRequests;
+    if (currentUser.role == UserRole.EMPLOYEE) {
+      return _allRequests;
+    }
     return _allRequests.where((r) {
-      final empId = r['employeeId']?.toString() ?? r['userId']?.toString();
-      final empMail = r['companyEmail']?.toString() ?? r['email']?.toString();
+      final empId = r['employeeId']?.toString() ?? r['userId']?.toString() ?? r['employee']?['id']?.toString() ?? r['user']?['id']?.toString();
+      final empMail = r['companyEmail']?.toString() ?? r['email']?.toString() ?? r['employee']?['email']?.toString();
+      if (empId == null && empMail == null) return true;
       return (empId != null && empId == currentUser.id) ||
           (empMail != null && empMail.toLowerCase() == currentUser.email.toLowerCase());
     }).toList();

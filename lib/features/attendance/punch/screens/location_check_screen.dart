@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:geolocator/geolocator.dart';
@@ -5,16 +7,18 @@ import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../../../core/theme/app_colors.dart';
-import '../../../../core/theme/glass_theme.dart';
+import '../../../../core/api/leave_service.dart';
 import '../punch_controller.dart';
 import '../punch_state.dart';
+import '../widgets/clock_out_sheet.dart';
 import 'selfie_verify_screen.dart';
 
 class LocationCheckScreen extends ConsumerStatefulWidget {
   const LocationCheckScreen({super.key});
 
   @override
-  ConsumerState<LocationCheckScreen> createState() => _LocationCheckScreenState();
+  ConsumerState<LocationCheckScreen> createState() =>
+      _LocationCheckScreenState();
 }
 
 class _LocationCheckScreenState extends ConsumerState<LocationCheckScreen> {
@@ -25,7 +29,7 @@ class _LocationCheckScreenState extends ConsumerState<LocationCheckScreen> {
   void initState() {
     super.initState();
     final state = ref.read(punchControllerProvider);
-    _wfhReasonController.text = state.wfhReason ?? '';
+    _wfhReasonController.text = state.wfhReason ?? 'Working from home today';
     WidgetsBinding.instance.addPostFrameCallback((_) {
       ref.read(punchControllerProvider.notifier).refreshGps();
     });
@@ -38,7 +42,9 @@ class _LocationCheckScreenState extends ConsumerState<LocationCheckScreen> {
   }
 
   Future<void> _openDirections(double lat, double lng) async {
-    final uri = Uri.parse('https://www.google.com/maps/search/?api=1&query=$lat,$lng');
+    final uri = Uri.parse(
+      'https://www.google.com/maps/search/?api=1&query=$lat,$lng',
+    );
     if (await canLaunchUrl(uri)) {
       await launchUrl(uri, mode: LaunchMode.externalApplication);
     } else {
@@ -54,19 +60,52 @@ class _LocationCheckScreenState extends ConsumerState<LocationCheckScreen> {
     if (_googleMapController == null) return;
     final officeLatLng = LatLng(state.officeLat, state.officeLng);
     if (!state.hasLocationFix || state.distanceFromOfficeMeters > 5000) {
-      _googleMapController?.animateCamera(CameraUpdate.newLatLngZoom(officeLatLng, 16.0));
+      _googleMapController?.animateCamera(
+        CameraUpdate.newLatLngZoom(officeLatLng, 16.0),
+      );
     } else if (state.currentPosition != null) {
-      final userLatLng = LatLng(state.currentPosition!.latitude, state.currentPosition!.longitude);
+      final userLatLng = LatLng(
+        state.currentPosition!.latitude,
+        state.currentPosition!.longitude,
+      );
       final southWest = LatLng(
-        mathMin(state.officeLat, userLatLng.latitude),
-        mathMin(state.officeLng, userLatLng.longitude),
+        math.min(state.officeLat, userLatLng.latitude),
+        math.min(state.officeLng, userLatLng.longitude),
       );
       final northEast = LatLng(
-        mathMax(state.officeLat, userLatLng.latitude),
-        mathMax(state.officeLng, userLatLng.longitude),
+        math.max(state.officeLat, userLatLng.latitude),
+        math.max(state.officeLng, userLatLng.longitude),
       );
-      _googleMapController?.animateCamera(CameraUpdate.newLatLngBounds(LatLngBounds(southwest: southWest, northeast: northEast), 80.0));
+      _googleMapController?.animateCamera(
+        CameraUpdate.newLatLngBounds(
+          LatLngBounds(southwest: southWest, northeast: northEast),
+          80.0,
+        ),
+      );
     }
+  }
+
+  void _focusOffice(PunchState state) {
+    if (_googleMapController == null) return;
+    _googleMapController?.animateCamera(
+      CameraUpdate.newLatLngZoom(
+        LatLng(state.officeLat, state.officeLng),
+        17.0,
+      ),
+    );
+  }
+
+  void _focusMe(PunchState state) {
+    if (_googleMapController == null || state.currentPosition == null) return;
+    _googleMapController?.animateCamera(
+      CameraUpdate.newLatLngZoom(
+        LatLng(
+          state.currentPosition!.latitude,
+          state.currentPosition!.longitude,
+        ),
+        18.0,
+      ),
+    );
   }
 
   @override
@@ -75,8 +114,23 @@ class _LocationCheckScreenState extends ConsumerState<LocationCheckScreen> {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final officeLatLng = LatLng(state.officeLat, state.officeLng);
     final userLatLng = state.hasLocationFix && state.currentPosition != null
-        ? LatLng(state.currentPosition!.latitude, state.currentPosition!.longitude)
+        ? LatLng(
+            state.currentPosition!.latitude,
+            state.currentPosition!.longitude,
+          )
         : officeLatLng;
+
+    // Accuracy badge color
+    Color accuracyColor = AppColors.success;
+    String accuracyLabel = 'Good';
+    final accuracyM = state.currentPosition?.accuracy ?? 0;
+    if (accuracyM > 50) {
+      accuracyColor = AppColors.error;
+      accuracyLabel = 'Poor';
+    } else if (accuracyM > 20) {
+      accuracyColor = AppColors.warning;
+      accuracyLabel = 'Fair';
+    }
 
     return Scaffold(
       body: Stack(
@@ -86,8 +140,13 @@ class _LocationCheckScreenState extends ConsumerState<LocationCheckScreen> {
               _googleMapController = controller;
               _fitCamera(state);
             },
-            initialCameraPosition: CameraPosition(target: officeLatLng, zoom: 16.0),
-            mapType: state.selectedTileType == 'Satellite' ? MapType.satellite : MapType.normal,
+            initialCameraPosition: CameraPosition(
+              target: officeLatLng,
+              zoom: 16.0,
+            ),
+            mapType: state.selectedTileType == 'Satellite'
+                ? MapType.satellite
+                : MapType.normal,
             zoomControlsEnabled: false,
             myLocationButtonEnabled: false,
             compassEnabled: true,
@@ -95,9 +154,11 @@ class _LocationCheckScreenState extends ConsumerState<LocationCheckScreen> {
               Circle(
                 circleId: const CircleId('geofence_perimeter'),
                 center: officeLatLng,
-                radius: state.geofenceRadiusMeters,
-                fillColor: const Color(0x334F46E5),
-                strokeColor: const Color(0xFF4F46E5),
+                radius: state.geofenceRadiusMeters > 0
+                    ? state.geofenceRadiusMeters
+                    : 300.0,
+                fillColor: const Color(0x330F6B66),
+                strokeColor: AppColors.primary,
                 strokeWidth: 2,
               ),
             },
@@ -105,20 +166,32 @@ class _LocationCheckScreenState extends ConsumerState<LocationCheckScreen> {
               Marker(
                 markerId: const MarkerId('office_hq'),
                 position: officeLatLng,
-                infoWindow: InfoWindow(title: '🏢 ${state.officeName}', snippet: state.officeAddress),
-                icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueViolet),
+                infoWindow: InfoWindow(
+                  title: state.officeName,
+                  snippet: state.officeAddress,
+                ),
+                icon: BitmapDescriptor.defaultMarkerWithHue(
+                  BitmapDescriptor.hueAzure,
+                ),
               ),
               if (state.hasLocationFix)
                 Marker(
                   markerId: const MarkerId('user_position'),
                   position: userLatLng,
-                  infoWindow: InfoWindow(title: '📍 YOU (LIVE GPS)', snippet: state.distanceDisplay),
+                  infoWindow: InfoWindow(
+                    title: 'YOU (LIVE GPS)',
+                    snippet: state.distanceDisplay,
+                  ),
                   icon: BitmapDescriptor.defaultMarkerWithHue(
-                    state.isWithinGeofence ? BitmapDescriptor.hueGreen : BitmapDescriptor.hueRed,
+                    state.isWithinGeofence
+                        ? BitmapDescriptor.hueGreen
+                        : BitmapDescriptor.hueRed,
                   ),
                 ),
             },
           ),
+
+          // Top Header Bar
           Positioned(
             top: MediaQuery.of(context).padding.top + 12,
             left: 16,
@@ -126,7 +199,7 @@ class _LocationCheckScreenState extends ConsumerState<LocationCheckScreen> {
             child: Row(
               children: [
                 Material(
-                  color: isDark ? const Color(0xDD1B1D1F) : const Color(0xEEFFFFFF),
+                  color: isDark ? AppColors.darkMainSurface : Colors.white,
                   borderRadius: BorderRadius.circular(14),
                   elevation: 4,
                   child: InkWell(
@@ -145,20 +218,33 @@ class _LocationCheckScreenState extends ConsumerState<LocationCheckScreen> {
                     height: 48,
                     padding: const EdgeInsets.symmetric(horizontal: 16),
                     decoration: BoxDecoration(
-                      color: isDark ? const Color(0xDD1B1D1F) : const Color(0xEEFFFFFF),
+                      color: isDark ? AppColors.darkMainSurface : Colors.white,
                       borderRadius: BorderRadius.circular(14),
-                      boxShadow: const [BoxShadow(color: Colors.black26, blurRadius: 6, offset: Offset(0, 2))],
+                      boxShadow: const [
+                        BoxShadow(
+                          color: Colors.black26,
+                          blurRadius: 6,
+                          offset: Offset(0, 2),
+                        ),
+                      ],
                     ),
                     alignment: Alignment.centerLeft,
                     child: Row(
                       children: [
-                        const Icon(Icons.apartment_rounded, size: 18, color: AppColors.primary),
+                        const Icon(
+                          Icons.apartment_rounded,
+                          size: 18,
+                          color: AppColors.primary,
+                        ),
                         const SizedBox(width: 8),
                         Expanded(
                           child: Text(
                             state.officeName,
                             overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                            style: const TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 13,
+                            ),
                           ),
                         ),
                       ],
@@ -168,24 +254,23 @@ class _LocationCheckScreenState extends ConsumerState<LocationCheckScreen> {
               ],
             ),
           ),
+
+          // Floating Map Controls (Focus Office, Focus Me, Fit Both, Map Type)
           Positioned(
             top: MediaQuery.of(context).padding.top + 72,
             right: 16,
             child: Column(
               children: [
                 _mapFloatingButton(
-                  icon: Icons.gps_fixed_rounded,
-                  tooltip: 'Refresh GPS',
-                  onTap: () => ref.read(punchControllerProvider.notifier).refreshGps(),
+                  icon: Icons.business_rounded,
+                  tooltip: 'Focus Office',
+                  onTap: () => _focusOffice(state),
                 ),
                 const SizedBox(height: 8),
                 _mapFloatingButton(
-                  icon: state.selectedTileType == 'Satellite' ? Icons.map_rounded : Icons.satellite_rounded,
-                  tooltip: 'Toggle Map Type',
-                  onTap: () {
-                    final next = state.selectedTileType == 'Satellite' ? 'Streets' : 'Satellite';
-                    ref.read(punchControllerProvider.notifier).setTileType(next);
-                  },
+                  icon: Icons.my_location_rounded,
+                  tooltip: 'Focus Me',
+                  onTap: () => _focusMe(state),
                 ),
                 const SizedBox(height: 8),
                 _mapFloatingButton(
@@ -193,19 +278,49 @@ class _LocationCheckScreenState extends ConsumerState<LocationCheckScreen> {
                   tooltip: 'Fit Both',
                   onTap: () => _fitCamera(state),
                 ),
+                const SizedBox(height: 8),
+                _mapFloatingButton(
+                  icon: state.selectedTileType == 'Satellite'
+                      ? Icons.map_rounded
+                      : Icons.satellite_rounded,
+                  tooltip: 'Toggle Map Type',
+                  onTap: () {
+                    final next = state.selectedTileType == 'Satellite'
+                        ? 'Streets'
+                        : 'Satellite';
+                    ref
+                        .read(punchControllerProvider.notifier)
+                        .setTileType(next);
+                  },
+                ),
               ],
             ),
           ),
+
+          // Bottom Geofence & Work Mode Control Sheet
           Positioned(
             bottom: 0,
             left: 0,
             right: 0,
             child: Container(
-              padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
+              padding: EdgeInsets.fromLTRB(
+                20,
+                16,
+                20,
+                24 + MediaQuery.paddingOf(context).bottom,
+              ),
               decoration: BoxDecoration(
-                color: isDark ? AppColors.darkMainSurface : AppColors.lightMainSurface,
-                borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
-                boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.15), blurRadius: 20, offset: const Offset(0, -5))],
+                color: isDark ? AppColors.darkMainSurface : Colors.white,
+                borderRadius: const BorderRadius.vertical(
+                  top: Radius.circular(28),
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.15),
+                    blurRadius: 20,
+                    offset: const Offset(0, -5),
+                  ),
+                ],
               ),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
@@ -227,19 +342,31 @@ class _LocationCheckScreenState extends ConsumerState<LocationCheckScreen> {
                       Expanded(
                         child: Text(
                           state.officeName,
-                          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w900),
+                          style: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w900,
+                          ),
                         ),
                       ),
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 4,
+                        ),
                         decoration: BoxDecoration(
-                          color: (state.isWithinGeofence ? const Color(0xFF10B981) : AppColors.error).withOpacity(0.15),
+                          color:
+                              (state.isWithinGeofence
+                                      ? AppColors.success
+                                      : AppColors.error)
+                                  .withOpacity(0.15),
                           borderRadius: BorderRadius.circular(12),
                         ),
                         child: Text(
                           state.isWithinGeofence ? 'Inside' : 'Outside',
                           style: TextStyle(
-                            color: state.isWithinGeofence ? const Color(0xFF10B981) : AppColors.error,
+                            color: state.isWithinGeofence
+                                ? AppColors.success
+                                : AppColors.error,
                             fontWeight: FontWeight.bold,
                             fontSize: 11,
                           ),
@@ -250,9 +377,15 @@ class _LocationCheckScreenState extends ConsumerState<LocationCheckScreen> {
                   const SizedBox(height: 4),
                   Text(
                     state.officeAddress,
-                    style: TextStyle(color: Colors.grey[600], fontSize: 11, height: 1.3),
+                    style: TextStyle(
+                      color: Colors.grey[600],
+                      fontSize: 11,
+                      height: 1.3,
+                    ),
                   ),
                   const SizedBox(height: 14),
+
+                  // Distance & Accuracy Row
                   Row(
                     children: [
                       Expanded(
@@ -266,7 +399,8 @@ class _LocationCheckScreenState extends ConsumerState<LocationCheckScreen> {
                       Expanded(
                         child: _statBox(
                           label: 'radius',
-                          value: '${state.geofenceRadiusMeters.round()} m',
+                          value:
+                              '${state.geofenceRadiusMeters > 0 ? state.geofenceRadiusMeters.round() : 300} m',
                           icon: Icons.radar_rounded,
                         ),
                       ),
@@ -275,58 +409,73 @@ class _LocationCheckScreenState extends ConsumerState<LocationCheckScreen> {
                         child: _statBox(
                           label: 'GPS accuracy',
                           value: state.currentPosition != null
-                              ? '±${state.currentPosition!.accuracy.round()} m'
+                              ? '±${state.currentPosition!.accuracy.round()} m ($accuracyLabel)'
                               : '-- m',
                           icon: Icons.gps_fixed_rounded,
+                          accentColor: accuracyColor,
                         ),
                       ),
                     ],
                   ),
                   const SizedBox(height: 14),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: ChoiceChip(
-                          label: const Text('Office Mode'),
-                          selected: state.workMode == 'OFFICE',
-                          onSelected: (_) => ref.read(punchControllerProvider.notifier).setWorkMode('OFFICE'),
-                          selectedColor: AppColors.primary,
-                          labelStyle: TextStyle(
-                            color: state.workMode == 'OFFICE' ? Colors.white : null,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 12,
+
+                  // SegmentedButton Work Mode ("Office" | "Work From Home")
+                  Semantics(
+                    label: 'Select work mode',
+                    child: SizedBox(
+                      width: double.infinity,
+                      child: SegmentedButton<String>(
+                        segments: const [
+                          ButtonSegment(
+                            value: 'OFFICE',
+                            label: Text('Office Mode'),
+                            icon: Icon(Icons.apartment_rounded, size: 16),
+                          ),
+                          ButtonSegment(
+                            value: 'WORK_FROM_HOME',
+                            label: Text('Work From Home'),
+                            icon: Icon(Icons.home_rounded, size: 16),
+                          ),
+                        ],
+                        selected: {state.normalizedWorkMode},
+                        onSelectionChanged: (selection) {
+                          ref
+                              .read(punchControllerProvider.notifier)
+                              .setWorkMode(selection.first);
+                        },
+                        style: ButtonStyle(
+                          shape: MaterialStateProperty.all(
+                            RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(14),
+                            ),
                           ),
                         ),
                       ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: ChoiceChip(
-                          label: const Text('Work From Home'),
-                          selected: state.workMode == 'WFH',
-                          onSelected: (_) => ref.read(punchControllerProvider.notifier).setWorkMode('WFH'),
-                          selectedColor: AppColors.primary,
-                          labelStyle: TextStyle(
-                            color: state.workMode == 'WFH' ? Colors.white : null,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 12,
-                          ),
-                        ),
-                      ),
-                    ],
+                    ),
                   ),
-                  if (state.workMode == 'WFH') ...[
-                    const SizedBox(height: 10),
+
+                  if (state.normalizedWorkMode == 'WORK_FROM_HOME') ...[
+                    const SizedBox(height: 12),
                     TextField(
                       controller: _wfhReasonController,
-                      onChanged: (val) => ref.read(punchControllerProvider.notifier).setWfhReason(val),
+                      onChanged: (val) => ref
+                          .read(punchControllerProvider.notifier)
+                          .setWfhReason(val),
                       decoration: InputDecoration(
                         labelText: 'Reason for WFH (Required)',
-                        hintText: 'Enter remote work reason...',
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                        hintText: 'Working from home today',
+                        helperText: 'Provide a reason for manager review',
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 14,
+                          vertical: 12,
+                        ),
                       ),
                     ),
                   ],
+
                   if (state.gpsStatus == GpsStatus.serviceDisabled ||
                       state.gpsStatus == GpsStatus.denied ||
                       state.gpsStatus == GpsStatus.deniedForever) ...[
@@ -334,12 +483,16 @@ class _LocationCheckScreenState extends ConsumerState<LocationCheckScreen> {
                     Container(
                       padding: const EdgeInsets.all(10),
                       decoration: BoxDecoration(
-                        color: Colors.orange.withOpacity(0.12),
-                        borderRadius: BorderRadius.circular(10),
+                        color: AppColors.warningBg,
+                        borderRadius: BorderRadius.circular(12),
                       ),
                       child: Row(
                         children: [
-                          const Icon(Icons.warning_amber_rounded, color: Colors.orange, size: 20),
+                          const Icon(
+                            Icons.warning_amber_rounded,
+                            color: AppColors.warning,
+                            size: 20,
+                          ),
                           const SizedBox(width: 8),
                           Expanded(
                             child: Text(
@@ -349,22 +502,28 @@ class _LocationCheckScreenState extends ConsumerState<LocationCheckScreen> {
                           ),
                           TextButton(
                             onPressed: () async {
-                              if (state.gpsStatus == GpsStatus.serviceDisabled) {
+                              if (state.gpsStatus ==
+                                  GpsStatus.serviceDisabled) {
                                 await Geolocator.openLocationSettings();
                               } else if (state.gpsStatus == GpsStatus.denied) {
                                 await Geolocator.requestPermission();
-                              } else if (state.gpsStatus == GpsStatus.deniedForever) {
+                              } else if (state.gpsStatus ==
+                                  GpsStatus.deniedForever) {
                                 await Geolocator.openAppSettings();
                               }
-                              ref.read(punchControllerProvider.notifier).refreshGps();
+                              ref
+                                  .read(punchControllerProvider.notifier)
+                                  .refreshGps();
                             },
                             child: Text(
                               state.gpsStatus == GpsStatus.serviceDisabled
                                   ? 'Turn on'
                                   : state.gpsStatus == GpsStatus.denied
-                                      ? 'Allow'
-                                      : 'Settings',
-                              style: const TextStyle(fontWeight: FontWeight.bold),
+                                  ? 'Allow'
+                                  : 'Settings',
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                              ),
                             ),
                           ),
                         ],
@@ -372,52 +531,28 @@ class _LocationCheckScreenState extends ConsumerState<LocationCheckScreen> {
                     ),
                   ],
                   const SizedBox(height: 16),
+
                   Row(
                     children: [
                       Expanded(
                         child: OutlinedButton.icon(
-                          onPressed: () => _openDirections(state.officeLat, state.officeLng),
+                          onPressed: () =>
+                              _openDirections(state.officeLat, state.officeLng),
                           icon: const Icon(Icons.directions_rounded, size: 18),
-                          label: const Text('Directions', style: TextStyle(fontWeight: FontWeight.bold)),
+                          label: const Text(
+                            'Directions',
+                            style: TextStyle(fontWeight: FontWeight.bold),
+                          ),
                           style: OutlinedButton.styleFrom(
                             padding: const EdgeInsets.symmetric(vertical: 14),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(14),
+                            ),
                           ),
                         ),
                       ),
                       const SizedBox(width: 12),
-                      Expanded(
-                        flex: 2,
-                        child: ElevatedButton(
-                          onPressed: (state.workMode == 'OFFICE' && !state.hasLocationFix)
-                              ? () => ref.read(punchControllerProvider.notifier).refreshGps()
-                              : (state.workMode == 'OFFICE' && !state.isWithinGeofence) ||
-                                      (state.workMode == 'WFH' && (state.wfhReason == null || state.wfhReason!.trim().isEmpty))
-                                  ? null
-                                  : () {
-                                      Navigator.of(context).push(
-                                        MaterialPageRoute(builder: (_) => const SelfieVerifyScreen()),
-                                      );
-                                    },
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: state.workMode == 'OFFICE' && !state.hasLocationFix ? Colors.amber.shade800 : AppColors.primary,
-                            disabledBackgroundColor: Colors.grey.withOpacity(0.3),
-                            foregroundColor: Colors.white,
-                            padding: const EdgeInsets.symmetric(vertical: 14),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                          ),
-                          child: Text(
-                            state.workMode == 'OFFICE' && !state.hasLocationFix
-                                ? (state.isLocating ? 'Locating...' : 'Retry location')
-                                : state.workMode == 'OFFICE' && !state.isWithinGeofence
-                                    ? 'Move closer to office'
-                                    : state.workMode == 'WFH' && (state.wfhReason == null || state.wfhReason!.trim().isEmpty)
-                                        ? 'Enter WFH reason'
-                                        : 'Continue to selfie →',
-                            style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 13),
-                          ),
-                        ),
-                      ),
+                      Expanded(flex: 2, child: _buildActionButton(state)),
                     ],
                   ),
                 ],
@@ -429,46 +564,197 @@ class _LocationCheckScreenState extends ConsumerState<LocationCheckScreen> {
     );
   }
 
-  Widget _mapFloatingButton({required IconData icon, required String tooltip, required VoidCallback onTap}) {
-    return Material(
-      color: Colors.white,
-      borderRadius: BorderRadius.circular(12),
-      elevation: 4,
-      child: Tooltip(
-        message: tooltip,
-        child: InkWell(
-          onTap: onTap,
-          borderRadius: BorderRadius.circular(12),
-          child: SizedBox(
-            width: 42,
-            height: 42,
-            child: Icon(icon, color: AppColors.primary, size: 20),
+  Widget _buildActionButton(PunchState state) {
+    final String buttonLabel;
+    final VoidCallback? buttonAction;
+    final IconData buttonIcon;
+    final Color buttonBgColor;
+
+    if (state.isCheckedOut && !state.isTemporaryClockOut) {
+      buttonLabel = 'Shift Completed Today';
+      buttonAction = null;
+      buttonIcon = Icons.check_circle_rounded;
+      buttonBgColor = AppColors.success;
+    } else if (state.isTemporaryClockOut) {
+      buttonLabel = 'Resume Shift (Photo)';
+      buttonAction = () {
+        Navigator.of(
+          context,
+        ).push(MaterialPageRoute(builder: (_) => const SelfieVerifyScreen()));
+      };
+      buttonIcon = Icons.camera_alt_rounded;
+      buttonBgColor = AppColors.primary;
+    } else if (state.checkedIn) {
+      buttonLabel = 'Clock Out';
+      buttonAction = () => _openClockOutModal(state);
+      buttonIcon = Icons.logout_rounded;
+      buttonBgColor = AppColors.error;
+    } else {
+      buttonLabel = 'Continue to Photo Verification';
+      buttonAction = () {
+        Navigator.of(
+          context,
+        ).push(MaterialPageRoute(builder: (_) => const SelfieVerifyScreen()));
+      };
+      buttonIcon = Icons.arrow_forward_rounded;
+      buttonBgColor = AppColors.primary;
+    }
+
+    return Semantics(
+      button: true,
+      label: buttonLabel,
+      child: ElevatedButton.icon(
+        onPressed: buttonAction,
+        icon: Icon(buttonIcon, size: 18),
+        label: Text(
+          buttonLabel,
+          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+        ),
+        style: ElevatedButton.styleFrom(
+          backgroundColor: buttonBgColor,
+          foregroundColor: Colors.white,
+          padding: const EdgeInsets.symmetric(vertical: 14),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(14),
           ),
         ),
       ),
     );
   }
 
-  Widget _statBox({required String label, required String value, required IconData icon}) {
-    return Container(
-      padding: const EdgeInsets.all(10),
-      decoration: BoxDecoration(
-        color: Colors.grey.withOpacity(0.08),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.grey.withOpacity(0.2)),
-      ),
-      child: Column(
-        children: [
-          Icon(icon, size: 16, color: AppColors.primary),
-          const SizedBox(height: 4),
-          Text(value, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 13)),
-          const SizedBox(height: 2),
-          Text(label, style: TextStyle(color: Colors.grey[600], fontSize: 9, fontWeight: FontWeight.bold)),
-        ],
+  void _openClockOutModal(PunchState state) async {
+    final now = DateTime.now();
+    final workedHours = state.workedHours(now);
+    final requiredHours = state.minWorkHours;
+
+    List<dynamic> balances = [];
+    try {
+      final leaveService = ref.read(leaveServiceProvider);
+      final res = await leaveService.getLeaveBalances();
+      if (res is List) {
+        balances = res;
+      } else if (res is Map && res['data'] is List) {
+        balances = res['data'];
+      }
+    } catch (_) {}
+
+    if (!mounted) return;
+
+    showDialog(
+      context: context,
+      barrierDismissible: true,
+      barrierColor: Colors.black.withAlpha(140),
+      builder: (ctx) => Dialog(
+        backgroundColor: Colors.transparent,
+        insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+        child: ClockOutSheet(
+          workedHours: workedHours,
+          requiredHours: requiredHours,
+          pendingHours: state.leavePendingHours(now),
+          workedFormatted: state.workedTimeFormatted(now),
+          requiredFormatted: '${requiredHours.toInt()}h 00m',
+          pendingFormatted: state.leavePendingHoursFormatted(now),
+          leaveBalances: balances,
+          onConfirm: (applyLeave, leaveType, reason) async {
+            Navigator.pop(ctx);
+            final controller = ref.read(punchControllerProvider.notifier);
+            final pending = state.leavePendingHours(now);
+            if (applyLeave && pending > 0.02) {
+              await controller.clockOut(
+                applyLeave: true,
+                leaveType: leaveType ?? 'Unpaid Leave',
+                leaveReason: reason,
+              );
+            } else if (pending > 0.02) {
+              await controller.clockOut(isTemporary: true);
+            } else {
+              await controller.clockOut(isTemporary: false, applyLeave: false);
+            }
+          },
+          onCancel: () => Navigator.pop(ctx),
+        ),
       ),
     );
   }
 
-  double mathMin(double a, double b) => a < b ? a : b;
-  double mathMax(double a, double b) => a > b ? a : b;
+  Widget _mapFloatingButton({
+    required IconData icon,
+    required String tooltip,
+    required VoidCallback onTap,
+  }) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return Material(
+      color: isDark ? AppColors.darkMainSurface : Colors.white,
+      borderRadius: BorderRadius.circular(12),
+      elevation: 4,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(12),
+        child: SizedBox(
+          width: 42,
+          height: 42,
+          child: Icon(icon, size: 20, color: AppColors.primary),
+        ),
+      ),
+    );
+  }
+
+  Widget _statBox({
+    required String label,
+    required String value,
+    required IconData icon,
+    Color? accentColor,
+  }) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return Container(
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: isDark
+            ? AppColors.darkSecondarySurface
+            : AppColors.lightSecondarySurface,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(icon, size: 13, color: accentColor ?? AppColors.primary),
+              const SizedBox(width: 4),
+              Expanded(
+                child: Text(
+                  label.toUpperCase(),
+                  style: TextStyle(
+                    fontSize: 9.5,
+                    fontWeight: FontWeight.bold,
+                    color: isDark
+                        ? AppColors.darkMutedText
+                        : AppColors.lightMutedText,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Text(
+            value,
+            style: TextStyle(
+              fontSize: 12.5,
+              fontWeight: FontWeight.w800,
+              color:
+                  accentColor ??
+                  (isDark
+                      ? AppColors.darkPrimaryText
+                      : AppColors.lightPrimaryText),
+            ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ],
+      ),
+    );
+  }
 }

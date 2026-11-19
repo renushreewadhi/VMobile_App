@@ -27,8 +27,15 @@ class PostShiftBanner extends StatelessWidget {
         children: [
           Container(
             padding: const EdgeInsets.all(8),
-            decoration: const BoxDecoration(color: Color(0xFFEF4444), shape: BoxShape.circle),
-            child: const Icon(Icons.warning_amber_rounded, color: Colors.white, size: 20),
+            decoration: const BoxDecoration(
+              color: Color(0xFFEF4444),
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(
+              Icons.warning_amber_rounded,
+              color: Colors.white,
+              size: 20,
+            ),
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -37,7 +44,11 @@ class PostShiftBanner extends StatelessWidget {
               children: [
                 Text(
                   '⏰ Missed Check-Out Warning (30+ Mins Post-Shift)',
-                  style: TextStyle(color: text, fontWeight: FontWeight.bold, fontSize: 12),
+                  style: TextStyle(
+                    color: text,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 12,
+                  ),
                 ),
                 const SizedBox(height: 2),
                 Text(
@@ -53,9 +64,14 @@ class PostShiftBanner extends StatelessWidget {
               backgroundColor: const Color(0xFFEF4444),
               foregroundColor: Colors.white,
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
             ),
-            child: const Text('Check Out', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold)),
+            child: const Text(
+              'Check Out',
+              style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold),
+            ),
           ),
         ],
       ),

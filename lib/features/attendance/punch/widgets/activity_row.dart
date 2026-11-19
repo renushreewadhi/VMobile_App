@@ -44,18 +44,23 @@ class ActivityRow extends StatelessWidget {
               children: [
                 Text(
                   title,
-                  style: TextStyle(color: text, fontWeight: FontWeight.w800, fontSize: 13),
+                  style: TextStyle(
+                    color: text,
+                    fontWeight: FontWeight.w800,
+                    fontSize: 13,
+                  ),
                 ),
-                Text(
-                  location,
-                  style: TextStyle(color: muted, fontSize: 10),
-                ),
+                Text(location, style: TextStyle(color: muted, fontSize: 10)),
               ],
             ),
           ),
           Text(
             time,
-            style: TextStyle(color: text, fontWeight: FontWeight.w800, fontSize: 12),
+            style: TextStyle(
+              color: text,
+              fontWeight: FontWeight.w800,
+              fontSize: 12,
+            ),
           ),
         ],
       ),
