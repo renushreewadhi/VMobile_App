@@ -6,6 +6,7 @@ import '../../../../core/theme/glass_theme.dart';
 import '../../../../core/widgets/glass_scaffold.dart';
 import '../../../../core/api/leave_service.dart';
 import '../../../../employee/screens/apply_leave_screen.dart';
+import '../../../../employee/screens/break_tracker_screen.dart';
 import '../../../../employee/screens/my_attendance_screen.dart';
 import '../clock_ticker.dart';
 import '../punch_controller.dart';
@@ -51,6 +52,15 @@ class _PunchHomeState extends ConsumerState<PunchInOutScreen> {
   void _openLocationCheck() {
     Navigator.of(context)
         .push(MaterialPageRoute(builder: (_) => const LocationCheckScreen()));
+  }
+
+  void _openBreakTracker() async {
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => const BreakTrackerScreen(showAppBar: true),
+      ),
+    );
+    ref.read(punchControllerProvider.notifier).loadAllData();
   }
 
   void _openClockOutModal() async {
@@ -298,8 +308,7 @@ class _PunchHomeState extends ConsumerState<PunchInOutScreen> {
               border: borderColor,
               onClockIn: _openLocationCheck,
               onClockOut: _openClockOutModal,
-              onToggleBreak: () =>
-                  ref.read(punchControllerProvider.notifier).toggleBreak(),
+              onToggleBreak: _openBreakTracker,
               onTapLocation: _openLocationCheck,
             ),
             const SizedBox(height: 12),

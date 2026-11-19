@@ -607,10 +607,6 @@ class PunchController extends StateNotifier<PunchState>
         todayRecord = Map<String, dynamic>.from(record);
 
         final notes = record['notes']?.toString() ?? '';
-        isTempOut =
-            record['isTemporaryClockOut'] == true ||
-            notes.contains('[TEMPORARY_CLOCKOUT]');
-
         final checkInStr = _extractFirst(record, [
           'checkIn',
           'checkInTime',
@@ -629,6 +625,41 @@ class PunchController extends StateNotifier<PunchState>
           'checkOutAt',
           'outTime',
         ]);
+
+        final breakMinsVal =
+            record['totalBreakMinutes'] ??
+            record['breakMinutes'] ??
+            record['breakDurationMinutes'];
+        double breakMinutesNum = _parseDouble(breakMinsVal, 0.0);
+
+        checkInAt = _parseDateTime(checkInStr);
+        checkOutAt = _parseDateTime(checkOutStr);
+
+        final workSecs =
+            record['totalWorkSeconds'] ??
+            record['workSeconds'] ??
+            record['workedSeconds'];
+        final workHoursVal = record['workHours'] ?? record['workedHours'];
+        double pWorkedHours = workHoursVal != null
+            ? _parseDouble(workHoursVal, 0.0)
+            : (workSecs != null
+                  ? _parseDouble(workSecs, 0.0) / 3600.0
+                  : (checkInAt != null && checkOutAt != null
+                        ? checkOutAt.difference(checkInAt).inSeconds / 3600.0 -
+                              (breakMinutesNum * 60) / 3600.0
+                        : 0.0));
+        if (pWorkedHours < 0) pWorkedHours = 0.0;
+
+        final isDeficit = (minWorkHours - pWorkedHours) > 0.05;
+        final isLeaveApplied =
+            record['isLeaveApplied'] == true ||
+            record['appliedLeave'] == true ||
+            notes.contains('[LEAVE_APPLIED]');
+
+        isTempOut =
+            record['isTemporaryClockOut'] == true ||
+            notes.contains('[TEMPORARY_CLOCKOUT]') ||
+            (checkOutAt != null && isDeficit && !isLeaveApplied);
 
         final statusStr = _extractFirst(record, [
           'status',
@@ -657,12 +688,6 @@ class PunchController extends StateNotifier<PunchState>
           'checkOutLocation',
           'checkOutAddress',
         ]);
-
-        final breakMinsVal =
-            record['totalBreakMinutes'] ??
-            record['breakMinutes'] ??
-            record['breakDurationMinutes'];
-        double breakMinutesNum = _parseDouble(breakMinsVal, 0.0);
 
         checkInAt = _parseDateTime(checkInStr);
         checkOutAt = _parseDateTime(checkOutStr);
